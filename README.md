@@ -122,7 +122,7 @@ npm run test:contract
 
 ## Producción
 
-`npm run build` genera `dist/frontend_marketplace_moda/browser`. El servidor web debe servir `index.html` para rutas del frontend y reenviar `/api/v1` al backend. La compilación reemplaza el archivo de ambiente por `environment.prod.ts`. El proxy de Angular solo funciona durante desarrollo; no forma parte de la compilación publicada.
+`npm run build` genera `dist/browser`. El servidor web debe servir `index.html` para rutas del frontend y reenviar `/api/v1` al backend. La compilación reemplaza el archivo de ambiente por `environment.prod.ts`. El proxy de Angular solo funciona durante desarrollo; no forma parte de la compilación publicada.
 
 ## Fuente documental
 
