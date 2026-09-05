@@ -1,0 +1,140 @@
+import { Routes } from '@angular/router';
+import { authGuard } from '../../features/auth/presentation/auth.guard';
+import { resources } from './shared/resources';
+import { addressesResource } from '../../features/usuarios-catalogo/application/resources';
+
+const auth = () =>
+  import('../../features/auth/presentation/auth-page.component').then((m) => m.AuthPageComponent);
+const resource = () =>
+  import('../../shared/resource-page.component').then((m) => m.ResourcePageComponent);
+export const routes: Routes = [
+  {
+    path: '',
+    title: 'FashionStore | Tu estilo',
+    loadComponent: () =>
+      import('../../features/usuarios-catalogo/presentation/catalog-page.component').then(
+        (m) => m.CatalogPageComponent,
+      ),
+  },
+  {
+    path: 'prendas/:slug',
+    title: 'Prenda | FashionStore',
+    loadComponent: () =>
+      import('../../features/usuarios-catalogo/presentation/product-page.component').then(
+        (m) => m.ProductPageComponent,
+      ),
+  },
+  {
+    path: 'sucursales',
+    title: 'Sucursales | FashionStore',
+    loadComponent: () =>
+      import('../../features/inventario-sucursales/presentation/branches-page.component').then(
+        (m) => m.BranchesPageComponent,
+      ),
+  },
+  {
+    path: 'iniciar-sesion',
+    title: 'Iniciar sesión | FashionStore',
+    loadComponent: auth,
+    data: { mode: 'login' },
+  },
+  {
+    path: 'registrarse',
+    title: 'Crear cuenta | FashionStore',
+    loadComponent: auth,
+    data: { mode: 'register' },
+  },
+  {
+    path: 'recuperar-contrasena',
+    title: 'Recuperar contraseña | FashionStore',
+    loadComponent: auth,
+    data: { mode: 'forgot' },
+  },
+  {
+    path: 'verificar-correo',
+    title: 'Verificar correo | FashionStore',
+    loadComponent: auth,
+    data: { mode: 'verify' },
+  },
+  {
+    path: 'reenviar-verificacion',
+    title: 'Verificación | FashionStore',
+    loadComponent: auth,
+    data: { mode: 'resend' },
+  },
+  {
+    path: 'cambiar-contrasena',
+    title: 'Cambiar contraseña | FashionStore',
+    loadComponent: auth,
+    canActivate: [authGuard],
+    data: { mode: 'change' },
+  },
+  {
+    path: 'mi-cuenta',
+    title: 'Mi cuenta | FashionStore',
+    loadComponent: () =>
+      import('../../features/auth/presentation/account-page.component').then(
+        (m) => m.AccountPageComponent,
+      ),
+    canActivate: [authGuard],
+  },
+  {
+    path: 'mi-cuenta/direcciones',
+    title: 'Mis direcciones | FashionStore',
+    loadComponent: resource,
+    canActivate: [authGuard],
+    data: { resource: addressesResource },
+  },
+  {
+    path: 'admin',
+    loadComponent: () =>
+      import('./layout/admin-layout.component').then((m) => m.AdminLayoutComponent),
+    canActivate: [authGuard],
+    children: [
+      {
+        path: '',
+        title: 'Administración | FashionStore',
+        loadComponent: () =>
+          import('./layout/admin-home.component').then((m) => m.AdminHomeComponent),
+      },
+      ...resources.map((r) => ({
+        path: r.key,
+        title: r.title + ' | FashionStore',
+        loadComponent: resource,
+        canActivate: [authGuard],
+        data: { resource: r, permission: r.permission },
+      })),
+      {
+        path: 'products/:id',
+        title: 'Recursos de la prenda | FashionStore',
+        loadComponent: () =>
+          import('../../features/usuarios-catalogo/presentation/product-editor.component').then(
+            (m) => m.ProductEditorComponent,
+          ),
+        canActivate: [authGuard],
+        data: { permission: 'catalog.read' },
+      },
+      {
+        path: 'bitacora',
+        title: 'Bitácora | FashionStore',
+        loadComponent: () =>
+          import('../../features/usuarios-catalogo/presentation/audit-page.component').then(
+            (m) => m.AuditPageComponent,
+          ),
+        canActivate: [authGuard],
+        data: { permission: 'audit.read' },
+      },
+    ],
+  },
+  {
+    path: 'sin-acceso',
+    loadComponent: () =>
+      import('./layout/status-page.component').then((m) => m.StatusPageComponent),
+    data: { forbidden: true },
+  },
+  {
+    path: '**',
+    loadComponent: () =>
+      import('./layout/status-page.component').then((m) => m.StatusPageComponent),
+  },
+];
