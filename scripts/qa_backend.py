@@ -16,6 +16,9 @@ os.environ['APP_ENV'] = 'development'
 os.environ['JWT_SECRET_KEY'] = secrets.token_urlsafe(48)
 os.environ['SMTP_HOST'] = ''
 os.environ['FRONTEND_URL'] = 'http://127.0.0.1:4201'
+os.environ['STRIPE_SECRET_KEY'] = ''
+os.environ['STRIPE_WEBHOOK_SECRET'] = ''
+os.environ['AI_API_KEY'] = ''
 
 from sqlalchemy import DateTime, create_engine, event
 from sqlalchemy.types import TypeDecorator
@@ -31,6 +34,7 @@ from src.roles.infrastructure.persistence.models.permission import PermissionMod
 from src.auth.application.services.auth_email_service import AuthEmailService
 from src.usuarios_catalogo.infrastructure.models.catalog import CategoryModel, SizeModel, ColorModel, ProductModel, ProductVariantModel, ProductImageModel
 from src.inventario_sucursales.infrastructure.models.organization import CityModel, BranchModel
+from src.ventas_pagos.infrastructure.models import StockModel
 
 
 class SQLiteUTC(TypeDecorator):
@@ -74,6 +78,7 @@ AuthEmailService.send_password_reset = capture_reset
 with Sessions() as db:
     codes = ['users.read','users.write','roles.read','roles.write','audit.read','catalog.read','catalog.write','suppliers.read','suppliers.write','branches.read','branches.write']
     permissions = [PermissionModel(code=code, name=code, module=code.split('.')[0]) for code in codes]
+    permissions.extend(PermissionModel(code=code, name=code, module=code.split('.')[0]) for code in ['commerce.read','commerce.write','stock.read','stock.write','dashboard.read'])
     admin = RoleModel(code='superadmin', name='Administrador de prueba', is_system=True, permissions=permissions)
     client = RoleModel(code='client', name='Cliente de prueba', is_system=True)
     hasher = PasswordHasher()
@@ -94,6 +99,9 @@ with Sessions() as db:
     product.images = [ProductImageModel(url='http://127.0.0.1:4201/assets/prenda-demo.svg',alt_text='Ilustración de una remera color arena',sort_order=0,is_primary=True)]
     db.add(product)
     db.add(BranchModel(code='DEMO-01',name='Sucursal de demostración',city_id=city.id,address='Dirección ficticia para pruebas',opening_hours={'monday':{'open':'09:00','close':'18:00'}}))
+    db.commit()
+    branch = db.query(BranchModel).filter_by(code='DEMO-01').one()
+    db.add(StockModel(variant_id=product.variants[0].id, branch_id=branch.id, quantity=12))
     db.commit()
 
 def test_db():

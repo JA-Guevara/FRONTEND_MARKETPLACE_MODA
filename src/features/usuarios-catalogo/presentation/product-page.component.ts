@@ -39,6 +39,13 @@ import { errorMessage } from '../../../shared/errors';
               </button>
             }
           </div>
+          @if (p.images.length > 1) {
+            <div class="gallery-controls" aria-label="Controles de imágenes">
+              <button (click)="moveImage(-1)" aria-label="Imagen anterior">← Anterior</button>
+              <span aria-live="polite">{{ imageIndex() + 1 }} / {{ p.images.length }}</span>
+              <button (click)="moveImage(1)" aria-label="Imagen siguiente">Siguiente →</button>
+            </div>
+          }
         </div>
         <div>
           <p class="eyebrow">{{ p.category['name'] }} / {{ p.brand || 'FASHIONSTORE' }}</p>
@@ -86,6 +93,12 @@ export class ProductPageComponent {
   selectedImage = signal('');
   error = signal('');
   loading = signal(true);
+  imageIndex() { return Math.max(0, this.product()?.images.findIndex(image => image['url'] === this.selectedImage()) ?? 0); }
+  moveImage(direction: number) {
+    const images = this.product()?.images || [];
+    if (!images.length) return;
+    this.selectedImage.set(images[(this.imageIndex() + direction + images.length) % images.length]['url']);
+  }
   constructor() {
     this.route.paramMap
       .pipe(

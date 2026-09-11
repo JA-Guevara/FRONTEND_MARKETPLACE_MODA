@@ -19,7 +19,7 @@ export class DialogFocusDirective implements AfterViewInit, OnDestroy {
       this.host.nativeElement.querySelectorAll<HTMLElement>(
         'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]',
       ),
-    );
+    ).filter(element => !element.closest('[hidden], [inert]'));
   }
   ngAfterViewInit() {
     queueMicrotask(() => this.controls()[0]?.focus());

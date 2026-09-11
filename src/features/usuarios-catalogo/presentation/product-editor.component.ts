@@ -6,12 +6,13 @@ import { ApiService } from '../../../app/core/shared/api.service';
 import { SessionService } from '../../auth/application/session.service';
 import { Field } from '../../../shared/form-schema';
 import { EntityFormComponent } from '../../../shared/entity-form.component';
+import { ImageFormComponent } from '../../../shared/image-form.component';
 import { Entity, Product } from '../domain/catalog.models';
 import { errorMessage } from '../../../shared/errors';
 import { lookup } from '../application/resources';
 @Component({
   selector: 'fs-product-editor',
-  imports: [RouterLink, EntityFormComponent, DialogFocusDirective],
+  imports: [RouterLink, EntityFormComponent, ImageFormComponent, DialogFocusDirective],
   template: `
     <a routerLink="/admin/products" class="back-link">← Todas las prendas</a>
     <div class="page-heading">
@@ -46,7 +47,29 @@ import { lookup } from '../application/resources';
         @if (section === 'suppliers') {
           <p class="muted">La lista se guarda completa. Solo un proveedor puede ser principal.</p>
         }
-        <div class="table-wrap">
+        @if (section === 'images') {
+          <div class="image-gallery" aria-label="Galería de la prenda">
+            @for (item of rows(); track item.id) {
+              <article class="image-card">
+                <img [src]="item['url']" [alt]="item['alt_text'] || p.name" loading="lazy" />
+                <div>
+                  <span class="badge">{{ item['is_primary'] ? 'Principal' : 'Secundaria' }}</span>
+                  <p>{{ item['alt_text'] || 'Sin descripción' }}</p>
+                  <small>Orden {{ item['sort_order'] }}</small>
+                  <div class="row-actions">
+                    <a [href]="item['url']" target="_blank" rel="noopener noreferrer">Ver imagen ↗</a>
+                    @if (canWrite() && !p['deleted_at']) {
+                      <button class="danger-text" (click)="pending = item">Eliminar</button>
+                    }
+                  </div>
+                </div>
+              </article>
+            } @empty {
+              <p class="empty">Agregá una imagen desde una URL o desde tu dispositivo.</p>
+            }
+          </div>
+        }
+        <div class="table-wrap" [hidden]="section === 'images'">
           <table>
             <thead>
               <tr>
@@ -149,13 +172,17 @@ import { lookup } from '../application/resources';
           @if (formError()) {
             <p class="alert error" role="alert">{{ formError() }}</p>
           }
+          @if (section === 'images' && !current) {
+            <fs-image-form [busy]="busy()" (saved)="save($event)" (cancel)="editing.set(false)" />
+          } @else {
           <fs-entity-form
             [fields]="fields"
             [value]="current"
             [busy]="busy()"
             (saved)="save($event)"
-            (cancel)="editing.set(false)"
-          />
+              (cancel)="editing.set(false)"
+            />
+          }
         </section>
       </div>
     }

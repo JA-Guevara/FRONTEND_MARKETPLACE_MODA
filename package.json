@@ -7,7 +7,7 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "start:qa": "powershell -NoProfile -File scripts/start-qa.ps1",
+    "start:qa": "node scripts/start-qa.mjs",
     "test:ci": "ng test --watch=false",
     "test:contract": "node scripts/test-contract.mjs"
   },

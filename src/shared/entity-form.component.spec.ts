@@ -35,6 +35,18 @@ describe('Formularios de administración', () => {
     expect(emit).not.toHaveBeenCalled();
     expect(component.localError()).toContain('fecha final');
   });
+  it('conserva valores entre pasos y bloquea avanzar con campos inválidos', async () => {
+    await setup(Array.from({ length: 7 }, (_, i) => ({ key: 'field' + i, label: 'Campo ' + i, required: true })));
+    component.nextStep();
+    expect(component.step).toBe(0);
+    for (let i = 0; i < 6; i++) component.form.get('field' + i)!.setValue('valor ' + i);
+    component.nextStep();
+    expect(component.step).toBe(1);
+    expect(component.form.get('field0')!.value).toBe('valor 0');
+    component.form.get('field0')!.setValue('');
+    component.submit();
+    expect(component.step).toBe(0);
+  });
   it('envía null al limpiar una relación existente', async () => {
     await setup([{ key: 'season_id', label: 'Temporada', type: 'select' }], {
       id: 'p1',

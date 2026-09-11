@@ -9,15 +9,29 @@ import { errorMessage } from '../../../shared/errors';
 @Component({
   selector: 'fs-audit-page',
   imports: [FormsModule, DatePipe, JsonPipe, DialogFocusDirective],
+  styles: [`
+    :host { display: block; min-width: 0; }
+    .audit-filters { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; }
+    .audit-filters label { flex: 1 1 170px; min-width: 0; }
+    .audit-filters input { width: 100%; min-width: 0; box-sizing: border-box; }
+    .actor-email { display: block; color: var(--muted, #64748b); overflow-wrap: anywhere; }
+    .table-wrap { max-width: 100%; overflow-x: auto; }
+    table { min-width: 850px; }
+    td { vertical-align: top; white-space: normal; overflow-wrap: anywhere; max-width: 260px; }
+    .modal { width: min(720px, 100%); max-height: 90dvh; overflow-y: auto; box-sizing: border-box; }
+    .detail-list dd { min-width: 0; overflow-wrap: anywhere; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }
+    @media (max-width: 520px) { .detail-list { display: block; } .detail-list dd { margin: .25rem 0 1rem; } .pagination { flex-wrap: wrap; } }
+  `],
   template: `<p class="eyebrow">ACCESO Y SEGURIDAD</p>
     <h1>Bitácora</h1>
     <p class="muted">Historial de operaciones. Los eventos no se pueden editar ni eliminar.</p>
     <form class="toolbar audit-filters" (ngSubmit)="page = 1; load()">
       <label
-        >Actor (ID)<input
+        >Actor (nombre o correo)<input
           name="actor"
-          [(ngModel)]="filters['actor_user_id']"
-          placeholder="UUID del usuario" /></label
+          [(ngModel)]="filters['actor_query']"
+          placeholder="Nombre o correo del usuario" /></label
       ><label
         >Acción<input
           name="action"
@@ -44,25 +58,33 @@ import { errorMessage } from '../../../shared/errors';
         <table>
           <thead>
             <tr>
+              <th title="N�mero de fila seg�n los filtros actuales">N.�</th>
               <th>Fecha</th>
+              <th>Actor</th>
               <th>Acción</th>
-              <th>Entidad</th>
+              <th>Módulo</th>
               <th>Descripción</th>
+              <th>IP</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            @for (event of result()?.items || []; track event.id) {
+            @for (event of result()?.items || []; track event.id; let index = $index) {
               <tr>
+                <td>{{ (page - 1) * 30 + index + 1 }}</td>
                 <td>{{ event['created_at'] | date: 'dd/MM/yyyy HH:mm' }}</td>
+                <td>
+                  {{ event['actor_name'] || event['actor_email'] || 'Anónimo' }}
+                </td>
                 <td>{{ event['action'] }}</td>
                 <td>{{ event['entity_type'] }}</td>
                 <td>{{ event['description'] }}</td>
+                <td>{{ event['ip_address'] || '—' }}</td>
                 <td><button (click)="detail(event.id)">Ver detalle</button></td>
               </tr>
             } @empty {
               <tr>
-                <td colspan="5" class="empty">No hay eventos con estos filtros.</td>
+                <td colspan="8" class="empty">No hay eventos con estos filtros.</td>
               </tr>
             }
           </tbody>
@@ -90,10 +112,17 @@ import { errorMessage } from '../../../shared/errors';
         >
           <h2>{{ e['action'] }}</h2>
           <dl class="detail-list">
+            <dt>ID del evento</dt><dd>{{ e.id }}</dd>
+            <dt>Solicitud</dt><dd>{{ e['metadata_']?.request_id || 'No registrada (evento anterior o tarea interna)' }}</dd>
             <dt>Fecha</dt>
             <dd>{{ e['created_at'] | date: 'medium' }}</dd>
             <dt>Actor</dt>
-            <dd>{{ e['actor_user_id'] || 'Anónimo' }}</dd>
+            <dd>
+              {{ e['actor_name'] || e['actor_email'] || 'Anónimo' }}
+              @if (e['actor_user_id']) {
+                <br /><small>{{ e['actor_user_id'] }}</small>
+              }
+            </dd>
             <dt>Entidad</dt>
             <dd>{{ e['entity_type'] }} / {{ e['entity_id'] }}</dd>
             <dt>Descripción</dt>
@@ -120,6 +149,9 @@ export class AuditPageComponent {
   selected = signal<Entity | null>(null);
   constructor() {
     void this.load();
+  }
+  actorLabel(event: Entity): string {
+    return event['actor_name'] || event['actor_email'] || (event['actor_user_id'] ? 'Usuario no disponible' : 'Sin usuario asociado');
   }
   async load() {
     this.loading.set(true);

@@ -9,10 +9,11 @@ import { Entity, Page } from './models';
 import { Field, Resource } from './form-schema';
 import { EntityFormComponent } from './entity-form.component';
 import { errorMessage } from './errors';
+import { BulkExcelComponent, EXCEL_RESOURCES } from './bulk-excel.component';
 
 @Component({
   selector: 'fs-resource-page',
-  imports: [FormsModule, RouterLink, EntityFormComponent, DialogFocusDirective],
+  imports: [FormsModule, RouterLink, EntityFormComponent, DialogFocusDirective, BulkExcelComponent],
   template: `
     <div class="page-heading">
       <div>
@@ -81,6 +82,11 @@ import { errorMessage } from './errors';
       }
       <button (click)="load()" [disabled]="loading()">Actualizar</button>
     </div>
+    @if (excelSupported()) {
+      <fs-bulk-excel [resource]="config.key" [canWrite]="canWrite()"
+        [filters]="{ search: search, include_inactive: includeInactive, include_deleted: includeDeleted, branch_id: branchFilter }"
+        (imported)="load()" />
+    }
     @if (loading()) {
       <div class="empty" role="status">Cargando {{ config.title.toLowerCase() }}…</div>
     } @else {
@@ -336,6 +342,7 @@ export class ResourcePageComponent implements OnInit {
   canWrite() {
     return this.session.can(this.config.writePermission);
   }
+  excelSupported() { return EXCEL_RESOURCES.has(this.config.key); }
   async load() {
     const generation = ++this.generation;
     this.loading.set(true);

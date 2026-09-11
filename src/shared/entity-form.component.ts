@@ -17,10 +17,18 @@ import { passwordError } from '../features/auth/domain/password';
       </div>
     }
     <form [formGroup]="form" (ngSubmit)="submit()" class="editor-form">
+      @if (stepCount > 1) {
+        <div class="form-progress" aria-live="polite">
+          <span>Paso {{ step + 1 }} de {{ stepCount }}</span>
+          <span>{{ step === 0 ? 'Datos principales' : 'Información adicional' }}</span>
+          <progress [value]="step + 1" [max]="stepCount" aria-label="Progreso del formulario"></progress>
+        </div>
+      }
       <div class="form-grid">
         @for (field of visibleFields; track field.key) {
           <div
             class="field"
+            [hidden]="!onStep(field.key)"
             [class.full]="
               field.type === 'textarea' || field.type === 'multi' || field.type === 'hours'
             "
@@ -116,9 +124,17 @@ import { passwordError } from '../features/auth/domain/password';
         <p class="alert error" role="alert">{{ localError() }}</p>
       }
       <div class="form-actions">
+        @if (step > 0) {
+          <button type="button" (click)="step = step - 1" [disabled]="busy">Anterior</button>
+        }
+        @if (step < stepCount - 1) {
+          <button class="primary" type="button" (click)="nextStep()" [disabled]="busy || loading() || !!lookupError()">Continuar</button>
+        } @else {
         <button class="primary" type="submit" [disabled]="busy || loading() || !!lookupError()">
           {{ busy ? 'Guardando…' : 'Guardar cambios' }}</button
-        ><button type="button" (click)="cancel.emit()" [disabled]="busy">Cancelar</button>
+        >
+        }
+        <button type="button" (click)="cancel.emit()" [disabled]="busy">Cancelar</button>
       </div>
     </form>`,
 })
@@ -131,6 +147,16 @@ export class EntityFormComponent implements OnChanges {
   private api = inject(ApiService);
   form = new FormGroup<any>({});
   visibleFields: Field[] = [];
+  step = 0;
+  get stepCount() { return Math.max(1, Math.ceil(this.visibleFields.length / 6)); }
+  onStep(key: string) { return Math.floor(this.visibleFields.findIndex(f => f.key === key) / 6) === this.step; }
+  nextStep() {
+    if (this.busy || this.loading() || this.lookupError()) return;
+    const fields = this.visibleFields.filter(f => this.onStep(f.key));
+    fields.forEach(f => this.form.get(f.key)?.markAllAsTouched());
+    if (fields.some(f => this.form.get(f.key)?.invalid)) return;
+    this.step = Math.min(this.step + 1, this.stepCount - 1);
+  }
   options: Record<string, Option[]> = {};
   localError = signal('');
   lookupError = signal('');
@@ -148,6 +174,7 @@ export class EntityFormComponent implements OnChanges {
   ngOnChanges(changes: Record<string, unknown>) {
     if (!changes['fields'] && !changes['value']) return;
     this.visibleFields = this.fields.filter((f) => !this.value?.['id'] || !f.createOnly);
+    this.step = 0;
     const controls: Record<string, any> = {};
     for (const f of this.visibleFields) {
       const v =
@@ -232,7 +259,11 @@ export class EntityFormComponent implements OnChanges {
     if (this.busy || this.loading() || this.lookupError()) return;
     this.form.markAllAsTouched();
     this.localError.set('');
-    if (this.form.invalid) return;
+    if (this.form.invalid) {
+      const index = this.visibleFields.findIndex(f => this.form.get(f.key)?.invalid);
+      this.step = Math.max(0, Math.floor(index / 6));
+      return;
+    }
     const raw = this.form.getRawValue();
     const data: Record<string, unknown> = {};
     for (const f of this.visibleFields) {

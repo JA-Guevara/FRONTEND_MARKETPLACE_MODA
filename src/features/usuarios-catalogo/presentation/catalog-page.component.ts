@@ -46,8 +46,9 @@ import { errorMessage } from '../../../shared/errors';
         <span class="muted">{{ result()?.total || 0 }} prendas</span>
       </div>
       <div class="catalog-layout">
-        <aside class="filters">
-          <form (ngSubmit)="apply()">
+        <aside class="filters" [class.filters-collapsed]="!filtersOpen()">
+          <button class="filters-toggle" type="button" [attr.aria-expanded]="filtersOpen()" aria-controls="catalog-filters" (click)="filtersOpen.set(!filtersOpen())">{{ filtersOpen() ? 'Ocultar filtros −' : 'Buscar y filtrar prendas +' }}</button>
+          <form id="catalog-filters" (ngSubmit)="apply(); filtersOpen.set(false)">
             <h3>Encontrá tu estilo</h3>
             <label
               >Buscar<input
@@ -175,6 +176,7 @@ export class CatalogPageComponent {
   references = signal<Record<string, Entity[]>>({});
   filters: Record<string, any> = {};
   featured = false;
+  filtersOpen = signal(false);
   referenceFields = [
     { key: 'category_id', label: 'Categoría', resource: 'categories' },
     { key: 'season_id', label: 'Temporada', resource: 'seasons' },
