@@ -1,12 +1,16 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
+import { IconComponent } from '../../../shared/icon.component';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { SessionService } from '../../../features/auth/application/session.service';
 import { resources } from '../shared/resources';
 @Component({
   selector: 'fs-admin-layout',
-  imports: [RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [RouterLink, RouterLinkActive, RouterOutlet, IconComponent],
+  styles: [`.management-toggle{display:none}@media(max-width:760px){.management-toggle{display:flex;width:100%;min-height:44px;margin-bottom:8px}.management-menu.collapsed{display:none}}`],
   template: `<div class="admin-layout">
     <aside class="admin-sidebar">
+      <button class="management-toggle" type="button" (click)="menuOpen.set(!menuOpen())" [attr.aria-expanded]="menuOpen()" aria-controls="management-menu"><fs-icon name="menu" />{{menuOpen() ? 'Cerrar menú de gestión' : 'Menú de gestión'}}</button>
+      <div id="management-menu" class="management-menu" [class.collapsed]="!menuOpen()">
       <p class="eyebrow">ESPACIO DE GESTIÓN</p>
       <a
         class="admin-overview"
@@ -34,12 +38,14 @@ import { resources } from '../shared/resources';
         </nav>
       }
       <div class="sidebar-note">FashionStore<br /><small>Administración del catálogo</small></div>
+      </div>
     </aside>
     <section class="admin-content"><router-outlet /></section>
   </div>`,
 })
 export class AdminLayoutComponent {
   session = inject(SessionService);
+  menuOpen = signal(false);
   groups = ['Acceso y seguridad', 'Catálogo', 'Organización'];
   groupItems(group: string) {
     return resources.filter((r) => r.group === group && this.session.can(r.permission));

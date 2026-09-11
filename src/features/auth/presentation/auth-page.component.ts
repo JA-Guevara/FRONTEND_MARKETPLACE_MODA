@@ -5,10 +5,11 @@ import { firstValueFrom } from 'rxjs';
 import { SessionService } from '../application/session.service';
 import { passwordError } from '../domain/password';
 import { errorMessage } from '../../../shared/errors';
+import { IconComponent } from '../../../shared/icon.component';
 
 @Component({
   selector: 'fs-auth-page',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, IconComponent],
   template: ` <section class="auth-layout">
     <div class="auth-story">
       <p class="eyebrow">FASHIONSTORE / TU ESTILO</p>
@@ -91,9 +92,10 @@ import { errorMessage } from '../../../shared/errors';
                 /><button
                   type="button"
                   (click)="showPassword = !showPassword"
-                  [attr.aria-label]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+                    [attr.aria-label]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+                    [attr.aria-pressed]="showPassword"
                 >
-                  {{ showPassword ? 'Ocultar' : 'Ver' }}
+                    <fs-icon [name]="showPassword ? 'eye-off' : 'eye'" />
                 </button>
               </div></label
             >

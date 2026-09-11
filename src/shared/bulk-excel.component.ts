@@ -1,10 +1,11 @@
 import { Component, OnChanges, inject, input, output, signal } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../environments/environment';
 import { ApiResponse } from './models';
 import { errorMessage } from './errors';
+import { IconComponent } from './icon.component';
 
 interface ImportReport {
   digest: string;
@@ -23,7 +24,7 @@ export const EXCEL_RESOURCES = new Set([
 
 @Component({
   selector: 'fs-bulk-excel',
-  imports: [FormsModule],
+  imports: [FormsModule, IconComponent],
   styles: [`
     :host { display:block; margin-bottom:1rem; }
     .excel-tools,.excel-controls { display:flex; align-items:center; flex-wrap:wrap; gap:.65rem; }
@@ -34,14 +35,21 @@ export const EXCEL_RESOURCES = new Set([
     .excel-preview { max-height:20rem; overflow:auto; margin-block:1rem; }
     .excel-preview table { min-width:28rem; width:100%; }
     .excel-note { max-width:80ch; }
-    .excel-tools button,.excel-controls button { white-space:normal; }
+    .excel-tools button,.excel-controls button { white-space:normal; min-height:44px; }
+    .excel-tools { padding:12px; background:#f0ede6; border:1px solid #d8d2c6; border-radius:10px; }
+    .excel-tools button { color:#292820; background:white; border-color:#aaa18f; }
+    .excel-tools .import-button { background:#292820; color:#fff; border-color:#292820; }
+    .excel-panel h2 { font-size:1.2rem; margin:0 0 12px; }
+    .excel-note { color:#555047; line-height:1.6; font-size:.85rem; }
+    .excel-preview th { background:#eee9df; color:#292820; }
+    @media(max-width:600px) { .excel-tools button { flex:1 1 140px; } }
     @media(max-width:600px) { .excel-controls { align-items:stretch; } .excel-controls>* { width:100%; } }
   `],
   template: `
     <div class="excel-tools">
-      <button type="button" (click)="download(false)" [disabled]="busy()">Descargar Excel</button>
+      <button type="button" (click)="download(false)" [disabled]="busy()"><fs-icon name="download" />Exportar Excel</button>
       @if (canWrite()) {
-        <button type="button" (click)="expanded.set(!expanded())" [attr.aria-expanded]="expanded()" [disabled]="busy()">{{ expanded() ? 'Cerrar carga masiva' : 'Importar Excel' }}</button>
+        <button class="import-button" type="button" (click)="expanded.set(!expanded())" [attr.aria-expanded]="expanded()" [disabled]="busy()"><fs-icon [name]="expanded() ? 'close' : 'upload'" />{{ expanded() ? 'Cerrar carga masiva' : 'Importar Excel' }}</button>
       }
     </div>
     @if (notice()) { <p class="alert success" role="status">{{ notice() }}</p> }
@@ -164,7 +172,7 @@ export class BulkExcelComponent implements OnChanges {
     } catch (error: any) {
       if (generation === this.generation) {
         if (error.error instanceof Blob) {
-          try { error = { error: JSON.parse(await error.error.text()) }; } catch { /* retain HTTP error */ }
+            try { error = new HttpErrorResponse({ error: JSON.parse(await error.error.text()), status: error.status, statusText: error.statusText, url: error.url }); } catch { /* retain HTTP error */ }
         }
         this.error.set(errorMessage(error));
       }

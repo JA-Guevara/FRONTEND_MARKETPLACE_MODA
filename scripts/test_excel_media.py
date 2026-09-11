@@ -73,6 +73,27 @@ formula = client.post('/api/v1/bulk/sizes/preview', headers=admin,
 assert 400 <= formula.status_code < 500, formula.text
 
 previous = settings.media_storage_dir
+category = client.get('/api/v1/catalog/categories').json()['data'][0]
+created = client.post('/api/v1/catalog/admin/products', headers=admin, json={
+    'name':'Prenda galería', 'description':'Prueba del formulario con galería', 'base_price':80,
+    'category_id':category['id'], 'images':[{'url':'https://example.com/front.jpg','is_primary':True}]})
+assert created.status_code == 201, created.text
+product = created.json()['data']
+path = '/api/v1/catalog/admin/products/' + product['id']
+original_id = product['images'][0]['id']
+edited = client.patch(path, headers=admin, json={'name':'Galería editada','images':[
+    {'id':original_id,'url':'https://example.com/front.jpg','alt_text':'Frente','is_primary':False},
+    {'url':'https://example.com/back.jpg','is_primary':True,'sort_order':1}]})
+assert edited.status_code == 200, edited.text
+saved = client.get(path, headers=admin).json()['data']
+assert len(saved['images']) == 2 and saved['images'][0]['id'] == original_id
+invalid = client.patch(path, headers=admin, json={'name':'No debe guardarse','images':[
+    {'id':'00000000-0000-0000-0000-000000000001','url':'https://example.com/foreign.jpg'}]})
+assert 400 <= invalid.status_code < 500, invalid.text
+assert client.get(path, headers=admin).json()['data']['name'] == 'Galería editada'
+cleared = client.patch(path, headers=admin, json={'images':[]})
+assert cleared.status_code == 200, cleared.text
+assert client.get(path, headers=admin).json()['data']['images'] == []
 try:
     with TemporaryDirectory() as directory:
         settings.media_storage_dir = directory

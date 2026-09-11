@@ -564,6 +564,9 @@ main {
   border: 0;
 }
 .password-input button {
+  min-width: 44px;
+  min-height: 44px;
+  flex: 0 0 44px;
   border: 0;
   background: transparent;
   padding: 8px;

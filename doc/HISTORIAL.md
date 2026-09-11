@@ -1,5 +1,22 @@
 # Historial de avance
 
+## 2026-09-11 — Correo, iconos y contraste
+
+- Bitácora prioriza correo autenticado, con nombre/ID en detalle.
+- Iconos accesibles y contraste de Excel; botón de contraseña centrado.
+- Menú administrativo colapsable en móvil.
+- 56 pruebas frontend y compilación aprobadas. Revisión individual autenticada pendiente.
+- Se documentó AJUSTES_VISUALES_Y_PENDIENTES.md con el orden de reanudación y las limitaciones de auditoría/comercio.
+
+## 2026-09-11 — Carrusel en el formulario principal
+
+- Integrado ProductImagesComponent en Nuevo/Editar prenda: archivos múltiples, enlaces, carrusel, descripción, principal y quitar antes de guardar.
+- Edición carga detalle completo para conservar la galería actual.
+- Backend ampliado para guardar datos y galería en la misma transacción.
+- 56 pruebas frontend y 118 comprobaciones del ciclo 1 aprobadas; prueba HTTP adicional de galería aprobada.
+- Documentado FORMULARIO_PRENDA_IMAGENES.md con instrucciones, límites y pruebas pendientes.
+- Se detiene la sesión con trabajo comercial parcial guardado; los agentes se interrumpieron por límite de créditos. No se presenta carrito/pagos como entrega completa.
+
 ## 2026-09-10 — Formularios, galerías y revisión adaptable
 
 - Formularios largos divididos en pasos de hasta seis campos; prueba de conservación/validación aprobada.

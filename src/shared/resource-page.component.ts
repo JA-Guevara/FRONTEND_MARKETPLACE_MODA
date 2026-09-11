@@ -1,5 +1,5 @@
 import { DialogFocusDirective } from './dialog-focus.directive';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, ViewChild, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
@@ -10,10 +10,18 @@ import { Field, Resource } from './form-schema';
 import { EntityFormComponent } from './entity-form.component';
 import { errorMessage } from './errors';
 import { BulkExcelComponent, EXCEL_RESOURCES } from './bulk-excel.component';
+import { ProductImagesComponent } from './product-images.component';
 
 @Component({
   selector: 'fs-resource-page',
-  imports: [FormsModule, RouterLink, EntityFormComponent, DialogFocusDirective, BulkExcelComponent],
+  imports: [
+    FormsModule,
+    RouterLink,
+    EntityFormComponent,
+    DialogFocusDirective,
+    BulkExcelComponent,
+    ProductImagesComponent,
+  ],
   template: `
     <div class="page-heading">
       <div>
@@ -83,9 +91,17 @@ import { BulkExcelComponent, EXCEL_RESOURCES } from './bulk-excel.component';
       <button (click)="load()" [disabled]="loading()">Actualizar</button>
     </div>
     @if (excelSupported()) {
-      <fs-bulk-excel [resource]="config.key" [canWrite]="canWrite()"
-        [filters]="{ search: search, include_inactive: includeInactive, include_deleted: includeDeleted, branch_id: branchFilter }"
-        (imported)="load()" />
+      <fs-bulk-excel
+        [resource]="config.key"
+        [canWrite]="canWrite()"
+        [filters]="{
+          search: search,
+          include_inactive: includeInactive,
+          include_deleted: includeDeleted,
+          branch_id: branchFilter,
+        }"
+        (imported)="load()"
+      />
     }
     @if (loading()) {
       <div class="empty" role="status">Cargando {{ config.title.toLowerCase() }}…</div>
@@ -220,6 +236,9 @@ import { BulkExcelComponent, EXCEL_RESOURCES } from './bulk-excel.component';
           @if (formError()) {
             <p class="alert error" role="alert">{{ formError() }}</p>
           }
+          @if (config.key === 'products' && !assignment) {
+            <fs-product-images [existing]="productImages" [busy]="busy()" />
+          }
           <fs-entity-form
             [fields]="editFields"
             [value]="current"
@@ -317,6 +336,8 @@ export class ResourcePageComponent implements OnInit {
   viewing = signal<Entity | null>(null);
   branches = signal<Entity[]>([]);
   current: Entity | null = null;
+  productImages: Entity[] = [];
+  @ViewChild(ProductImagesComponent) imageEditor?: ProductImagesComponent;
   editFields: Field[] = [];
   assignment = '';
   pending: { item: Entity; action: string } | null = null;
@@ -342,7 +363,9 @@ export class ResourcePageComponent implements OnInit {
   canWrite() {
     return this.session.can(this.config.writePermission);
   }
-  excelSupported() { return EXCEL_RESOURCES.has(this.config.key); }
+  excelSupported() {
+    return EXCEL_RESOURCES.has(this.config.key);
+  }
   async load() {
     const generation = ++this.generation;
     this.loading.set(true);
@@ -387,8 +410,17 @@ export class ResourcePageComponent implements OnInit {
       if (generation === this.generation) this.loading.set(false);
     }
   }
-  open(item: Entity | null = null) {
+  async open(item: Entity | null = null) {
+    if (this.config.key === 'products' && item) {
+      try {
+        item = await firstValueFrom(this.api.get<Entity>(this.config.path + '/' + item.id));
+      } catch (error) {
+        this.error.set(errorMessage(error));
+        return;
+      }
+    }
     this.current = item;
+    this.productImages = item?.['images'] || [];
     this.assignment = '';
     this.editFields = this.config.fields;
     this.formError.set('');
@@ -441,6 +473,8 @@ export class ResourcePageComponent implements OnInit {
     this.busy.set(true);
     this.formError.set('');
     try {
+      const images = this.imageEditor ? await this.imageEditor.prepare() : [];
+      if (this.imageEditor) body = { ...body, images };
       const path = `${this.config.path}${this.current ? '/' + this.current.id : ''}${this.assignment ? '/' + this.assignment : ''}`;
       const response = await firstValueFrom(
         this.api.write<Entity>(
@@ -454,7 +488,7 @@ export class ResourcePageComponent implements OnInit {
       await this.load();
       if (this.config.key === 'products' && !this.current)
         this.message.set(
-          'Prenda creada. Abrí «Variantes y recursos» para agregar tallas, colores, imágenes y proveedores.',
+          'Prenda creada con sus imágenes. Podés agregar tallas, colores y proveedores desde «Variantes y recursos».',
         );
     } catch (e) {
       this.formError.set(errorMessage(e));
