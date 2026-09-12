@@ -1,6 +1,6 @@
 # Estado y punto de reanudación
 
-Actualizado: 11 de septiembre de 2026. Este registro distingue código existente de funciones verificadas. No equivale a una entrega terminada.
+Actualizado: 12 de septiembre de 2026. Este registro distingue código existente de funciones verificadas. No equivale a una entrega terminada.
 
 ## Fuentes y alcance
 
@@ -18,7 +18,7 @@ Actualizado: 11 de septiembre de 2026. Este registro distingue código existente
 | Excel | Componente conectado; rutas y prueba HTTP inicial aprobadas | Ampliar casos complejos de importación y comprobar interacción visual |
 | Imágenes | Carrusel URL/archivos dentro de crear/editar prenda; guardado conjunto probado | Revisión visual autenticada; ver FORMULARIO_PRENDA_IMAGENES.md |
 | Dashboard | Pantalla y servicio escritos; pruebas unitarias aprobadas | Verificar visualmente e integrar contra backend actualizado |
-| Carrito/pedidos/pagos | Archivos de vistas/servicio y migración 0003 presentes | Integrar rutas/frontend y revisar pruebas comerciales antes de declarar completo |
+| Carrito/pedidos/pagos | Rutas, navegación, agregar desde prenda e interfaces integradas; contrato automatizado aprobado | Revisión visual autenticada, migración PostgreSQL real de prueba y Stripe externo; ver COMERCIO.md |
 | Diseño adaptable | Pasos, ventanas, tablas, galerías y filtros adaptados; vistas públicas verificadas | Revisar cada vista autenticada; consultar RESPONSIVIDAD.md |
 
 ## Orden de continuación

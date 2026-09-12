@@ -1,5 +1,7 @@
 import { Component, DestroyRef, inject, signal } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { CommerceService } from '../../ventas-pagos/infrastructure/commerce.service';
+import { SessionService } from '../../auth/application/session.service';
 import { DecimalPipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, of, switchMap } from 'rxjs';
@@ -74,6 +76,21 @@ import { errorMessage } from '../../../shared/errors';
           @if (variant()) {
             <p class="muted">SKU: {{ variant()!['sku'] }}</p>
           }
+          <div class="form-actions">
+            <button class="primary" [disabled]="!variant() || adding()" (click)="addToCart()">
+              {{ adding() ? 'Agregando…' : 'Agregar al carrito' }}
+            </button>
+            <a class="button" routerLink="/carrito">Ver carrito</a>
+          </div>
+          @if (!variant()) {
+            <p class="muted">Elegí una talla y un color para continuar.</p>
+          }
+          @if (cartMessage()) {
+            <p class="alert success" role="status">{{ cartMessage() }}</p>
+          }
+          @if (cartError()) {
+            <p class="alert error" role="alert">{{ cartError() }}</p>
+          }
           <div class="panel">
             <h3>Conocé nuestras sucursales</h3>
             <p>Consultá las ubicaciones y horarios de atención.</p>
@@ -85,6 +102,35 @@ import { errorMessage } from '../../../shared/errors';
   </section>`,
 })
 export class ProductPageComponent {
+  private commerce = inject(CommerceService);
+  private session = inject(SessionService);
+  private router = inject(Router);
+  adding = signal(false);
+  cartMessage = signal('');
+  cartError = signal('');
+  async addToCart() {
+    const selected = this.variant();
+    if (!selected || this.adding()) return;
+    if (!this.session.user()) {
+      await this.router.navigate(['/iniciar-sesion'], {
+        queryParams: { returnUrl: this.router.url },
+      });
+      return;
+    }
+    this.adding.set(true);
+    this.cartError.set('');
+    this.cartMessage.set('');
+    try {
+      await this.commerce.add(selected.id);
+      this.cartMessage.set(
+        'Prenda agregada. Podés revisar la cantidad y disponibilidad en tu carrito.',
+      );
+    } catch (error) {
+      this.cartError.set(errorMessage(error));
+    } finally {
+      this.adding.set(false);
+    }
+  }
   private api = inject(CatalogService);
   private route = inject(ActivatedRoute);
   private destroy = inject(DestroyRef);
@@ -93,11 +139,18 @@ export class ProductPageComponent {
   selectedImage = signal('');
   error = signal('');
   loading = signal(true);
-  imageIndex() { return Math.max(0, this.product()?.images.findIndex(image => image['url'] === this.selectedImage()) ?? 0); }
+  imageIndex() {
+    return Math.max(
+      0,
+      this.product()?.images.findIndex((image) => image['url'] === this.selectedImage()) ?? 0,
+    );
+  }
   moveImage(direction: number) {
     const images = this.product()?.images || [];
     if (!images.length) return;
-    this.selectedImage.set(images[(this.imageIndex() + direction + images.length) % images.length]['url']);
+    this.selectedImage.set(
+      images[(this.imageIndex() + direction + images.length) % images.length]['url'],
+    );
   }
   constructor() {
     this.route.paramMap

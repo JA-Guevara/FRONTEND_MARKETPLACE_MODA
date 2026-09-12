@@ -205,6 +205,8 @@ main {
 }
 .account-nav {
   gap: 16px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 .skip-link {
   position: fixed;

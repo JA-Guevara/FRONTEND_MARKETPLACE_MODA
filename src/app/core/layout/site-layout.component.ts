@@ -7,7 +7,9 @@ import { SessionService } from '../../../features/auth/application/session.servi
   selector: 'fs-site-layout',
   imports: [RouterLink, RouterLinkActive, RouterOutlet],
   template: ` <a class="skip-link" href="#main-content">Saltar al contenido</a>
-    <div class="top-strip">{{ demo ? 'ENTORNO DE PRUEBA · DATOS TEMPORALES' : 'TU ESTILO. TU RITMO. TU FASHIONSTORE.' }}</div>
+    <div class="top-strip">
+      {{ demo ? 'ENTORNO DE PRUEBA · DATOS TEMPORALES' : 'TU ESTILO. TU RITMO. TU FASHIONSTORE.' }}
+    </div>
     <header class="site-header">
       <div class="container header-inner">
         <a class="brand" routerLink="/" aria-label="FashionStore inicio"
@@ -22,6 +24,7 @@ import { SessionService } from '../../../features/auth/application/session.servi
           }
         </nav>
         <div class="account-nav">
+          <a routerLink="/carrito" class="button" aria-label="Ver carrito de compras">Carrito</a>
           @if (session.user(); as user) {
             <a routerLink="/mi-cuenta" class="account-name">Hola, {{ user.first_name }}</a
             ><button (click)="logout()" [disabled]="busy()">Salir</button>
@@ -65,4 +68,3 @@ export class SiteLayoutComponent {
     }
   }
 }
-

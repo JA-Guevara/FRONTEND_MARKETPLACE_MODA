@@ -1,5 +1,13 @@
 # Historial de avance
 
+## 2026-09-12 — Integración comercial
+
+- Conectadas rutas /carrito, /mi-cuenta/pedidos, /admin/pedidos y /admin/stock con permisos.
+- Agregar al carrito desde talla/color de prenda; enlaces de cabecera y menú administrativo.
+- Corregida compra con disponibilidad antigua tras error de red y carrito con prenda desactivada.
+- 60 pruebas frontend, compilación y 2 contratos comerciales backend aprobados.
+- Documentado COMERCIO.md con uso, pruebas y límites. Pendientes ya no son crear estas rutas, sino verificación visual y pruebas externas/PostgreSQL.
+
 ## 2026-09-11 — Correo, iconos y contraste
 
 - Bitácora prioriza correo autenticado, con nombre/ID en detalle.

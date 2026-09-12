@@ -1,5 +1,7 @@
 # Ajustes y pendientes — 11/09/2026
 
+Actualización 12/09: el punto 1 de la lista siguiente ya está resuelto (rutas, navegación y agregado al carrito). Los contratos comerciales del punto 2 pasaron; la ejecución de migraciones en PostgreSQL descartable sigue pendiente. Consultar COMERCIO.md y ESTADO_ACTUAL.md para el estado vigente.
+
 ## Aplicado en esta sesión
 
 - Bitácora: columna principal Usuario (correo), utilizando actor_email del servidor. Nombre e ID quedan en el detalle. Sin correo histórico disponible, se indica la ausencia; no se sustituye por un ID ni se inventa un correo.

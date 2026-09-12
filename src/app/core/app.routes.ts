@@ -9,6 +9,24 @@ const resource = () =>
   import('../../shared/resource-page.component').then((m) => m.ResourcePageComponent);
 export const routes: Routes = [
   {
+    path: 'carrito',
+    title: 'Mi carrito | FashionStore',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('../../features/ventas-pagos/presentation/cart-page.component').then(
+        (m) => m.CartPageComponent,
+      ),
+  },
+  {
+    path: 'mi-cuenta/pedidos',
+    title: 'Mis pedidos | FashionStore',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('../../features/ventas-pagos/presentation/orders-page.component').then(
+        (m) => m.OrdersPageComponent,
+      ),
+  },
+  {
     path: '',
     title: 'FashionStore | Tu estilo',
     loadComponent: () =>
@@ -91,6 +109,26 @@ export const routes: Routes = [
       import('./layout/admin-layout.component').then((m) => m.AdminLayoutComponent),
     canActivate: [authGuard],
     children: [
+      {
+        path: 'pedidos',
+        title: 'Pedidos y pagos | FashionStore',
+        canActivate: [authGuard],
+        data: { admin: true, permission: 'commerce.read' },
+        loadComponent: () =>
+          import('../../features/ventas-pagos/presentation/orders-page.component').then(
+            (m) => m.OrdersPageComponent,
+          ),
+      },
+      {
+        path: 'stock',
+        title: 'Existencias | FashionStore',
+        canActivate: [authGuard],
+        data: { permission: 'stock.read' },
+        loadComponent: () =>
+          import('../../features/ventas-pagos/presentation/stock-page.component').then(
+            (m) => m.StockPageComponent,
+          ),
+      },
       {
         path: '',
         title: 'Administración | FashionStore',
