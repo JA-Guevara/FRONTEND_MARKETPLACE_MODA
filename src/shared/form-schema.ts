@@ -5,6 +5,12 @@ export interface Option {
 export interface Field {
   key: string;
   label: string;
+  /**
+   * Nombre del paso del asistente donde se muestra el campo. Los campos sin
+   * sección heredan la del campo anterior. Si ningún campo declara sección, el
+   * formulario agrupa de a seis campos por paso.
+   */
+  section?: string;
   type?:
     | 'text'
     | 'email'
@@ -34,6 +40,8 @@ export interface Resource {
   key: string;
   title: string;
   singular: string;
+  /** Marca los sustantivos femeninos para decir «Nueva prenda» y no «Nuevo prenda». */
+  feminine?: boolean;
   path: string;
   listPath?: string;
   group: string;

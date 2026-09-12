@@ -5,23 +5,45 @@ import { Field, Option } from './form-schema';
 import { Entity } from './models';
 import { ApiService } from '../app/core/shared/api.service';
 import { errorMessage } from './errors';
+import { IconComponent } from './icon.component';
 import { passwordError } from '../features/auth/domain/password';
 
 @Component({
   selector: 'fs-entity-form',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, IconComponent],
   template: ` @if (lookupError()) {
       <div class="alert error" role="alert">
         {{ lookupError() }}
-        <button type="button" (click)="loadOptions()">Reintentar opciones</button>
+        <button type="button" (click)="loadOptions()">
+          <fs-icon name="refresh" />Reintentar opciones
+        </button>
       </div>
     }
     <form [formGroup]="form" (ngSubmit)="submit()" class="editor-form">
-      @if (stepCount > 1) {
+      @if (steps.length > 1) {
+        <nav class="form-steps" aria-label="Secciones del formulario">
+          @for (item of steps; track item.title; let i = $index) {
+            <button
+              type="button"
+              class="form-step"
+              [class.current]="i === step"
+              [class.done]="i < step"
+              [attr.aria-current]="i === step ? 'step' : null"
+              [disabled]="busy"
+              (click)="goTo(i)"
+            >
+              <span class="form-step-index" aria-hidden="true">{{ i + 1 }}</span>
+              <span class="form-step-title">{{ item.title }}</span>
+            </button>
+          }
+        </nav>
         <div class="form-progress" aria-live="polite">
-          <span>Paso {{ step + 1 }} de {{ stepCount }}</span>
-          <span>{{ step === 0 ? 'Datos principales' : 'Información adicional' }}</span>
-          <progress [value]="step + 1" [max]="stepCount" aria-label="Progreso del formulario"></progress>
+          <span>Paso {{ step + 1 }} de {{ steps.length }} · {{ steps[step].title }}</span>
+          <progress
+            [value]="step + 1"
+            [max]="steps.length"
+            aria-label="Progreso del formulario"
+          ></progress>
         </div>
       }
       <div class="form-grid">
@@ -125,16 +147,27 @@ import { passwordError } from '../features/auth/domain/password';
       }
       <div class="form-actions">
         @if (step > 0) {
-          <button type="button" (click)="step = step - 1" [disabled]="busy">Anterior</button>
+          <button type="button" (click)="previousStep()" [disabled]="busy">
+            <fs-icon name="arrow-left" />Anterior
+          </button>
         }
-        @if (step < stepCount - 1) {
-          <button class="primary" type="button" (click)="nextStep()" [disabled]="busy || loading() || !!lookupError()">Continuar</button>
+        @if (step < steps.length - 1) {
+          <button
+            class="primary"
+            type="button"
+            (click)="nextStep()"
+            [disabled]="busy || loading() || !!lookupError()"
+          >
+            Continuar<fs-icon name="arrow-right" />
+          </button>
         } @else {
-        <button class="primary" type="submit" [disabled]="busy || loading() || !!lookupError()">
-          {{ busy ? 'Guardando…' : 'Guardar cambios' }}</button
-        >
+          <button class="primary" type="submit" [disabled]="busy || loading() || !!lookupError()">
+            <fs-icon name="save" />{{ busy ? 'Guardando…' : 'Guardar cambios' }}
+          </button>
         }
-        <button type="button" (click)="cancel.emit()" [disabled]="busy">Cancelar</button>
+        <button type="button" (click)="cancel.emit()" [disabled]="busy">
+          <fs-icon name="close" />Cancelar
+        </button>
       </div>
     </form>`,
 })
@@ -148,14 +181,73 @@ export class EntityFormComponent implements OnChanges {
   form = new FormGroup<any>({});
   visibleFields: Field[] = [];
   step = 0;
-  get stepCount() { return Math.max(1, Math.ceil(this.visibleFields.length / 6)); }
-  onStep(key: string) { return Math.floor(this.visibleFields.findIndex(f => f.key === key) / 6) === this.step; }
+  /** Pasos del asistente: uno por sección declarada, o bloques de seis campos. */
+  steps: { title: string; keys: string[] }[] = [{ title: 'Datos principales', keys: [] }];
+  private static readonly FIELDS_PER_STEP = 6;
+  get stepCount() {
+    return this.steps.length;
+  }
+  onStep(key: string) {
+    return this.steps[this.step]?.keys.includes(key) ?? false;
+  }
+  /** Índice del paso que contiene el campo, para saltar al error correspondiente. */
+  stepOf(key: string) {
+    const index = this.steps.findIndex((s) => s.keys.includes(key));
+    return index < 0 ? 0 : index;
+  }
+  private buildSteps() {
+    const order: string[] = [];
+    const byTitle = new Map<string, string[]>();
+    const add = (title: string, key: string) => {
+      if (!byTitle.has(title)) {
+        byTitle.set(title, []);
+        order.push(title);
+      }
+      byTitle.get(title)!.push(key);
+    };
+    if (this.visibleFields.some((f) => f.section)) {
+      let currentSection = '';
+      for (const field of this.visibleFields) {
+        currentSection = field.section || currentSection || 'Datos principales';
+        add(currentSection, field.key);
+      }
+    } else {
+      const size = EntityFormComponent.FIELDS_PER_STEP;
+      for (let i = 0; i < this.visibleFields.length; i += size)
+        for (const field of this.visibleFields.slice(i, i + size))
+          add(i === 0 ? 'Datos principales' : 'Información adicional', field.key);
+    }
+    this.steps = order.length
+      ? order.map((title) => ({ title, keys: byTitle.get(title)! }))
+      : [{ title: 'Datos principales', keys: [] }];
+  }
+  private validateStep(index: number) {
+    const keys = this.steps[index]?.keys ?? [];
+    keys.forEach((key) => this.form.get(key)?.markAllAsTouched());
+    return !keys.some((key) => this.form.get(key)?.invalid);
+  }
+  previousStep() {
+    if (this.busy) return;
+    this.step = Math.max(0, this.step - 1);
+  }
   nextStep() {
     if (this.busy || this.loading() || this.lookupError()) return;
-    const fields = this.visibleFields.filter(f => this.onStep(f.key));
-    fields.forEach(f => this.form.get(f.key)?.markAllAsTouched());
-    if (fields.some(f => this.form.get(f.key)?.invalid)) return;
-    this.step = Math.min(this.step + 1, this.stepCount - 1);
+    if (!this.validateStep(this.step)) return;
+    this.step = Math.min(this.step + 1, this.steps.length - 1);
+  }
+  /** Permite volver a cualquier paso anterior; hacia adelante valida los intermedios. */
+  goTo(index: number) {
+    if (this.busy || index === this.step) return;
+    if (index < this.step) {
+      this.step = index;
+      return;
+    }
+    for (let i = this.step; i < index; i++)
+      if (!this.validateStep(i)) {
+        this.step = i;
+        return;
+      }
+    this.step = Math.min(index, this.steps.length - 1);
   }
   options: Record<string, Option[]> = {};
   localError = signal('');
@@ -174,6 +266,7 @@ export class EntityFormComponent implements OnChanges {
   ngOnChanges(changes: Record<string, unknown>) {
     if (!changes['fields'] && !changes['value']) return;
     this.visibleFields = this.fields.filter((f) => !this.value?.['id'] || !f.createOnly);
+    this.buildSteps();
     this.step = 0;
     const controls: Record<string, any> = {};
     for (const f of this.visibleFields) {
@@ -255,13 +348,18 @@ export class EntityFormComponent implements OnChanges {
         selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value],
       );
   }
+  /** Muestra el error y lleva al paso donde está el campo, para que sea visible. */
+  private failAt(key: string, message: string) {
+    this.localError.set(message);
+    this.step = this.stepOf(key);
+  }
   submit() {
     if (this.busy || this.loading() || this.lookupError()) return;
     this.form.markAllAsTouched();
     this.localError.set('');
     if (this.form.invalid) {
-      const index = this.visibleFields.findIndex(f => this.form.get(f.key)?.invalid);
-      this.step = Math.max(0, Math.floor(index / 6));
+      const invalid = this.visibleFields.find((f) => this.form.get(f.key)?.invalid);
+      if (invalid) this.step = this.stepOf(invalid.key);
       return;
     }
     const raw = this.form.getRawValue();
@@ -274,7 +372,8 @@ export class EntityFormComponent implements OnChanges {
         for (const day of this.days) {
           const h = value[day.key];
           if (h.enabled && (!h.open || !h.close || h.close <= h.open)) {
-            this.localError.set(
+            this.failAt(
+              f.key,
               `Revisá el horario del ${day.label.toLowerCase()}. El cierre debe ser posterior a la apertura.`,
             );
             return;
@@ -288,13 +387,13 @@ export class EntityFormComponent implements OnChanges {
         typeof value === 'string' &&
         (!value || (f.minLength && value.length < f.minLength))
       ) {
-        this.localError.set(`Completá ${f.label.toLowerCase()} sin espacios vacíos.`);
+        this.failAt(f.key, `Completá ${f.label.toLowerCase()} sin espacios vacíos.`);
         return;
       }
       if (f.type === 'password') {
         const error = passwordError(value, raw['email']);
         if (error) {
-          this.localError.set(error);
+          this.failAt(f.key, error);
           return;
         }
       }
@@ -309,7 +408,7 @@ export class EntityFormComponent implements OnChanges {
       data['end_date'] &&
       String(data['end_date']) < String(data['start_date'])
     ) {
-      this.localError.set('La fecha final debe ser posterior o igual a la inicial.');
+      this.failAt('end_date', 'La fecha final debe ser posterior o igual a la inicial.');
       return;
     }
     this.saved.emit(data);

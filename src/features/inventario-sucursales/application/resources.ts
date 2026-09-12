@@ -1,5 +1,5 @@
 import { Resource } from '../../../shared/form-schema';
-import { lookup, nameField } from '../../usuarios-catalogo/application/resources';
+import { lookup, nameField, section } from '../../usuarios-catalogo/application/resources';
 const base = '/organization';
 export const organizationResources: Resource[] = [
   {
@@ -20,21 +20,34 @@ export const organizationResources: Resource[] = [
       { key: 'phone', label: 'Teléfono' },
     ],
     fields: [
-      { key: 'business_name', label: 'Razón social', required: true, minLength: 2, maxLength: 180 },
-      { key: 'trade_name', label: 'Nombre comercial', maxLength: 180 },
-      { key: 'tax_id', label: 'NIT', required: true, minLength: 3, maxLength: 50 },
-      { key: 'contact_name', label: 'Persona de contacto', maxLength: 150 },
-      { key: 'email', label: 'Correo', type: 'email' },
-      { key: 'phone', label: 'Teléfono', maxLength: 30 },
-      { key: 'address', label: 'Dirección', maxLength: 255 },
-      { key: 'city', label: 'Ciudad', maxLength: 100 },
-      { key: 'notes', label: 'Notas', type: 'textarea' },
+      ...section('Empresa', [
+        {
+          key: 'business_name',
+          label: 'Razón social',
+          required: true,
+          minLength: 2,
+          maxLength: 180,
+        },
+        { key: 'trade_name', label: 'Nombre comercial', maxLength: 180 },
+        { key: 'tax_id', label: 'NIT', required: true, minLength: 3, maxLength: 50 },
+      ]),
+      ...section('Contacto', [
+        { key: 'contact_name', label: 'Persona de contacto', maxLength: 150 },
+        { key: 'email', label: 'Correo', type: 'email' },
+        { key: 'phone', label: 'Teléfono', maxLength: 30 },
+      ]),
+      ...section('Ubicación y notas', [
+        { key: 'address', label: 'Dirección', maxLength: 255 },
+        { key: 'city', label: 'Ciudad', maxLength: 100 },
+        { key: 'notes', label: 'Notas', type: 'textarea' },
+      ]),
     ],
   },
   {
     key: 'cities',
     title: 'Ciudades',
     singular: 'ciudad',
+    feminine: true,
     path: `${base}/cities`,
     group: 'Organización',
     permission: 'branches.read',
@@ -55,6 +68,7 @@ export const organizationResources: Resource[] = [
     key: 'branches',
     title: 'Sucursales',
     singular: 'sucursal',
+    feminine: true,
     path: `${base}/branches`,
     group: 'Organización',
     permission: 'branches.read',
@@ -68,20 +82,27 @@ export const organizationResources: Resource[] = [
       { key: 'address', label: 'Dirección' },
     ],
     fields: [
-      { key: 'code', label: 'Código', required: true, minLength: 2, maxLength: 30 },
-      { ...nameField, maxLength: 150 },
-      lookup('city_id', 'Ciudad', `${base}/cities`, true),
-      { key: 'address', label: 'Dirección', required: true, minLength: 5, maxLength: 255 },
-      { key: 'phone', label: 'Teléfono', maxLength: 30 },
-      { key: 'latitude', label: 'Latitud', type: 'number', min: -90, max: 90 },
-      { key: 'longitude', label: 'Longitud', type: 'number', min: -180, max: 180 },
-      { key: 'opening_hours', label: 'Horarios de atención', type: 'hours' },
+      ...section('Identificación', [
+        { key: 'code', label: 'Código', required: true, minLength: 2, maxLength: 30 },
+        { ...nameField, maxLength: 150 },
+        lookup('city_id', 'Ciudad', `${base}/cities`, true),
+      ]),
+      ...section('Ubicación y contacto', [
+        { key: 'address', label: 'Dirección', required: true, minLength: 5, maxLength: 255 },
+        { key: 'phone', label: 'Teléfono', maxLength: 30 },
+        { key: 'latitude', label: 'Latitud', type: 'number', min: -90, max: 90 },
+        { key: 'longitude', label: 'Longitud', type: 'number', min: -180, max: 180 },
+      ]),
+      ...section('Horarios', [
+        { key: 'opening_hours', label: 'Horarios de atención', type: 'hours' },
+      ]),
     ],
   },
   {
     key: 'cash-points',
     title: 'Cajas',
     singular: 'caja',
+    feminine: true,
     path: `${base}/cash-points`,
     group: 'Organización',
     permission: 'branches.read',

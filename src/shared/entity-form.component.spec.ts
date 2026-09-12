@@ -47,6 +47,50 @@ describe('Formularios de administración', () => {
     component.submit();
     expect(component.step).toBe(0);
   });
+  it('arma un paso por sección declarada y no por bloques de seis', async () => {
+    await setup([
+      { key: 'name', label: 'Nombre', section: 'Identificación', required: true },
+      { key: 'slug', label: 'Enlace', section: 'Identificación' },
+      { key: 'brand', label: 'Marca', section: 'Clasificación' },
+      { key: 'price', label: 'Precio', section: 'Precio', type: 'number' },
+    ]);
+    expect(component.steps.map((s) => s.title)).toEqual([
+      'Identificación',
+      'Clasificación',
+      'Precio',
+    ]);
+    expect(component.onStep('name')).toBe(true);
+    expect(component.onStep('brand')).toBe(false);
+    component.nextStep();
+    expect(component.step).toBe(0);
+    component.form.get('name')!.setValue('Remera');
+    component.nextStep();
+    expect(component.step).toBe(1);
+    expect(component.onStep('brand')).toBe(true);
+  });
+  it('lleva al paso del campo que quedó incompleto al guardar', async () => {
+    await setup([
+      { key: 'name', label: 'Nombre', section: 'Identificación', required: true },
+      { key: 'brand', label: 'Marca', section: 'Clasificación' },
+    ]);
+    component.form.get('brand')!.setValue('FashionStore');
+    component.step = 1;
+    const emit = vi.spyOn(component.saved, 'emit');
+    component.submit();
+    expect(emit).not.toHaveBeenCalled();
+    expect(component.step).toBe(0);
+  });
+  it('omite del asistente las secciones que quedan vacías al editar', async () => {
+    await setup(
+      [
+        { key: 'code', label: 'Código', section: 'Identificación', createOnly: true },
+        { key: 'name', label: 'Nombre', section: 'Identificación' },
+        { key: 'permission_ids', label: 'Permisos', section: 'Permisos', createOnly: true },
+      ],
+      { id: 'r1', name: 'Gestor' },
+    );
+    expect(component.steps.map((s) => s.title)).toEqual(['Identificación']);
+  });
   it('envía null al limpiar una relación existente', async () => {
     await setup([{ key: 'season_id', label: 'Temporada', type: 'select' }], {
       id: 'p1',

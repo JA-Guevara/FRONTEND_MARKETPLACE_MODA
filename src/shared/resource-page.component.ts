@@ -11,6 +11,7 @@ import { EntityFormComponent } from './entity-form.component';
 import { errorMessage } from './errors';
 import { BulkExcelComponent, EXCEL_RESOURCES } from './bulk-excel.component';
 import { ProductImagesComponent } from './product-images.component';
+import { IconComponent } from './icon.component';
 
 @Component({
   selector: 'fs-resource-page',
@@ -21,6 +22,7 @@ import { ProductImagesComponent } from './product-images.component';
     DialogFocusDirective,
     BulkExcelComponent,
     ProductImagesComponent,
+    IconComponent,
   ],
   template: `
     <div class="page-heading">
@@ -30,12 +32,14 @@ import { ProductImagesComponent } from './product-images.component';
         <p class="muted">{{ total() }} registros encontrados</p>
       </div>
       @if (canWrite()) {
-        <button class="primary" (click)="open()">+ Nuevo {{ config.singular }}</button>
+        <button class="primary" (click)="open()">
+          <fs-icon name="plus" />{{ config.feminine ? 'Nueva' : 'Nuevo' }} {{ config.singular }}
+        </button>
       }
     </div>
     @if (error()) {
       <div class="alert error" role="alert">
-        {{ error() }} <button (click)="load()">Reintentar</button>
+        {{ error() }} <button (click)="load()"><fs-icon name="refresh" />Reintentar</button>
       </div>
     }
     @if (message()) {
@@ -49,7 +53,7 @@ import { ProductImagesComponent } from './product-images.component';
             [(ngModel)]="search"
             aria-label="Buscar registros"
             placeholder="Buscar…"
-          /><button>Buscar</button>
+          /><button><fs-icon name="search" />Buscar</button>
         </form>
       }
       @if (config.states && config.key !== 'products') {
@@ -88,7 +92,9 @@ import { ProductImagesComponent } from './product-images.component';
           </select></label
         >
       }
-      <button (click)="load()" [disabled]="loading()">Actualizar</button>
+      <button (click)="load()" [disabled]="loading()">
+        <fs-icon name="refresh" />{{ loading() ? 'Actualizando…' : 'Actualizar' }}
+      </button>
     </div>
     @if (excelSupported()) {
       <fs-bulk-excel
@@ -143,10 +149,10 @@ import { ProductImagesComponent } from './product-images.component';
                 }
                 <td>
                   <div class="row-actions">
-                    <button (click)="detail(item)">Ver</button>
+                    <button (click)="detail(item)"><fs-icon name="eye" />Ver</button>
                     @if (canWrite()) {
                       @if (!item['deleted_at']) {
-                        <button (click)="open(item)">Editar</button>
+                        <button (click)="open(item)"><fs-icon name="edit" />Editar</button>
                       }
                       @if (config.states) {
                         <button
@@ -164,7 +170,11 @@ import { ProductImagesComponent } from './product-images.component';
                           "
                           [disabled]="busy()"
                         >
-                          {{
+                          <fs-icon
+                            [name]="
+                              item['deleted_at'] ? 'refresh' : item['is_active'] ? 'close' : 'check'
+                            "
+                          />{{
                             item['deleted_at']
                               ? 'Restaurar'
                               : item['is_active']
@@ -175,21 +185,25 @@ import { ProductImagesComponent } from './product-images.component';
                       }
                       @if (!item['deleted_at']) {
                         <button class="danger-text" (click)="confirmAction(item, 'delete')">
-                          Eliminar
+                          <fs-icon name="trash" />Eliminar
                         </button>
                       }
                       @if (config.key === 'users' && !item['deleted_at']) {
-                        <button (click)="assign(item, 'roles')">Roles</button
-                        ><button (click)="confirmAction(item, 'unlock')">Desbloquear</button>
+                        <button (click)="assign(item, 'roles')"><fs-icon name="users" />Roles</button
+                        ><button (click)="confirmAction(item, 'unlock')">
+                          <fs-icon name="unlock" />Desbloquear
+                        </button>
                       }
                       @if (config.key === 'roles') {
-                        <button (click)="assign(item, 'permissions')">Permisos</button>
+                        <button (click)="assign(item, 'permissions')">
+                          <fs-icon name="lock" />Permisos
+                        </button>
                       }
                     }
                     @if (config.key === 'products') {
-                      <a class="button" [routerLink]="['/admin/products', item.id]"
-                        >Variantes y recursos</a
-                      >
+                      <a class="button" [routerLink]="['/admin/products', item.id]">
+                        <fs-icon name="box" />Variantes y recursos
+                      </a>
                     }
                   </div>
                 </td>
@@ -208,10 +222,10 @@ import { ProductImagesComponent } from './product-images.component';
     @if (config.paginated) {
       <div class="pagination">
         <button (click)="page = page - 1; load()" [disabled]="page <= 1 || loading()">
-          Anterior</button
+          <fs-icon name="arrow-left" />Anterior</button
         ><span>Página {{ page }} de {{ pages() || 1 }}</span
         ><button (click)="page = page + 1; load()" [disabled]="page >= pages() || loading()">
-          Siguiente
+          Siguiente<fs-icon name="arrow-right" />
         </button>
       </div>
     }
@@ -231,7 +245,7 @@ import { ProductImagesComponent } from './product-images.component';
                 ? 'Asignar ' + (assignment === 'roles' ? 'roles' : 'permisos')
                 : current
                   ? 'Editar ' + config.singular
-                  : 'Nuevo ' + config.singular
+                  : (config.feminine ? 'Nueva ' : 'Nuevo ') + config.singular
             }}
           </h2>
           @if (formError()) {
@@ -282,7 +296,7 @@ import { ProductImagesComponent } from './product-images.component';
               <dd>{{ display(viewing()!['permissions']) }}</dd>
             }
           </dl>
-          <button (click)="viewing.set(null)">Cerrar</button>
+          <button (click)="viewing.set(null)"><fs-icon name="close" />Cerrar</button>
         </section>
       </div>
     }
@@ -314,8 +328,10 @@ import { ProductImagesComponent } from './product-images.component';
           }
           <div class="form-actions">
             <button class="primary" [disabled]="busy()" (click)="executeAction()">
-              {{ busy() ? 'Procesando…' : 'Confirmar' }}</button
-            ><button [disabled]="busy()" (click)="pending = null">Cancelar</button>
+              <fs-icon name="check" />{{ busy() ? 'Procesando…' : 'Confirmar' }}</button
+            ><button [disabled]="busy()" (click)="pending = null">
+              <fs-icon name="close" />Cancelar
+            </button>
           </div>
         </section>
       </div>

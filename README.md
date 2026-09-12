@@ -120,6 +120,56 @@ npm run test:contract
 - Los errores conservan el formulario abierto y el borrador. Las acciones destructivas requieren confirmación dentro de la interfaz. Los diálogos permiten usar Tab y Escape.
 - El borrado y los estados respetan las reglas del backend: no eliminar maestros en uso, no activar cajas de sucursales inactivas, no duplicar SKU ni talla/color.
 
+## Formularios e interfaz
+
+Los formularios de administración se generan desde `src/shared/form-schema.ts` y se dibujan con
+`EntityFormComponent`. Un formulario largo se divide en pasos con nombre en lugar de mostrarse en
+una sola columna interminable.
+
+- **Secciones.** Cada campo puede declarar `section`. El asistente arma un paso por sección, en el
+  orden en que aparecen. Los campos sin `section` heredan la del campo anterior. Si ningún campo
+  declara sección, se agrupan de a seis por paso (comportamiento anterior).
+- **Cómo declararlas.** El helper `section(nombre, campos)` de
+  `src/features/usuarios-catalogo/application/resources.ts` marca un grupo completo:
+
+  ```ts
+  fields: [
+    ...section('Identificación', [nameField, description]),
+    ...section('Clasificación', [lookup('category_id', 'Categoría', ruta, true)]),
+  ]
+  ```
+
+- **Cuándo dividir.** Solo los formularios largos usan secciones: prendas, usuarios, roles,
+  proveedores, sucursales y direcciones. Los de pocos campos (tallas, colores, ciudades, cajas,
+  temporadas, colecciones) se muestran en una sola pantalla, sin barra de pasos.
+- **Validación por paso.** «Continuar» valida únicamente los campos del paso actual. Se puede
+  volver a cualquier paso anterior con un clic; avanzar salteando pasos exige que los intermedios
+  sean válidos. Al guardar, si algo quedó incompleto, el formulario salta al paso del primer campo
+  con error en lugar de mostrar un mensaje sobre una sección oculta.
+- **Secciones vacías.** Los campos `createOnly` desaparecen al editar; si una sección queda sin
+  campos visibles, su paso no se dibuja.
+- **Género del sustantivo.** `Resource.feminine` decide entre «Nuevo usuario» y «Nueva prenda».
+- **Iconos.** `IconComponent` (`<fs-icon name="…" />`) dibuja los iconos de línea. Heredan el color
+  y el tamaño del botón (`1.15em`), y el nombre puede ser dinámico: en la tabla, el botón de estado
+  muestra un tilde, una cruz o una flecha según el registro esté inactivo, activo o eliminado.
+
+### Reglas de adaptación a la pantalla
+
+- La grilla de campos usa `repeat(auto-fit, minmax(230px, 1fr))`: acomoda dos columnas cuando hay
+  espacio y una sola cuando no, sin depender de un punto de quiebre fijo.
+- El panel admin se limita a `1400px` de ancho de contenido para que no se desparrame en monitores
+  grandes.
+- En el alta de prendas, por debajo de `800px` el formulario se ordena antes que el panel de
+  imágenes: apilado al revés dejaba los campos fuera de la primera pantalla.
+- Por debajo de `700px` las acciones de cada fila se reducen a iconos en una sola línea. El texto
+  sigue en el DOM (`font-size: 0`), así que los lectores de pantalla lo siguen anunciando; sin esto
+  cada fila medía unos 250px de alto.
+- Las tablas angostas reservan `620px` de ancho mínimo y desplazan en horizontal dentro de su
+  contenedor. Las celdas usan `overflow-wrap: break-word`, no `anywhere`, para que no se parta
+  «Esenciale / s» a mitad de palabra.
+- Los checkbox quedan excluidos de la regla que estira los controles de la barra de herramientas al
+  100%: al estirarse empujaban su propia etiqueta fuera del recuadro.
+
 ## Producción
 
 `npm run build` genera `dist/browser`. El servidor web debe servir `index.html` para rutas del frontend y reenviar `/api/v1` al backend. La compilación reemplaza el archivo de ambiente por `environment.prod.ts`. El proxy de Angular solo funciona durante desarrollo; no forma parte de la compilación publicada.

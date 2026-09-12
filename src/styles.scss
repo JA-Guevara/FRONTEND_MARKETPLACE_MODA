@@ -577,9 +577,11 @@ main {
   padding: 8px;
   font-size: 11px;
 }
+/* Las columnas se acomodan solas al ancho disponible: dos en escritorio, una
+   en pantallas angostas, sin depender de un breakpoint fijo. */
 .form-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   gap: 20px;
 }
 .field {
@@ -589,6 +591,13 @@ main {
 }
 .field.full {
   grid-column: 1/-1;
+}
+/* La etiqueta y su asterisco de obligatorio van en la misma línea. */
+.field > label:not(.check) {
+  flex-direction: row;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 5px;
 }
 .field label span {
   color: #a55333;
@@ -605,9 +614,55 @@ main {
 .editor-form {
   margin-top: 24px;
 }
+/* Asistente por secciones: cada paso agrupa campos de un mismo aspecto. */
+.form-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.form-step {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  gap: 9px;
+  padding: 9px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: #f5f3ed;
+  border-color: transparent;
+}
+.form-step-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  border-radius: 50%;
+  background: #e2ded4;
+  color: #6c665c;
+  font-size: 11px;
+}
+.form-step-title {
+  overflow-wrap: anywhere;
+}
+.form-step.current {
+  background: var(--white);
+  border-color: var(--ink);
+  color: var(--ink);
+}
+.form-step.current .form-step-index {
+  background: var(--ink);
+  color: var(--white);
+}
+.form-step.done .form-step-index {
+  background: #cfd8c4;
+  color: #3f5230;
+}
 .choices {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
   border: 1px solid var(--line);
   padding: 15px;
@@ -782,7 +837,10 @@ td {
   border-top: 1px solid #eeeae3;
   vertical-align: middle;
   max-width: 300px;
-  overflow-wrap: anywhere;
+  /* break-word y no anywhere: anywhere permite que la columna se encoja hasta
+     una letra y parte palabras como "Esenciale / s". Igual corta cadenas largas
+     sin espacios (URLs, identificadores). */
+  overflow-wrap: break-word;
 }
 td p {
   margin: 5px 0;
@@ -1239,7 +1297,9 @@ button, a, input, select, textarea { touch-action: manipulation; }
   .modal-backdrop { padding: 8px; }
   .form-actions { gap: 8px; }
   .form-actions > button { flex: 1 1 120px; min-height: 44px; }
-  .toolbar label:not(.check), .toolbar input, .toolbar select { width: 100%; max-width: none; }
+  /* Los checkbox quedan fuera: estirarlos al 100% empujaba su etiqueta
+     fuera del recuadro y el texto terminaba tapado por el botón vecino. */
+  .toolbar label:not(.check), .toolbar input:not([type='checkbox']), .toolbar select { width: 100%; max-width: none; }
   .toolbar > form { width: 100%; }
   .page-heading { align-items: stretch; }
   .page-heading > div { flex: 1 1 100%; }
@@ -1291,3 +1351,51 @@ button:active:not(:disabled), .button:active { box-shadow: none; }
 }
 
 @media (prefers-reduced-motion: reduce) { button, .button { transition: none; } }
+
+/* --- Ajustes de densidad y orden en pantallas angostas --- */
+
+/* En el alta de prendas el formulario va primero: el panel de imágenes es
+   alto y, apilado arriba, dejaba los campos fuera de la primera pantalla. */
+@media (max-width: 800px) {
+  .product-editor-columns > fs-entity-form {
+    order: 1;
+  }
+  .product-editor-columns > fs-product-images {
+    order: 2;
+  }
+}
+
+/* Las acciones de cada fila se reducen a iconos. El texto permanece en el DOM
+   (font-size: 0 no lo quita del árbol de accesibilidad), así que los lectores
+   de pantalla siguen anunciando "Editar", "Eliminar", etc. */
+@media (max-width: 700px) {
+  .row-actions {
+    /* En una sola línea: la tabla ya desplaza en horizontal, y así cada fila
+       mide una altura de botón en vez de apilar una acción por renglón. */
+    flex-wrap: nowrap;
+    width: max-content;
+    min-width: 0;
+    max-width: none;
+    gap: 6px;
+  }
+  .row-actions button,
+  .row-actions .button {
+    font-size: 0;
+    gap: 0;
+    padding: 10px;
+    min-width: 42px;
+  }
+  .row-actions fs-icon {
+    font-size: 15px;
+  }
+  /* Ancho mínimo para que las columnas respiren: sin esto las celdas quedan
+     tan angostas que el texto se corta letra por letra ("Reme / ra"). El
+     contenedor ya desplaza en horizontal. */
+  .table-wrap table {
+    min-width: 620px;
+  }
+  td,
+  th {
+    padding: 12px;
+  }
+}
