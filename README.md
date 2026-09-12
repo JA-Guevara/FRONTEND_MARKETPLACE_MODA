@@ -188,6 +188,23 @@ una sola columna interminable.
 - Los checkbox quedan excluidos de la regla que estira los controles de la barra de herramientas al
   100%: al estirarse empujaban su propia etiqueta fuera del recuadro.
 
+### Catálogo público: filtros al alcance
+
+Los filtros vivían en una columna lateral que aparecía después del hero y de la sección de
+recomendados: había que bajar dos pantallas antes de poder filtrar.
+
+- Son una **barra horizontal fija** (`form.filter-bar`, `position: sticky`) justo encima de la
+  grilla, así siguen a la vista mientras se recorren las prendas. En móvil arrancan plegadas detrás
+  del botón «Buscar y filtrar prendas».
+- La grilla ocupa el ancho completo (`repeat(auto-fill, minmax(215px, 1fr))`): cinco prendas por
+  fila en escritorio y dos en teléfono, con menos alto total de página.
+- Los recomendados pasaron después de la grilla; el hero bajó de 450px a 320px de alto mínimo.
+- Resultado medido: la portada pasó de 2847px a 2292px, y los filtros aparecen a los 615px.
+
+Cuidado con la especificidad si se tocan estos estilos: `.filters form` (0,1,1) le gana a
+`.filter-bar` (0,1,0), por eso las reglas se escriben como `.filters form.filter-bar`, y el plegado
+móvil como `.filters.filters-collapsed form.filter-bar`.
+
 ### Densidad: una vista, una pantalla
 
 Una pantalla de gestión no debería ocupar tres pantallas de alto. Las medidas tomadas, en orden de

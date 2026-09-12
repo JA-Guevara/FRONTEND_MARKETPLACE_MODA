@@ -39,30 +39,6 @@ import { RecommendedProduct } from '../../ventas-pagos/domain/commerce.models';
         </div>
       </div>
     </section>
-    @if (recommendations().length) {
-      <section class="container section recommendations">
-        <p class="eyebrow">INTELIGENCIA ARTIFICIAL</p>
-        <h2>Recomendado para vos</h2>
-        <div class="product-grid product-grid-compact">
-          @for (item of recommendations(); track item.id) {
-            <a class="product-card" [routerLink]="['/prendas', item.slug]">
-              <div class="product-image">
-                @if (item.image_url) {
-                  <img [src]="item.image_url" [alt]="item.name" loading="lazy" />
-                } @else {
-                  <div class="image-placeholder"><span>F.</span></div>
-                }
-              </div>
-              <p class="eyebrow">{{ item.category }}</p>
-              <h3>{{ item.name }}</h3>
-              <div class="product-bottom">
-                <span>Bs {{ item.base_price | number: '1.2-2' }}</span>
-              </div>
-            </a>
-          }
-        </div>
-      </section>
-    }
     <section class="container section" id="catalogo">
       <div class="page-heading">
         <div>
@@ -71,12 +47,18 @@ import { RecommendedProduct } from '../../ventas-pagos/domain/commerce.models';
         </div>
         <span class="muted">{{ result()?.total || 0 }} prendas</span>
       </div>
-      <div class="catalog-layout">
-        <aside class="filters" [class.filters-collapsed]="!filtersOpen()">
-          <button class="filters-toggle" type="button" [attr.aria-expanded]="filtersOpen()" aria-controls="catalog-filters" (click)="filtersOpen.set(!filtersOpen())">{{ filtersOpen() ? 'Ocultar filtros −' : 'Buscar y filtrar prendas +' }}</button>
-          <form id="catalog-filters" (ngSubmit)="apply(); filtersOpen.set(false)">
-            <h3>Encontrá tu estilo</h3>
-            <label
+      <div class="filters" [class.filters-collapsed]="!filtersOpen()">
+        <button
+          class="filters-toggle"
+          type="button"
+          [attr.aria-expanded]="filtersOpen()"
+          aria-controls="catalog-filters"
+          (click)="filtersOpen.set(!filtersOpen())"
+        >
+          {{ filtersOpen() ? 'Ocultar filtros −' : 'Buscar y filtrar prendas +' }}
+        </button>
+        <form id="catalog-filters" class="filter-bar" (ngSubmit)="apply(); filtersOpen.set(false)">
+            <label class="filter-search"
               >Buscar<input
                 name="search"
                 [(ngModel)]="filters['search']"
@@ -117,11 +99,14 @@ import { RecommendedProduct } from '../../ventas-pagos/domain/commerce.models';
             <label class="check"
               ><input type="checkbox" name="featured" [(ngModel)]="featured" />Solo
               destacadas</label
-            ><button class="primary">Aplicar filtros</button
-            ><button type="button" (click)="clear()">Limpiar filtros</button>
+            >
+            <div class="filter-actions">
+              <button class="primary">Aplicar</button
+              ><button type="button" (click)="clear()">Limpiar</button>
+            </div>
           </form>
-        </aside>
-        <div>
+      </div>
+      <div class="catalog-results">
           @if (error()) {
             <div class="alert error" role="alert">
               {{ error() }}<button (click)="retry()">Reintentar</button>
@@ -186,9 +171,32 @@ import { RecommendedProduct } from '../../ventas-pagos/domain/commerce.models';
               </button>
             </div>
           }
-        </div>
       </div>
-    </section>`,
+    </section>
+    @if (recommendations().length) {
+      <section class="container section recommendations">
+        <p class="eyebrow">INTELIGENCIA ARTIFICIAL</p>
+        <h2>Recomendado para vos</h2>
+        <div class="product-grid product-grid-compact">
+          @for (item of recommendations(); track item.id) {
+            <a class="product-card" [routerLink]="['/prendas', item.slug]">
+              <div class="product-image">
+                @if (item.image_url) {
+                  <img [src]="item.image_url" [alt]="item.name" loading="lazy" />
+                } @else {
+                  <div class="image-placeholder"><span>F.</span></div>
+                }
+              </div>
+              <p class="eyebrow">{{ item.category }}</p>
+              <h3>{{ item.name }}</h3>
+              <div class="product-bottom">
+                <span>Bs {{ item.base_price | number: '1.2-2' }}</span>
+              </div>
+            </a>
+          }
+        </div>
+      </section>
+    }`,
 })
 export class CatalogPageComponent {
   private api = inject(CatalogService);

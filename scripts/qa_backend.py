@@ -78,7 +78,7 @@ AuthEmailService.send_password_reset = capture_reset
 with Sessions() as db:
     codes = ['users.read','users.write','roles.read','roles.write','audit.read','catalog.read','catalog.write','suppliers.read','suppliers.write','branches.read','branches.write']
     permissions = [PermissionModel(code=code, name=code, module=code.split('.')[0]) for code in codes]
-    permissions.extend(PermissionModel(code=code, name=code, module=code.split('.')[0]) for code in ['commerce.read','commerce.write','stock.read','stock.write','dashboard.read'])
+    permissions.extend(PermissionModel(code=code, name=code, module=code.split('.')[0]) for code in ['commerce.read','commerce.write','stock.read','stock.write','dashboard.read','reservations.read','reservations.write'])
     admin = RoleModel(code='superadmin', name='Administrador de prueba', is_system=True, permissions=permissions)
     client = RoleModel(code='client', name='Cliente de prueba', is_system=True)
     hasher = PasswordHasher()

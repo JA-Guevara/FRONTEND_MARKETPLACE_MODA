@@ -1292,7 +1292,9 @@ img, svg, video { max-width: 100%; }
 }
 @media (max-width: 760px) {
   .filters-toggle { display: flex; width: 100%; min-height: 44px; margin-bottom: 12px; }
-  .filters-collapsed form { display: none; }
+  /* Gana a `.filters form.filter-bar`: en móvil el formulario arranca plegado
+     detrás del botón, para no empujar la grilla fuera de la pantalla. */
+  .filters.filters-collapsed form.filter-bar { display: none; }
 }
 button, a, input, select, textarea { touch-action: manipulation; }
 :focus-visible { outline: 2px solid #685335; outline-offset: 3px; }
@@ -1584,4 +1586,84 @@ td .button { min-height: 30px; padding: 5px 9px; font-size: 11.5px; }
   gap: 10px;
   margin-top: 16px;
   flex-wrap: wrap;
+}
+
+/* --- Catálogo: filtros arriba y grilla a ancho completo ---
+   Antes los filtros vivían en una columna lateral que quedaba después del hero
+   y de los recomendados: había que bajar dos pantallas para filtrar. Ahora son
+   una barra horizontal fija sobre la grilla. */
+.catalog-hero .hero-inner,
+.catalog-hero .hero-art {
+  min-height: 320px;
+}
+.filters {
+  border-right: 0;
+  padding-right: 0;
+  margin-bottom: 22px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--paper);
+  padding-top: 10px;
+}
+.filters form.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+}
+.filters form.filter-bar label {
+  flex: 1 1 130px;
+  min-width: 0;
+  gap: 5px;
+  font-size: 11px;
+}
+.filters form.filter-bar .filter-search {
+  flex: 2 1 220px;
+}
+.filters form.filter-bar input,
+.filters form.filter-bar select {
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.filters form.filter-bar .price-range {
+  flex: 1 1 170px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.filters form.filter-bar .check {
+  flex: 0 0 auto;
+  align-self: center;
+  white-space: nowrap;
+}
+.filter-actions {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+/* La grilla toma todo el ancho: más prendas por fila, menos alto de página. */
+.catalog-results .product-grid {
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+  gap: 28px 20px;
+}
+.recommendations {
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 760px) {
+  .filters {
+    position: static;
+  }
+  .filters form.filter-bar label,
+  .filters form.filter-bar .price-range {
+    flex: 1 1 100%;
+  }
+  .catalog-results .product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
 }
