@@ -170,6 +170,26 @@ una sola columna interminable.
 - Los checkbox quedan excluidos de la regla que estira los controles de la barra de herramientas al
   100%: al estirarse empujaban su propia etiqueta fuera del recuadro.
 
+### Densidad: una vista, una pantalla
+
+Una pantalla de gestión no debería ocupar tres pantallas de alto. Las medidas tomadas, en orden de
+impacto:
+
+- **El menú lateral ya no define el alto de la página.** Con dieciséis accesos medía más de 1100px y
+  estiraba toda la vista aunque la tabla midiera 200px. Por encima de 760px queda fijo
+  (`position: sticky`), acotado a `100vh` y con desplazamiento propio. En móvil sigue siendo el menú
+  horizontal desplegable, sin cambios.
+- **Las tablas se desplazan dentro de su recuadro**, acotadas a `min(68vh, 680px)`, con el
+  encabezado fijo. Treinta filas ya no estiran la página: el recuadro mantiene su alto.
+- **Filas compactas.** El relleno de celda pasó de 16px a 9px 14px y los botones dentro de celdas
+  (incluido «Ver detalle» de bitácora, que no está en `.row-actions`) bajaron a 30px de alto
+  mínimo. Cada fila pasó de 94px a 49px.
+- Encabezado de página y barra de filtros con menos aire (`margin-bottom` 28px → 18px; barra con
+  12px de relleno).
+
+Medido en bitácora: la página bajó de 1363px a 988px de alto, y la proyección con treinta filas pasó
+de unos 2800px de tabla a 522px con desplazamiento interno.
+
 ## Producción
 
 `npm run build` genera `dist/browser`. El servidor web debe servir `index.html` para rutas del frontend y reenviar `/api/v1` al backend. La compilación reemplaza el archivo de ambiente por `environment.prod.ts`. El proxy de Angular solo funciona durante desarrollo; no forma parte de la compilación publicada.
