@@ -7,6 +7,8 @@ import { catchError, firstValueFrom, of, switchMap, tap } from 'rxjs';
 import { CatalogService } from '../infrastructure/catalog.service';
 import { Entity, Page, Product } from '../domain/catalog.models';
 import { errorMessage } from '../../../shared/errors';
+import { CommerceService } from '../../ventas-pagos/infrastructure/commerce.service';
+import { RecommendedProduct } from '../../ventas-pagos/domain/commerce.models';
 
 @Component({
   selector: 'fs-catalog-page',
@@ -37,6 +39,30 @@ import { errorMessage } from '../../../shared/errors';
         </div>
       </div>
     </section>
+    @if (recommendations().length) {
+      <section class="container section recommendations">
+        <p class="eyebrow">INTELIGENCIA ARTIFICIAL</p>
+        <h2>Recomendado para vos</h2>
+        <div class="product-grid product-grid-compact">
+          @for (item of recommendations(); track item.id) {
+            <a class="product-card" [routerLink]="['/prendas', item.slug]">
+              <div class="product-image">
+                @if (item.image_url) {
+                  <img [src]="item.image_url" [alt]="item.name" loading="lazy" />
+                } @else {
+                  <div class="image-placeholder"><span>F.</span></div>
+                }
+              </div>
+              <p class="eyebrow">{{ item.category }}</p>
+              <h3>{{ item.name }}</h3>
+              <div class="product-bottom">
+                <span>Bs {{ item.base_price | number: '1.2-2' }}</span>
+              </div>
+            </a>
+          }
+        </div>
+      </section>
+    }
     <section class="container section" id="catalogo">
       <div class="page-heading">
         <div>
@@ -166,10 +192,12 @@ import { errorMessage } from '../../../shared/errors';
 })
 export class CatalogPageComponent {
   private api = inject(CatalogService);
+  private commerce = inject(CommerceService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private destroy = inject(DestroyRef);
   result = signal<Page<Product> | null>(null);
+  recommendations = signal<RecommendedProduct[]>([]);
   loading = signal(true);
   error = signal('');
   referenceError = signal('');
@@ -187,6 +215,7 @@ export class CatalogPageComponent {
   constructor() {
     this.clearFields();
     void this.loadReferences();
+    void this.loadRecommendations();
     this.route.queryParams
       .pipe(
         tap((query) => {
@@ -224,6 +253,13 @@ export class CatalogPageComponent {
       color_id: '',
     };
     this.featured = false;
+  }
+  async loadRecommendations() {
+    try {
+      this.recommendations.set(await this.commerce.get<RecommendedProduct[]>('/recommendations'));
+    } catch {
+      /* seccion opcional: si falla, simplemente no se muestra */
+    }
   }
   async loadReferences() {
     this.referenceError.set('');

@@ -4,9 +4,10 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/rou
 import { firstValueFrom } from 'rxjs';
 import { SessionService } from '../../../features/auth/application/session.service';
 import { IconComponent } from '../../../shared/icon.component';
+import { AssistantWidgetComponent } from '../../../features/ventas-pagos/presentation/assistant-widget.component';
 @Component({
   selector: 'fs-site-layout',
-  imports: [RouterLink, RouterLinkActive, RouterOutlet, IconComponent],
+  imports: [RouterLink, RouterLinkActive, RouterOutlet, IconComponent, AssistantWidgetComponent],
   template: ` <a class="skip-link" href="#main-content">Saltar al contenido</a>
     <div class="top-strip">
       {{ demo ? 'ENTORNO DE PRUEBA · DATOS TEMPORALES' : 'TU ESTILO. TU RITMO. TU FASHIONSTORE.' }}
@@ -27,7 +28,9 @@ import { IconComponent } from '../../../shared/icon.component';
         <div class="account-nav">
           <a routerLink="/carrito" class="button cart-link" aria-label="Ver carrito de compras"><fs-icon name="cart" />Carrito</a>
           @if (session.user(); as user) {
-            <a routerLink="/mi-cuenta" class="account-name">Hola, {{ user.first_name }}</a
+            <a routerLink="/mi-cuenta/reservas" class="button" aria-label="Mis reservas"
+              ><fs-icon name="calendar" />Mis reservas</a
+            ><a routerLink="/mi-cuenta" class="account-name">Hola, {{ user.first_name }}</a
             ><button (click)="logout()" [disabled]="busy()">Salir</button>
           } @else {
             <a routerLink="/iniciar-sesion">Ingresar</a
@@ -46,7 +49,10 @@ import { IconComponent } from '../../../shared/icon.component';
         <p>Prendas para vivir a tu manera.</p>
         <a routerLink="/sucursales">Encontrá tu sucursal ↗</a>
       </div>
-    </footer>`,
+    </footer>
+    @if (session.user()) {
+      <fs-assistant-widget />
+    }`,
 })
 export class SiteLayoutComponent {
   readonly demo = environment.demo;

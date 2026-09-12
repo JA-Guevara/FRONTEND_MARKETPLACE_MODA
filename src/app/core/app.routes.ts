@@ -104,6 +104,32 @@ export const routes: Routes = [
     data: { resource: addressesResource },
   },
   {
+    path: 'mi-cuenta/reservas',
+    title: 'Mis reservas | FashionStore',
+    loadComponent: () =>
+      import('../../features/reservas-vestidor/presentation/mis-reservas.component').then(
+        (m) => m.MisReservasComponent,
+      ),
+    canActivate: [authGuard],
+  },
+  {
+    path: 'agendar-visita',
+    title: 'Agendar visita | FashionStore',
+    loadComponent: () =>
+      import('../../features/reservas-vestidor/presentation/agendar-visita.component').then(
+        (m) => m.AgendarVisitaComponent,
+      ),
+    canActivate: [authGuard],
+  },
+  {
+    path: 'prendas/:slug/vestidor',
+    title: 'Vestidor virtual | FashionStore',
+    loadComponent: () =>
+      import('../../features/reservas-vestidor/presentation/vestidor.component').then(
+        (m) => m.VestidorComponent,
+      ),
+  },
+  {
     path: 'admin',
     loadComponent: () =>
       import('./layout/admin-layout.component').then((m) => m.AdminLayoutComponent),
@@ -151,6 +177,16 @@ export const routes: Routes = [
           ),
         canActivate: [authGuard],
         data: { permission: 'catalog.read' },
+      },
+      {
+        path: 'reservas',
+        title: 'Reservas | FashionStore',
+        loadComponent: () =>
+          import('../../features/reservas-vestidor/presentation/admin-reservas.component').then(
+            (m) => m.AdminReservasComponent,
+          ),
+        canActivate: [authGuard],
+        data: { permission: 'reservations.read' },
       },
       {
         path: 'bitacora',

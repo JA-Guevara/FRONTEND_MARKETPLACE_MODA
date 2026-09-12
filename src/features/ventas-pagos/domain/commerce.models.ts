@@ -59,6 +59,14 @@ export interface Order {
   tracking_number: string | null;
   created_at: string;
 }
+export interface RecommendedProduct {
+  id: string;
+  slug: string;
+  name: string;
+  base_price: string;
+  image_url: string | null;
+  category: string;
+}
 export const commerceLabel = (value: string): string =>
   ({
     pending_payment: 'Pendiente de pago',

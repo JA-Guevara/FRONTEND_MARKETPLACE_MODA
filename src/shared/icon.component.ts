@@ -31,6 +31,9 @@ export const ICON_PATHS: Record<string, string> = {
   menu: 'M4 6h16 M4 12h16 M4 18h16',
   list: 'M8 6h13 M8 12h13 M8 18h13 M3.5 6h.01 M3.5 12h.01 M3.5 18h.01',
   clock: 'M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16 M12 8v4.5l3 2',
+  camera: 'M4 8h3l1.5-2h7L17 8h3v11H4z M12 12.5a3 3 0 1 0 0 6 3 3 0 0 0 0-6',
+  calendar: 'M4 5h16v15H4z M4 9h16 M8 3v4 M16 3v4',
+  chat: 'M4 4h16v12H9l-5 4z M8 9h8 M8 12h5',
 };
 
 @Component({

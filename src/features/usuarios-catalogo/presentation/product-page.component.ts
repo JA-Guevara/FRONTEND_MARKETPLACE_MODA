@@ -9,6 +9,7 @@ import { catchError, of, switchMap } from 'rxjs';
 import { CatalogService } from '../infrastructure/catalog.service';
 import { Product, Entity } from '../domain/catalog.models';
 import { errorMessage } from '../../../shared/errors';
+import { TryOnListService } from '../../reservas-vestidor/application/try-on-list.service';
 @Component({
   selector: 'fs-product-page',
   imports: [RouterLink, DecimalPipe, IconComponent],
@@ -83,6 +84,16 @@ import { errorMessage } from '../../../shared/errors';
             </button>
             <a class="button" routerLink="/carrito"><fs-icon name="cart" />Ver carrito</a>
           </div>
+          <div class="form-actions">
+            <button [disabled]="!variant()" (click)="addToTryOn()">
+              <fs-icon name="calendar" />Agregar a mi visita
+            </button>
+            @if (hasArAsset()) {
+              <a class="button" [routerLink]="'/prendas/' + p.slug + '/vestidor'">
+                <fs-icon name="camera" />Probar con cámara
+              </a>
+            }
+          </div>
           @if (!variant()) {
             <p class="muted">Elegí una talla y un color para continuar.</p>
           }
@@ -91,6 +102,9 @@ import { errorMessage } from '../../../shared/errors';
           }
           @if (cartError()) {
             <p class="alert error" role="alert">{{ cartError() }}</p>
+          }
+          @if (tryOnMessage()) {
+            <p class="alert success" role="status">{{ tryOnMessage() }}</p>
           }
           <div class="panel">
             <h3>Conocé nuestras sucursales</h3>
@@ -106,9 +120,32 @@ export class ProductPageComponent {
   private commerce = inject(CommerceService);
   private session = inject(SessionService);
   private router = inject(Router);
+  private tryOn = inject(TryOnListService);
   adding = signal(false);
   cartMessage = signal('');
   cartError = signal('');
+  tryOnMessage = signal('');
+  hasArAsset() {
+    return (this.product()?.ar_assets || []).some(
+      (a) => a['is_active'] && a['asset_type'] === 'image_overlay',
+    );
+  }
+  addToTryOn() {
+    const p = this.product();
+    const v = this.variant();
+    if (!p || !v) return;
+    this.tryOn.add({
+      variant_id: v.id,
+      product_id: p.id,
+      name: p.name,
+      sku: v['sku'],
+      size: v['size']['name'],
+      color: v['color']['name'],
+      image_url: this.selectedImage() || null,
+      quantity: 1,
+    });
+    this.tryOnMessage.set('Agregada a tu visita. Podés seguir sumando prendas y agendar cuando termines.');
+  }
   async addToCart() {
     const selected = this.variant();
     if (!selected || this.adding()) return;
