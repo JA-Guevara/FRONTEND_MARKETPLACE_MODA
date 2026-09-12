@@ -225,3 +225,45 @@ h1 {
     text-align: center;
   }
 }
+
+/* Direcciones guardadas del perfil dentro del checkout. */
+.saved-addresses {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.saved-addresses > p {
+  margin: 0;
+  font-size: 12px;
+}
+.saved-address {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.saved-address.selected {
+  border-color: var(--ink);
+  background: #fff;
+}
+.saved-address input {
+  width: auto;
+  margin-top: 3px;
+  flex: 0 0 auto;
+}
+.saved-address span {
+  display: grid;
+  gap: 3px;
+}
+.saved-address small {
+  color: var(--muted);
+}
+.saved-addresses > a {
+  font-size: 12px;
+  justify-self: start;
+}

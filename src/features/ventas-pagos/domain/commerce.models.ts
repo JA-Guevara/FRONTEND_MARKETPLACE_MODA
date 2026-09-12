@@ -21,6 +21,19 @@ export interface Branch {
   name: string;
   address: string;
 }
+/** Dirección guardada en el perfil del cliente. */
+export interface SavedAddress {
+  id: string;
+  label: string;
+  recipient_name: string;
+  phone: string;
+  address_line: string;
+  city: string;
+  postal_code: string | null;
+  country: string;
+  reference: string | null;
+  is_default: boolean;
+}
 export interface DeliveryAddress {
   recipient: string;
   phone: string;

@@ -2,8 +2,10 @@ import { Component, inject, signal } from '@angular/core';
 import { DecimalPipe, UpperCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 import { CommerceService } from '../infrastructure/commerce.service';
-import { Branch, Cart, DeliveryAddress, Order } from '../domain/commerce.models';
+import { Branch, Cart, DeliveryAddress, Order, SavedAddress } from '../domain/commerce.models';
+import { ApiService } from '../../../app/core/shared/api.service';
 import { SessionService } from '../../auth/application/session.service';
 import { errorMessage } from '../../../shared/errors';
 @Component({
@@ -97,6 +99,43 @@ import { errorMessage } from '../../../shared/errors';
             } @else {
               <form #checkoutForm="ngForm" (ngSubmit)="checkoutForm.valid && buy()">
                 <h3>Datos de entrega</h3>
+                @if (savedAddresses().length) {
+                  <div class="saved-addresses">
+                    <p class="muted">Tus direcciones guardadas</p>
+                    @for (saved of savedAddresses(); track saved.id) {
+                      <label class="saved-address" [class.selected]="selectedAddress === saved.id">
+                        <input
+                          type="radio"
+                          name="savedAddress"
+                          [value]="saved.id"
+                          [ngModel]="selectedAddress"
+                          (ngModelChange)="useAddress($event)"
+                        />
+                        <span>
+                          <strong>{{ saved.label }}</strong>
+                          @if (saved.is_default) {
+                            <span class="badge">Predeterminada</span>
+                          }
+                          <small
+                            >{{ saved.address_line }} · {{ saved.city
+                            }}{{ saved.postal_code ? ' · CP ' + saved.postal_code : '' }}</small
+                          >
+                        </span>
+                      </label>
+                    }
+                    <label class="saved-address" [class.selected]="!selectedAddress">
+                      <input
+                        type="radio"
+                        name="savedAddress"
+                        [value]="''"
+                        [ngModel]="selectedAddress"
+                        (ngModelChange)="useNewAddress()"
+                      />
+                      <span><strong>Usar otra dirección</strong></span>
+                    </label>
+                    <a routerLink="/mi-cuenta/direcciones">Administrar mis direcciones ↗</a>
+                  </div>
+                }
                 <div class="commerce-fields">
                   <label class="wide"
                     >Nombre de quien recibe<input
@@ -134,11 +173,23 @@ import { errorMessage } from '../../../shared/errors';
                       maxlength="100"
                       autocomplete="address-level2" /></label
                   ><label
+                    >Código postal<input
+                      name="postal_code"
+                      [(ngModel)]="address.postal_code"
+                      maxlength="20"
+                      autocomplete="postal-code" /></label
+                  ><label
                     >País<select name="country" [(ngModel)]="address.country">
                       <option value="BO">Bolivia</option>
                     </select></label
                   >
                 </div>
+                @if (!selectedAddress) {
+                  <label class="check"
+                    ><input type="checkbox" name="saveToProfile" [(ngModel)]="saveToProfile" />Guardar
+                    esta dirección en mi perfil</label
+                  >
+                }
                 <label
                   >Cómo querés pagar<select name="method" [(ngModel)]="method">
                     <option value="manual">Coordinar efectivo o transferencia</option>
@@ -177,12 +228,17 @@ export class CartPageComponent {
   api = inject(CommerceService);
   private router = inject(Router);
   private session = inject(SessionService);
+  private http = inject(ApiService);
   cart = signal<Cart | null>(null);
   branches = signal<Branch[]>([]);
   loading = signal(true);
   busy = signal(false);
   error = signal('');
   addressStep = signal(false);
+  /** Direcciones del perfil, para no reescribirlas en cada compra. */
+  savedAddresses = signal<SavedAddress[]>([]);
+  selectedAddress = '';
+  saveToProfile = false;
   branch = '';
   method = 'manual';
   address: DeliveryAddress = {
@@ -201,6 +257,7 @@ export class CartPageComponent {
     try {
       this.branches.set(await this.api.branches());
       await this.loadCart();
+      await this.loadAddresses();
     } catch (e) {
       this.error.set(errorMessage(e));
     } finally {
@@ -251,6 +308,67 @@ export class CartPageComponent {
       this.busy.set(false);
     }
   }
+  /** Trae las direcciones del perfil y deja lista la predeterminada. */
+  async loadAddresses() {
+    if (!this.session.user()) return;
+    try {
+      const direcciones = await firstValueFrom(
+        this.http.get<SavedAddress[]>('/users/me/addresses'),
+      );
+      this.savedAddresses.set(direcciones);
+      const preferida = direcciones.find((d) => d.is_default) || direcciones[0];
+      if (preferida) this.useAddress(preferida.id);
+    } catch {
+      // Sin direcciones guardadas se completa a mano; no es un error de la compra.
+    }
+  }
+  /** Copia una dirección guardada al formulario de entrega. */
+  useAddress(id: string) {
+    this.selectedAddress = id;
+    const elegida = this.savedAddresses().find((d) => d.id === id);
+    if (!elegida) return;
+    this.saveToProfile = false;
+    this.address = {
+      recipient: elegida.recipient_name,
+      phone: elegida.phone,
+      line1: elegida.address_line,
+      city: elegida.city,
+      country: elegida.country || 'BO',
+      postal_code: elegida.postal_code || '',
+    };
+  }
+  /** Vacía el formulario para cargar una dirección distinta. */
+  useNewAddress() {
+    this.selectedAddress = '';
+    const user = this.session.user();
+    this.address = {
+      recipient: [user?.first_name, user?.last_name].filter(Boolean).join(' '),
+      phone: user?.phone || '',
+      line1: '',
+      city: '',
+      country: 'BO',
+      postal_code: '',
+    };
+  }
+  /** Guarda en el perfil la dirección recién usada, para la próxima compra. */
+  private async storeAddress() {
+    try {
+      await firstValueFrom(
+        this.http.write('POST', '/users/me/addresses', {
+          label: 'Entrega',
+          recipient_name: this.address.recipient,
+          phone: this.address.phone,
+          address_line: this.address.line1,
+          city: this.address.city,
+          postal_code: this.address.postal_code || null,
+          country: this.address.country || 'BO',
+          is_default: this.savedAddresses().length === 0,
+        }),
+      );
+    } catch {
+      // El pedido ya fue creado: no se interrumpe la compra por esto.
+    }
+  }
   async buy() {
     if (this.busy() || !this.canBuy()) return;
     this.busy.set(true);
@@ -261,6 +379,7 @@ export class CartPageComponent {
         address: this.address,
         payment_method: this.method,
       });
+      if (this.saveToProfile && !this.selectedAddress) await this.storeAddress();
       await this.router.navigate(['/mi-cuenta/pedidos'], { queryParams: { pedido: order.id } });
     } catch (e) {
       this.error.set(errorMessage(e));

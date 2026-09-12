@@ -5,10 +5,25 @@ import { SessionService } from '../application/session.service';
 import { errorMessage } from '../../../shared/errors';
 import { ApiService } from '../../../app/core/shared/api.service';
 import { EntityFormComponent } from '../../../shared/entity-form.component';
+import { IconComponent } from '../../../shared/icon.component';
 import { Field } from '../../../shared/form-schema';
+
+/** Dirección del perfil, reutilizada al comprar. */
+interface Address {
+  id: string;
+  label: string;
+  recipient_name: string;
+  phone: string;
+  address_line: string;
+  city: string;
+  postal_code: string | null;
+  country: string;
+  reference: string | null;
+  is_default: boolean;
+}
 @Component({
   selector: 'fs-account-page',
-  imports: [RouterLink, EntityFormComponent],
+  imports: [RouterLink, EntityFormComponent, IconComponent],
   template: `<section class="container narrow section">
     <p class="eyebrow">TU ESPACIO</p>
     <h1>Mi cuenta</h1>
@@ -35,6 +50,51 @@ import { Field } from '../../../shared/form-schema';
             <p class="muted">Mantené tu nombre y teléfono actualizados para coordinar tus pedidos.</p>
             <fs-entity-form [fields]="fields" [value]="profileValue()" [busy]="busy()" (saved)="saveProfile($event)" (cancel)="editing.set(false)" />
           </div>
+        }
+      </div>
+    }
+    @if (session.user()) {
+      <div class="panel profile-addresses">
+        <div class="page-heading">
+          <div>
+            <h2>Mis direcciones</h2>
+            <p class="muted">
+              La predeterminada se completa sola al finalizar una compra, así no la reescribís cada
+              vez.
+            </p>
+          </div>
+          <a class="button" routerLink="/mi-cuenta/direcciones">
+            <fs-icon name="plus" />Administrar
+          </a>
+        </div>
+        @if (loadingAddresses()) {
+          <p class="empty" role="status">Cargando direcciones…</p>
+        } @else {
+          @for (address of addresses(); track address.id) {
+            <article class="address-card" [class.is-default]="address.is_default">
+              <div>
+                <strong>{{ address.label }}</strong>
+                @if (address.is_default) {
+                  <span class="badge">Predeterminada</span>
+                }
+                <p>{{ address.recipient_name }} · {{ address.phone }}</p>
+                <p class="muted">
+                  {{ address.address_line }} · {{ address.city
+                  }}{{ address.postal_code ? ' · CP ' + address.postal_code : '' }}
+                </p>
+              </div>
+              @if (!address.is_default) {
+                <button (click)="makeDefault(address)" [disabled]="busy()">
+                  <fs-icon name="check" />Usar como predeterminada
+                </button>
+              }
+            </article>
+          } @empty {
+            <p class="empty">
+              Todavía no guardaste direcciones. Agregá una y se usará automáticamente en tus
+              próximos pedidos.
+            </p>
+          }
         }
       </div>
     }
@@ -73,6 +133,39 @@ export class AccountPageComponent {
   busy = signal(false);
   message = signal('');
   error = signal('');
+  addresses = signal<Address[]>([]);
+  loadingAddresses = signal(true);
+  constructor() {
+    void this.loadAddresses();
+  }
+  async loadAddresses() {
+    this.loadingAddresses.set(true);
+    try {
+      this.addresses.set(await firstValueFrom(this.api.get<Address[]>('/users/me/addresses')));
+    } catch (error) {
+      this.error.set(errorMessage(error));
+    } finally {
+      this.loadingAddresses.set(false);
+    }
+  }
+  /** El backend deja una sola predeterminada: al marcar esta, limpia el resto. */
+  async makeDefault(address: Address) {
+    if (this.busy()) return;
+    this.busy.set(true);
+    this.error.set('');
+    this.message.set('');
+    try {
+      await firstValueFrom(
+        this.api.write('PATCH', `/users/me/addresses/${address.id}`, { is_default: true }),
+      );
+      this.message.set(`«${address.label}» quedó como dirección predeterminada.`);
+      await this.loadAddresses();
+    } catch (error) {
+      this.error.set(errorMessage(error));
+    } finally {
+      this.busy.set(false);
+    }
+  }
   async resend() {
     this.busy.set(true);
     this.error.set('');

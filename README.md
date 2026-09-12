@@ -120,6 +120,24 @@ npm run test:contract
 - Los errores conservan el formulario abierto y el borrador. Las acciones destructivas requieren confirmación dentro de la interfaz. Los diálogos permiten usar Tab y Escape.
 - El borrado y los estados respetan las reglas del backend: no eliminar maestros en uso, no activar cajas de sucursales inactivas, no duplicar SKU ni talla/color.
 
+## Perfil del cliente y direcciones
+
+El cliente carga sus datos una vez y el checkout los reutiliza; antes había que reescribir la
+dirección en cada pedido.
+
+- **`/mi-cuenta`** concentra el perfil: datos personales editables y la lista de direcciones, cada
+  una con su etiqueta, destinatario, dirección, ciudad y código postal. La predeterminada se
+  distingue con una insignia y el resto ofrece «Usar como predeterminada» (un `PATCH` con
+  `is_default: true`; el backend deja una sola activa).
+- **`/mi-cuenta/direcciones`** mantiene el alta, edición y baja completas.
+- **Checkout.** Al continuar con la compra se listan las direcciones guardadas con la
+  predeterminada ya seleccionada y el formulario completo (destinatario, teléfono, dirección,
+  ciudad, código postal y país). «Usar otra dirección» limpia el formulario y ofrece guardarla en el
+  perfil para la próxima compra.
+- **Código postal y país** se agregaron a la dirección guardada (migración `20260912_0004`), porque
+  el pedido ya los pedía y la dirección del perfil no los tenía: esa era la razón de fondo por la
+  que no se podían reutilizar.
+
 ## Formularios e interfaz
 
 Los formularios de administración se generan desde `src/shared/form-schema.ts` y se dibujan con

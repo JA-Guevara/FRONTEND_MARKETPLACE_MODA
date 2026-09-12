@@ -1424,3 +1424,24 @@ td .button { min-height: 30px; padding: 5px 9px; font-size: 11.5px; }
     overscroll-behavior: contain;
   }
 }
+
+/* Direcciones dentro del perfil del cliente. */
+.profile-addresses {
+  margin-top: 18px;
+}
+.address-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+.address-card p {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+.address-card.is-default strong {
+  color: var(--ink);
+}
