@@ -5,6 +5,7 @@ import { CommerceService } from '../../ventas-pagos/infrastructure/commerce.serv
 import { ReservasService } from '../infrastructure/reservas.service';
 import { TryOnListService } from '../application/try-on-list.service';
 import { Branch } from '../../ventas-pagos/domain/commerce.models';
+import { VariantAvailability } from '../domain/reservas.models';
 import { IconComponent } from '../../../shared/icon.component';
 import { errorMessage } from '../../../shared/errors';
 @Component({
@@ -34,6 +35,7 @@ import { errorMessage } from '../../../shared/errors';
               <th>Talla</th>
               <th>Color</th>
               <th>Cantidad</th>
+              <th>En la sucursal</th>
               <th></th>
             </tr>
           </thead>
@@ -45,7 +47,18 @@ import { errorMessage } from '../../../shared/errors';
                 <td>{{ i.color }}</td>
                 <td>{{ i.quantity }}</td>
                 <td>
-                  <button type="button" (click)="tryOn.remove(i.variant_id)">
+                  @if (!branchId) {
+                    <span class="muted">Elegí una sucursal</span>
+                  } @else if (checking()) {
+                    <span class="muted">Consultando…</span>
+                  } @else if (statusOf(i.variant_id); as estado) {
+                    <span class="badge" [class.inactive]="!estado.available">{{
+                      estado.available ? 'Disponible · ' + estado.quantity : estado.reason
+                    }}</span>
+                  }
+                </td>
+                <td>
+                  <button type="button" (click)="removeItem(i.variant_id)">
                     <fs-icon name="trash" />Quitar
                   </button>
                 </td>
@@ -56,7 +69,12 @@ import { errorMessage } from '../../../shared/errors';
       </div>
       <form #f="ngForm" (ngSubmit)="f.valid && submit()" class="toolbar">
         <label
-          >Sucursal<select name="branch" [(ngModel)]="branchId" required>
+          >Sucursal<select
+            name="branch"
+            [(ngModel)]="branchId"
+            (ngModelChange)="onBranchChange()"
+            required
+          >
             <option value="" disabled>Elegí una sucursal</option>
             @for (b of branches(); track b.id) {
               <option [value]="b.id">{{ b.name }}</option>
@@ -77,10 +95,18 @@ import { errorMessage } from '../../../shared/errors';
             maxlength="1000"
             placeholder="Ej.: prefiero la tarde"
         /></label>
-        <button class="primary" type="submit" [disabled]="busy()">
-          {{ busy() ? 'Agendando…' : 'Confirmar visita' }}
+        <button class="primary" type="submit" [disabled]="busy() || checking() || !!unavailable.length">
+          <fs-icon name="calendar" />{{ busy() ? 'Agendando…' : 'Confirmar visita' }}
         </button>
       </form>
+      @if (unavailable.length) {
+        <p class="alert error" role="alert">
+          Esta sucursal no tiene
+          {{ unavailable.length === 1 ? 'una de las tallas' : unavailable.length + ' de las tallas' }}
+          que elegiste. Quitalas de la lista o probá con otra sucursal, así no viajás al local para
+          nada.
+        </p>
+      }
     }
   </section>`,
 })
@@ -90,11 +116,19 @@ export class AgendarVisitaComponent {
   private reservas = inject(ReservasService);
   private router = inject(Router);
   branches = signal<Branch[]>([]);
+  availability = signal<VariantAvailability[]>([]);
+  checking = signal(false);
   branchId = '';
   notes = '';
   busy = signal(false);
   error = signal('');
-  minDateTime = new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16);
+  /** `datetime-local` trabaja en hora local, pero `toISOString()` devuelve UTC:
+      usarlo directo corría el mínimo tantas horas como el huso (en Bolivia, 4),
+      y no se podía agendar para hoy. Se descuenta el desfase antes de recortar. */
+  private static localInput(date: Date) {
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  }
+  minDateTime = AgendarVisitaComponent.localInput(new Date(Date.now() + 60 * 60 * 1000));
   scheduledAt = this.minDateTime;
   constructor() {
     void this.loadBranches();
@@ -105,6 +139,37 @@ export class AgendarVisitaComponent {
     } catch (e) {
       this.error.set(errorMessage(e));
     }
+  }
+  /** Estado de una prenda en la sucursal elegida. */
+  statusOf(variantId: string) {
+    return this.availability().find((a) => a.variant_id === variantId) || null;
+  }
+  get unavailable() {
+    return this.availability().filter((a) => !a.available);
+  }
+  /** Al cambiar de sucursal se vuelve a preguntar qué tallas hay ahí. */
+  async onBranchChange() {
+    this.availability.set([]);
+    this.error.set('');
+    const items = this.tryOn.items();
+    if (!this.branchId || !items.length) return;
+    this.checking.set(true);
+    try {
+      this.availability.set(
+        await this.reservas.availability(
+          this.branchId,
+          items.map((i) => i.variant_id),
+        ),
+      );
+    } catch (e) {
+      this.error.set(errorMessage(e));
+    } finally {
+      this.checking.set(false);
+    }
+  }
+  removeItem(variantId: string) {
+    this.tryOn.remove(variantId);
+    void this.onBranchChange();
   }
   async submit() {
     this.busy.set(true);

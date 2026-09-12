@@ -1,12 +1,18 @@
 import { environment } from '../../../environments/environment';
-import { Component, inject, signal } from '@angular/core';
+import { Component, ElementRef, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { SessionService } from '../../../features/auth/application/session.service';
+import { ACCOUNT_SECTIONS } from '../../../features/auth/presentation/account-layout.component';
 import { IconComponent } from '../../../shared/icon.component';
 import { AssistantWidgetComponent } from '../../../features/ventas-pagos/presentation/assistant-widget.component';
 @Component({
   selector: 'fs-site-layout',
+  // El menú de cuenta se cierra al tocar fuera o al presionar Escape.
+  host: {
+    '(document:click)': 'closeMenuOutside($event)',
+    '(document:keydown.escape)': 'menuOpen.set(false)',
+  },
   imports: [RouterLink, RouterLinkActive, RouterOutlet, IconComponent, AssistantWidgetComponent],
   template: ` <a class="skip-link" href="#main-content">Saltar al contenido</a>
     <div class="top-strip">
@@ -28,10 +34,36 @@ import { AssistantWidgetComponent } from '../../../features/ventas-pagos/present
         <div class="account-nav">
           <a routerLink="/carrito" class="button cart-link" aria-label="Ver carrito de compras"><fs-icon name="cart" />Carrito</a>
           @if (session.user(); as user) {
-            <a routerLink="/mi-cuenta/reservas" class="button" aria-label="Mis reservas"
-              ><fs-icon name="calendar" />Mis reservas</a
-            ><a routerLink="/mi-cuenta" class="account-name">Hola, {{ user.first_name }}</a
-            ><button (click)="logout()" [disabled]="busy()">Salir</button>
+            <div class="account-menu">
+              <button
+                class="account-name"
+                type="button"
+                [attr.aria-expanded]="menuOpen()"
+                aria-haspopup="true"
+                (click)="menuOpen.set(!menuOpen())"
+              >
+                <fs-icon name="users" />Hola, {{ user.first_name }}
+              </button>
+              @if (menuOpen()) {
+                <div class="account-dropdown" role="menu">
+                  <p class="account-greeting">
+                    Bienvenido de nuevo,<br /><strong>{{ user.first_name }} {{ user.last_name }}</strong>
+                  </p>
+                  @for (item of accountSections; track item.path) {
+                    <a
+                      [routerLink]="item.path"
+                      role="menuitem"
+                      (click)="menuOpen.set(false)"
+                    >
+                      <fs-icon [name]="item.icon" />{{ item.label }}
+                    </a>
+                  }
+                  <button type="button" role="menuitem" (click)="logout()" [disabled]="busy()">
+                    <fs-icon name="close" />{{ busy() ? 'Cerrando…' : 'Desconectar' }}
+                  </button>
+                </div>
+              }
+            </div>
           } @else {
             <a routerLink="/iniciar-sesion">Ingresar</a
             ><a routerLink="/registrarse" class="button primary">Crear cuenta</a>
@@ -56,11 +88,21 @@ import { AssistantWidgetComponent } from '../../../features/ventas-pagos/present
 })
 export class SiteLayoutComponent {
   readonly demo = environment.demo;
+  readonly accountSections = ACCOUNT_SECTIONS;
+  menuOpen = signal(false);
+  private host = inject(ElementRef<HTMLElement>);
+  closeMenuOutside(event: Event) {
+    if (!this.menuOpen()) return;
+    const objetivo = event.target as Node;
+    const menu = (this.host.nativeElement as HTMLElement).querySelector('.account-menu');
+    if (menu && !menu.contains(objetivo)) this.menuOpen.set(false);
+  }
   session = inject(SessionService);
   private router = inject(Router);
   busy = signal(false);
   notice = signal('');
   async logout() {
+    this.menuOpen.set(false);
     this.busy.set(true);
     this.notice.set('');
     try {

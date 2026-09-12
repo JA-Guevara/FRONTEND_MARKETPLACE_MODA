@@ -35,13 +35,18 @@ interface Address {
         <span class="badge">{{
           user.is_verified ? 'Correo verificado' : 'Correo pendiente de verificación'
         }}</span>
+        <!-- La navegación entre secciones vive en el menú del módulo de cuenta;
+             acá quedan solo las acciones sobre los datos personales. -->
         <div class="form-actions">
-          <a class="button primary" routerLink="/mi-cuenta/pedidos">Mis pedidos</a>
-          <a class="button primary" routerLink="/mi-cuenta/direcciones">Mis direcciones</a
-          ><a class="button" routerLink="/cambiar-contrasena">Cambiar contraseña</a>
-          <button (click)="editing.set(!editing())" [disabled]="busy()">{{ editing() ? 'Cerrar edición' : 'Editar mis datos' }}</button>
+          <button class="primary" (click)="editing.set(!editing())" [disabled]="busy()">
+            <fs-icon [name]="editing() ? 'close' : 'edit'" />{{
+              editing() ? 'Cerrar edición' : 'Editar mis datos'
+            }}
+          </button>
           @if (!user.is_verified) {
-            <button (click)="resend()" [disabled]="busy()">Reenviar verificación</button>
+            <button (click)="resend()" [disabled]="busy()">
+              <fs-icon name="refresh" />Reenviar verificación
+            </button>
           }
         </div>
         @if (editing()) {

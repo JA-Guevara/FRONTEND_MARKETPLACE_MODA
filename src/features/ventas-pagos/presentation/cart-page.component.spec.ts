@@ -76,7 +76,11 @@ describe('Compra desde el carrito', () => {
   });
   it('protege las nuevas rutas con sesión y permisos administrativos', () => {
     expect(routes.find((r) => r.path === 'carrito')?.canActivate?.length).toBe(1);
-    expect(routes.find((r) => r.path === 'mi-cuenta/pedidos')?.canActivate?.length).toBe(1);
+    // Las pantallas personales cuelgan de 'mi-cuenta': la guarda del padre
+    // protege a todas sus hijas, así que se verifica ahí.
+    const cuenta = routes.find((r) => r.path === 'mi-cuenta')!;
+    expect(cuenta.canActivate?.length).toBe(1);
+    expect(cuenta.children?.map((r) => r.path)).toContain('pedidos');
     const admin = routes.find((r) => r.path === 'admin')!;
     expect(admin.children?.find((r) => r.path === 'pedidos')?.data?.['permission']).toBe(
       'commerce.read',

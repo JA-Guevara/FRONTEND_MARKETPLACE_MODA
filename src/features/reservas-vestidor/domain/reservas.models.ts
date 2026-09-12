@@ -39,3 +39,14 @@ export const reservationLabel = (value: string): string =>
     attended: 'Atendida',
     cancelled: 'Cancelada',
   })[value] || value;
+
+/** Respuesta de /reservations/availability: si la sucursal tiene esa talla. */
+export interface VariantAvailability {
+  variant_id: string;
+  available: boolean;
+  quantity: number;
+  size: string | null;
+  color: string | null;
+  product: string | null;
+  reason: string | null;
+}

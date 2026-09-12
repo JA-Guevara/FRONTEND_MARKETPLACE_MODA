@@ -120,6 +120,34 @@ npm run test:contract
 - Los errores conservan el formulario abierto y el borrador. Las acciones destructivas requieren confirmación dentro de la interfaz. Los diálogos permiten usar Tab y Escape.
 - El borrado y los estados respetan las reglas del backend: no eliminar maestros en uso, no activar cajas de sucursales inactivas, no duplicar SKU ni talla/color.
 
+## Agendar visita para probarse prendas
+
+- **Zona horaria.** El input `datetime-local` trabaja en hora local, pero `toISOString()` devuelve
+  UTC: usarlo para el `min` corría el mínimo tantas horas como el huso (en Bolivia, cuatro) y no se
+  podía agendar para el mismo día. Se descuenta `getTimezoneOffset()` antes de recortar la cadena.
+- **Disponibilidad por talla.** Al elegir sucursal se consulta
+  `GET /reservations/availability`; cada fila muestra «Disponible · N» o el motivo, y el botón de
+  confirmar queda bloqueado mientras alguna talla falte. El backend valida lo mismo al registrar.
+- `ApiService.get` envía los arreglos como parámetros repetidos (`?id=a&id=b`), que es lo que espera
+  FastAPI; antes los unía con coma y llegaban como un único valor inválido.
+
+## Módulo de cuenta del cliente
+
+Todo lo personal vive en un solo espacio con menú propio, en vez de páginas sueltas alcanzables solo
+desde botones dispersos.
+
+- **`AccountLayoutComponent`** (`features/auth/presentation/account-layout.component.ts`) envuelve
+  las rutas hijas de `/mi-cuenta`: perfil, direcciones, pedidos y reservas. Muestra la identidad del
+  cliente (iniciales, nombre y correo), el menú de secciones con la activa resaltada y el cierre de
+  sesión.
+- **`ACCOUNT_SECTIONS`** es la única lista de secciones: la consumen tanto el menú lateral como el
+  desplegable de la cabecera, así no se desincronizan.
+- **Rutas.** `/mi-cuenta` pasó a ser una ruta con hijas (`''`, `direcciones`, `pedidos`, `reservas`).
+  Las URLs no cambiaron. La guarda `authGuard` está en la ruta padre y protege a todas las hijas.
+- **Cabecera.** El saludo «Hola, {nombre}» abre un menú desplegable con las mismas secciones y
+  «Desconectar». Se cierra al elegir una opción, al tocar fuera o con Escape.
+- En pantallas angostas el menú pasa a una tira horizontal desplazable sobre el contenido.
+
 ## Perfil del cliente y direcciones
 
 El cliente carga sus datos una vez y el checkout los reutiliza; antes había que reescribir la

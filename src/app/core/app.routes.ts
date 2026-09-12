@@ -18,15 +18,6 @@ export const routes: Routes = [
       ),
   },
   {
-    path: 'mi-cuenta/pedidos',
-    title: 'Mis pedidos | FashionStore',
-    canActivate: [authGuard],
-    loadComponent: () =>
-      import('../../features/ventas-pagos/presentation/orders-page.component').then(
-        (m) => m.OrdersPageComponent,
-      ),
-  },
-  {
     path: '',
     title: 'FashionStore | Tu estilo',
     loadComponent: () =>
@@ -88,29 +79,45 @@ export const routes: Routes = [
     data: { mode: 'change' },
   },
   {
+    // Espacio personal del cliente: un solo módulo con menú propio.
     path: 'mi-cuenta',
-    title: 'Mi cuenta | FashionStore',
     loadComponent: () =>
-      import('../../features/auth/presentation/account-page.component').then(
-        (m) => m.AccountPageComponent,
+      import('../../features/auth/presentation/account-layout.component').then(
+        (m) => m.AccountLayoutComponent,
       ),
     canActivate: [authGuard],
-  },
-  {
-    path: 'mi-cuenta/direcciones',
-    title: 'Mis direcciones | FashionStore',
-    loadComponent: resource,
-    canActivate: [authGuard],
-    data: { resource: addressesResource },
-  },
-  {
-    path: 'mi-cuenta/reservas',
-    title: 'Mis reservas | FashionStore',
-    loadComponent: () =>
-      import('../../features/reservas-vestidor/presentation/mis-reservas.component').then(
-        (m) => m.MisReservasComponent,
-      ),
-    canActivate: [authGuard],
+    children: [
+      {
+        path: '',
+        title: 'Mi perfil | FashionStore',
+        loadComponent: () =>
+          import('../../features/auth/presentation/account-page.component').then(
+            (m) => m.AccountPageComponent,
+          ),
+      },
+      {
+        path: 'direcciones',
+        title: 'Mis direcciones | FashionStore',
+        loadComponent: resource,
+        data: { resource: addressesResource },
+      },
+      {
+        path: 'pedidos',
+        title: 'Mis pedidos | FashionStore',
+        loadComponent: () =>
+          import('../../features/ventas-pagos/presentation/orders-page.component').then(
+            (m) => m.OrdersPageComponent,
+          ),
+      },
+      {
+        path: 'reservas',
+        title: 'Mis reservas | FashionStore',
+        loadComponent: () =>
+          import('../../features/reservas-vestidor/presentation/mis-reservas.component').then(
+            (m) => m.MisReservasComponent,
+          ),
+      },
+    ],
   },
   {
     path: 'agendar-visita',

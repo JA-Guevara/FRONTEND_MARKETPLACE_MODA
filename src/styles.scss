@@ -1667,3 +1667,163 @@ td .button { min-height: 30px; padding: 5px 9px; font-size: 11.5px; }
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   }
 }
+
+/* --- Módulo de cuenta del cliente ---
+   Perfil, direcciones, pedidos, reservas y seguridad comparten un mismo espacio
+   con menú propio, en vez de páginas sueltas alcanzables por botones dispersos. */
+.account-layout {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+.account-sidebar {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px;
+  position: sticky;
+  top: 16px;
+}
+.account-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.account-identity > div {
+  display: grid;
+  min-width: 0;
+}
+.account-identity strong,
+.account-identity small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--white);
+  font-weight: 700;
+  font-size: 15px;
+}
+.account-sidebar nav {
+  display: grid;
+  gap: 3px;
+}
+.account-sidebar nav a {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+.account-sidebar nav a span {
+  display: grid;
+}
+.account-sidebar nav a small {
+  font-weight: 450;
+  font-size: 11px;
+}
+.account-sidebar nav a:hover {
+  background: #f3f1eb;
+}
+.account-sidebar nav a.active {
+  background: var(--ink);
+  color: var(--white);
+}
+.account-sidebar nav a.active small {
+  color: #cfc9bd;
+}
+.account-signout {
+  width: 100%;
+  margin-top: 14px;
+  justify-content: flex-start;
+}
+/* Las páginas hijas ya no repiten el contenedor: lo aporta el módulo. */
+.account-content > * > .container,
+.account-content > .container {
+  width: 100%;
+  padding: 0;
+  margin: 0;
+}
+.account-content > * > .section,
+.account-content > .section {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* Menú desplegable de la cabecera. */
+.account-menu {
+  position: relative;
+}
+.account-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  z-index: 60;
+  min-width: 232px;
+  display: grid;
+  gap: 2px;
+  padding: 12px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 18px 45px #24231f22;
+}
+.account-greeting {
+  margin: 0 0 8px;
+  padding: 0 8px 10px;
+  font-size: 12px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+.account-dropdown a,
+.account-dropdown button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 9px 8px;
+  font-size: 13px;
+  text-decoration: none;
+  border: 0;
+  background: transparent;
+  border-radius: 7px;
+  width: 100%;
+}
+.account-dropdown a:hover,
+.account-dropdown button:hover:not(:disabled) {
+  background: #f3f1eb;
+  box-shadow: none;
+}
+
+@media (max-width: 860px) {
+  .account-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .account-sidebar {
+    position: static;
+  }
+  .account-sidebar nav {
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+    overflow-x: auto;
+    padding-bottom: 6px;
+  }
+  .account-sidebar nav a small {
+    display: none;
+  }
+}

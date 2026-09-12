@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../../app/core/shared/api.service';
 import { Page } from '../../../shared/models';
-import { Reservation, TryOnEntry } from '../domain/reservas.models';
+import { Reservation, TryOnEntry, VariantAvailability } from '../domain/reservas.models';
 @Injectable({ providedIn: 'root' })
 export class ReservasService {
   private api = inject(ApiService);
@@ -13,6 +13,15 @@ export class ReservasService {
         scheduled_at,
         notes: notes || null,
         items: items.map((i) => ({ variant_id: i.variant_id, quantity: i.quantity })),
+      }),
+    );
+  }
+  /** Disponibilidad de cada talla en la sucursal elegida. */
+  availability(branch_id: string, variant_ids: string[]) {
+    return firstValueFrom(
+      this.api.get<VariantAvailability[]>('/reservations/availability', {
+        branch_id,
+        variant_ids,
       }),
     );
   }

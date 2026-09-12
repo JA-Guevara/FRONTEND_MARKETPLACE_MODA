@@ -10,8 +10,16 @@ export class ApiService {
   get<T>(path: string, query: Record<string, unknown> = {}) {
     let params = new HttpParams();
     for (const [key, value] of Object.entries(query)) {
-      if (value !== '' && value !== undefined && value !== null)
+      if (value === '' || value === undefined || value === null) continue;
+      // Las listas viajan como parámetros repetidos (?id=a&id=b), que es lo que
+      // espera FastAPI; unirlas por coma llegaba como un único valor inválido.
+      if (Array.isArray(value)) {
+        for (const item of value)
+          if (item !== '' && item !== undefined && item !== null)
+            params = params.append(key, String(item));
+      } else {
         params = params.set(key, String(value));
+      }
     }
     return this.http
       .get<ApiResponse<T>>(environment.apiUrl + path, { params })
