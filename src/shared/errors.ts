@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 export function errorMessage(error: unknown): string {
   if (error instanceof HttpErrorResponse) {
     if (error.status === 0)
-      return 'No se pudo conectar con el servidor. Comprobá que el backend esté encendido e intentá nuevamente.';
+      return 'No recibimos una respuesta del servidor. Puede ser una interrupción de conexión o un error del servicio. Reintentá en unos momentos.';
     const body = error.error;
     const detail = body?.error?.details;
     const fields = Array.isArray(detail)

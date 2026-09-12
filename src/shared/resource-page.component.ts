@@ -222,6 +222,7 @@ import { ProductImagesComponent } from './product-images.component';
           role="dialog"
           aria-modal="true"
           aria-labelledby="editor-title"
+          [class.product-modal]="config.key === 'products' && !assignment"
           (dismissed)="close()"
         >
           <h2 id="editor-title">
@@ -236,6 +237,7 @@ import { ProductImagesComponent } from './product-images.component';
           @if (formError()) {
             <p class="alert error" role="alert">{{ formError() }}</p>
           }
+          <div [class.product-editor-columns]="config.key === 'products' && !assignment">
           @if (config.key === 'products' && !assignment) {
             <fs-product-images [existing]="productImages" [busy]="busy()" />
           }
@@ -246,6 +248,7 @@ import { ProductImagesComponent } from './product-images.component';
             (saved)="save($event)"
             (cancel)="close()"
           />
+          </div>
         </section>
       </div>
     }

@@ -1,4 +1,6 @@
 :root {
+  --accent: #74394e;
+  --accent-hover: #582739;
   --ink: #24231f;
   --muted: #716e66;
   --paper: #faf9f6;
@@ -8,6 +10,7 @@
   color: var(--ink);
   background: var(--paper);
 }
+
 * {
   box-sizing: border-box;
 }
@@ -1257,3 +1260,34 @@ button, a, input, select, textarea { touch-action: manipulation; }
   .auth-panel { padding: 24px 16px; }
   .container { width: calc(100% - 24px); }
 }
+
+/* Shared visual rhythm and compact responsive work areas. */
+button, .button { transition: background-color .16s, border-color .16s, box-shadow .16s; }
+button:hover:not(:disabled), .button:hover { border-color: #aa8390; box-shadow: 0 3px 10px #54283a12; }
+button:active:not(:disabled), .button:active { box-shadow: none; }
+.primary { background: var(--accent); border-color: var(--accent); color: white; }
+.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+.cart-link { background: #f7edf1; border-color: #d5b4c0; color: #642c40; }
+.site-header .cart-link:hover { background: #efdee5; }
+.admin-content { padding: clamp(20px, 2.2vw, 32px); }
+.admin-content h1 { font-size: clamp(25px, 2.6vw, 34px); }
+.panel { border-radius: 12px; }
+.row-actions button, .row-actions .button { min-height: 36px; padding: 7px 10px; font-size: 12px; }
+.modal.product-modal { width: min(1080px, 100%); }
+.product-editor-columns { display:grid; grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr); gap:24px; align-items:start; }
+.product-editor-columns > * { min-width:0; }
+@media(max-width:1000px) {
+  .header-inner { flex-wrap:wrap; gap:12px; padding-block:14px; }
+  .header-inner nav { order:3; width:100%; justify-content:center; flex-wrap:wrap; gap:16px; }
+  .header-inner nav a { padding:8px 0; }
+  .account-nav { gap:8px; }
+}
+@media(max-width:800px) { .product-editor-columns { grid-template-columns:minmax(0,1fr); gap:8px; } }
+@media(max-width:480px) {
+  .header-inner { justify-content:center; }
+  .account-nav { width:100%; justify-content:center; }
+  .account-nav .button, .account-nav button { min-height:40px; }
+  .row-actions button, .row-actions .button { min-height:44px; }
+}
+
+@media (prefers-reduced-motion: reduce) { button, .button { transition: none; } }

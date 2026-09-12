@@ -1,5 +1,12 @@
 # Historial de avance
 
+## 2026-09-12 — Incidente publicado y diseño
+
+- Verificadas rutas públicas y preflight del backend publicado; petición autenticada pendiente de logs.
+- Iconos de carrito, colores de botones, cabecera adaptable y formulario de prenda en dos columnas de escritorio.
+- 60 pruebas frontend y compilación aprobadas; acceso inspeccionado en móvil y medido a 320/768/1440 px.
+- Se documentó DIAGNOSTICO_RAILWAY_Y_DISENO.md. Cambios aún no desplegados; no se declara solucionado el incidente de producción.
+
 ## 2026-09-12 — Integración comercial
 
 - Conectadas rutas /carrito, /mi-cuenta/pedidos, /admin/pedidos y /admin/stock con permisos.
