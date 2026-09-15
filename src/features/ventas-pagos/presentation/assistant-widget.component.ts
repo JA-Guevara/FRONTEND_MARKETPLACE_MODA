@@ -6,6 +6,8 @@ import { CommerceService } from '../infrastructure/commerce.service';
 import { SessionService } from '../../auth/application/session.service';
 import { CatalogService } from '../../usuarios-catalogo/infrastructure/catalog.service';
 import { Entity, ProductDraftInput } from '../../usuarios-catalogo/domain/catalog.models';
+import { DashboardService } from '../../ia-reportes/infrastructure/dashboard.service';
+import { ExportReport, InterpretResult, ReportQuery } from '../../ia-reportes/domain/dashboard';
 import { IconComponent } from '../../../shared/icon.component';
 import { BotAvatarComponent, BotState } from '../../../shared/bot-avatar.component';
 import { errorMessage } from '../../../shared/errors';
@@ -15,6 +17,42 @@ import { errorMessage } from '../../../shared/errors';
  * forma predecible si se muestra el borrador editable en vez de la respuesta
  * de texto normal. */
 const PRODUCT_INTENT = /\b(registra|registrar|registrame|crea|crear|creame|agrega|agregar|agregame|da(?:me)? de alta|alta de)\b.*\b(prenda|producto|camisa|remera|pantalon|campera|chaqueta|vestido|falda|short|buzo|casaca|polera)\b/i;
+/** Palabras que indican que el pedido es sobre un reporte del dashboard
+ * (ventas, pedidos, existencias, etc.), para distinguir "exportame el reporte
+ * de ventas" o "explicame por qué bajaron los pedidos" de una pregunta
+ * general de la tienda. */
+const REPORT_NOUNS = 'reporte|dashboard|ventas|ingresos|pedidos|pagos|existencias|stock|sucursales|prendas vendidas|ticket|reservas|tendencia';
+const EXPORT_INTENT = new RegExp(
+  `\\b(exporta(me)?|exportar|descarga(me)?|descargar|b[aá]jame|mand[aá]me|envi[aá]me|pasame)\\b.*\\b(${REPORT_NOUNS})\\b`,
+  'i',
+);
+const EXPLAIN_INTENT = new RegExp(
+  `\\b(explica(me)?|explicar|analiza(me)?|analizame|interpreta(me)?|por ?qu[eé])\\b.*\\b(${REPORT_NOUNS})\\b`,
+  'i',
+);
+const EXPORT_REPORT_LABEL: Record<ExportReport, string> = {
+  ventas: 'ventas', pedidos: 'pedidos', pagos: 'pagos',
+  prendas_vendidas: 'prendas vendidas', existencias: 'existencias', sucursales: 'sucursales',
+};
+/** Deduce el tipo de reporte a exportar: primero por palabra explícita en el
+ * pedido, y si no hay ninguna, por lo que interpretó la IA de la consulta.
+ * `null` cuando lo pedido (p.ej. "reservas" o "dashboard") no es uno de los
+ * seis reportes exportables como archivo. */
+function exportReportType(text: string, interpreted: InterpretResult): ExportReport | null {
+  const t = text.toLowerCase();
+  if (/prendas vendidas|mas vendid/.test(t)) return 'prendas_vendidas';
+  if (/existencia|stock/.test(t)) return 'existencias';
+  if (/sucursal/.test(t)) return 'sucursales';
+  if (/pago/.test(t)) return 'pagos';
+  if (/pedido/.test(t)) return 'pedidos';
+  if (/venta/.test(t)) return 'ventas';
+  if (interpreted.agrupacion === 'sucursal' || interpreted.vista === 'sucursales') return 'sucursales';
+  if (interpreted.metrica === 'low_stock') return 'existencias';
+  if (interpreted.metrica === 'units') return 'prendas_vendidas';
+  if (interpreted.metrica === 'orders') return 'pedidos';
+  if (interpreted.metrica === 'revenue' || interpreted.metrica === 'ticket') return 'ventas';
+  return null;
+}
 
 interface ChatEntry {
   from: 'user' | 'assistant';
@@ -137,7 +175,7 @@ const SUGGESTIONS = [
               usar cualquier parte del sitio.
             </p>
             <div class="ai-suggest">
-              @for (q of suggestions; track q) {
+              @for (q of suggestions(); track q) {
                 <button type="button" (click)="send(q)">{{ q }}</button>
               }
             </div>
@@ -217,6 +255,7 @@ export class AssistantWidgetComponent implements OnDestroy {
   private commerce = inject(CommerceService);
   private session = inject(SessionService);
   private catalog = inject(CatalogService);
+  private dashboard = inject(DashboardService);
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
   @ViewChild('log') private logRef?: ElementRef<HTMLDivElement>;
@@ -232,9 +271,11 @@ export class AssistantWidgetComponent implements OnDestroy {
   productDraft = signal<ProductDraftInput | null>(null);
   draftCategories = signal<Entity[]>([]);
   draftBusy = signal(false);
-  suggestions = SUGGESTIONS;
   currentModule = signal(this.resolveModule(this.router.url));
   private lastUserText = '';
+  /** A qué handler reintentar: los pedidos de reporte usan un flujo distinto
+   * al chat general, y "Reintentar" debe repetir el mismo. */
+  private lastIntent: 'chat' | 'export' | 'explain' = 'chat';
   botState = signal<BotState>('idle');
   private recognition: any;
   private botTimer: ReturnType<typeof setTimeout> | null = null;
@@ -310,6 +351,19 @@ export class AssistantWidgetComponent implements OnDestroy {
   contextLabel() {
     return this.currentModule() || 'Te acompaño en toda la tienda';
   }
+  /** Sugerencias del panel vacío: las de siempre, más una por cada acción
+   * extra que el usuario logueado puede pedirle al asistente que haga. */
+  suggestions() {
+    const list = [...SUGGESTIONS];
+    if (this.session.can('dashboard.read')) {
+      list.push('Exportame el reporte de ventas de este mes');
+      list.push('Explicame por qué bajaron los pedidos pagados');
+    }
+    if (this.session.can('catalog.write')) {
+      list.push('Registrame una campera de cuero negra a 450 Bs');
+    }
+    return list;
+  }
   private resolveModule(url: string): string {
     const path = url.split('?')[0];
     return MODULE_LABELS.find((m) => path === m.prefix || path.startsWith(m.prefix + '/'))?.label ?? '';
@@ -359,8 +413,16 @@ export class AssistantWidgetComponent implements OnDestroy {
     this.history.update((h) => [...h, { from: 'user', text }]);
     this.scrollToBottom();
     if (PRODUCT_INTENT.test(text) && this.session.can('catalog.write')) {
+      this.lastIntent = 'chat';
       await this.requestProductDraft(text);
+    } else if (EXPORT_INTENT.test(text) && this.session.can('dashboard.read')) {
+      this.lastIntent = 'export';
+      await this.requestExport(text);
+    } else if (EXPLAIN_INTENT.test(text) && this.session.can('dashboard.read')) {
+      this.lastIntent = 'explain';
+      await this.requestExplain(text);
     } else {
+      this.lastIntent = 'chat';
       await this.sendToBackend();
     }
   }
@@ -444,9 +506,94 @@ export class AssistantWidgetComponent implements OnDestroy {
   }
   async retry() {
     if (!this.lastUserText || this.busy()) return;
-    // Reintento: no se agrega de nuevo el mensaje del usuario.
+    // Reintento: no se agrega de nuevo el mensaje del usuario, y repite el
+    // mismo tipo de pedido (chat, exportar o explicar).
     this.error.set('');
-    await this.sendToBackend();
+    if (this.lastIntent === 'export') await this.requestExport(this.lastUserText);
+    else if (this.lastIntent === 'explain') await this.requestExplain(this.lastUserText);
+    else await this.sendToBackend();
+  }
+  /** CU: "exportame el reporte de ventas del último mes" — interpreta la
+   * consulta con el mismo motor determinista del dashboard (sin inventar
+   * filtros) y descarga el reporte, sin necesidad de estar en esa pantalla. */
+  private async requestExport(text: string) {
+    this.busy.set(true);
+    this.setBot('processing');
+    try {
+      const interpreted = await firstValueFrom(this.dashboard.interpret(text, {}));
+      const format: 'xlsx' | 'csv' = /\bcsv\b/i.test(text) ? 'csv' : 'xlsx';
+      const report = exportReportType(text, interpreted);
+      if (!report) {
+        this.history.update((h) => [
+          ...h,
+          {
+            from: 'assistant',
+            text: 'Puedo exportar ventas, pedidos, pagos, prendas vendidas, existencias o sucursales — decime cuál de esos reportes querés.',
+          },
+        ]);
+        this.setBot('idle');
+        return;
+      }
+      const query: ReportQuery = {
+        branch_id: interpreted.filtros.branch_id ?? null,
+        category_id: interpreted.filtros.category_id ?? null,
+        status: interpreted.filtros.status || undefined,
+        date_from: interpreted.filtros.date_from ?? undefined,
+        date_to: interpreted.filtros.date_to ?? undefined,
+      };
+      const blob = await firstValueFrom(this.dashboard.exportUrl(report, format, query));
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `fashionstore_${report}.${format}`;
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      const aclaraciones = interpreted.aclaraciones.length ? ' ' + interpreted.aclaraciones.join(' ') : '';
+      this.history.update((h) => [
+        ...h,
+        {
+          from: 'assistant',
+          text: `Descargando el reporte de ${EXPORT_REPORT_LABEL[report]} en ${format.toUpperCase()}.${aclaraciones}`,
+        },
+      ]);
+      this.setBot('success');
+    } catch (e) {
+      this.setBot('error');
+      this.error.set(errorMessage(e));
+    } finally {
+      this.busy.set(false);
+      const el = this.logRef?.nativeElement;
+      if (el && el.scrollHeight - el.scrollTop - el.clientHeight > 64) this.showNew.set(true);
+      else this.scrollToBottom();
+    }
+  }
+  /** CU: "explicame por qué bajaron los pedidos" — el servidor recalcula las
+   * métricas reales y la IA arma hallazgo/cifras/interpretación/acción. */
+  private async requestExplain(text: string) {
+    this.busy.set(true);
+    this.setBot('processing');
+    try {
+      const result = await firstValueFrom(this.dashboard.explain(text, {}));
+      let reply: string;
+      if (result.available && result.sections) {
+        const s = result.sections;
+        reply = [s.hallazgo, s.cifras, s.interpretacion, s.accion && `Sugerencia: ${s.accion}`]
+          .filter(Boolean)
+          .join('\n\n');
+      } else {
+        reply = result.message || 'No pude explicar esa métrica ahora mismo.';
+      }
+      this.history.update((h) => [...h, { from: 'assistant', text: reply }]);
+      this.setBot('success');
+    } catch (e) {
+      this.setBot('error');
+      this.error.set(errorMessage(e));
+    } finally {
+      this.busy.set(false);
+      const el = this.logRef?.nativeElement;
+      if (el && el.scrollHeight - el.scrollTop - el.clientHeight > 64) this.showNew.set(true);
+      else this.scrollToBottom();
+    }
   }
   private async sendToBackend() {
     this.busy.set(true);
