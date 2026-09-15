@@ -5,8 +5,9 @@ import { firstValueFrom } from 'rxjs';
 import { DashboardService } from '../infrastructure/dashboard.service';
 import { Dashboard, ExportReport, ViewId, ReportQuery, InterpretResult, ExplainResult } from '../domain/dashboard';
 import { barPercent } from '../domain/dashboard.helpers';
-import { MetricBarListComponent, BarItem } from './metric-bar-list.component';
 import { TrendChartComponent, TrendPoint } from './trend-chart.component';
+import { BarChartComponent, BarChartItem } from './bar-chart.component';
+import { PieChartComponent, PieSlice } from './pie-chart.component';
 import { errorMessage } from '../../../shared/errors';
 import { CommerceService } from '../../ventas-pagos/infrastructure/commerce.service';
 import { Branch } from '../../ventas-pagos/domain/commerce.models';
@@ -40,7 +41,7 @@ const VIEWS: { key: ViewId; label: string }[] = [
 
 @Component({
   selector: 'fs-dashboard',
-  imports: [CurrencyPipe, DatePipe, DecimalPipe, PercentPipe, FormsModule, MetricBarListComponent, TrendChartComponent],
+  imports: [CurrencyPipe, DatePipe, DecimalPipe, PercentPipe, FormsModule, TrendChartComponent, BarChartComponent, PieChartComponent],
   template: `
     <section aria-label="Centro de reportes de la tienda" class="dashboard">
       <div class="heading">
@@ -142,7 +143,7 @@ const VIEWS: { key: ViewId; label: string }[] = [
                 } @empty { <p class="empty">Todavía no hay prendas vendidas para comparar.</p> }
               </article>
               <article class="report"><h3>Por sucursal</h3><p class="muted">Facturación del período seleccionado</p>
-                <fs-metric-bar-list [items]="branchBars()" format="currency" [currency]="d.currency" emptyText="Sin ventas por sucursal en este período." />
+                <fs-bar-chart [items]="branchBars()" format="currency" [currency]="d.currency" emptyText="Sin ventas por sucursal en este período." ariaLabel="Ingresos por sucursal" />
               </article>
             </div>
           }
@@ -162,29 +163,29 @@ const VIEWS: { key: ViewId; label: string }[] = [
                 } @empty { <p class="empty">Las ventas aparecerán aquí cuando se confirme el primer pago.</p> }
               </article>
               <article class="report"><h3>Horario de mayor venta</h3><p class="muted">Facturación por hora del día</p>
-                <fs-metric-bar-list [items]="hourBars()" format="currency" [currency]="d.currency" emptyText="Sin ventas en este período." />
+                <fs-bar-chart [items]="hourBars()" format="currency" [currency]="d.currency" emptyText="Sin ventas en este período." ariaLabel="Ingresos por hora del día" />
               </article>
             </div>
             <article class="report"><h3>Días de la semana</h3><p class="muted">Qué días vende más la tienda</p>
-              <fs-metric-bar-list [items]="weekdayBars()" format="currency" [currency]="d.currency" emptyText="Sin ventas en este período." />
+              <fs-bar-chart [items]="weekdayBars()" format="currency" [currency]="d.currency" emptyText="Sin ventas en este período." ariaLabel="Ingresos por día de la semana" />
             </article>
           }
           @case ('comparativas') {
             <article class="report"><h3>Comparativa mensual</h3><p class="muted">Últimos 12 meses · {{ d.currency }}</p>
-              <fs-metric-bar-list [items]="monthlyBars()" format="currency" [currency]="d.currency" emptyText="Todavía no hay ventas registradas por mes." />
+              <fs-bar-chart [items]="monthlyBars()" format="currency" [currency]="d.currency" emptyText="Todavía no hay ventas registradas por mes." ariaLabel="Ingresos por mes" />
             </article>
             <div class="reports">
               <article class="report"><h3>Por categoría de prenda</h3><p class="muted">Facturación del período seleccionado</p>
-                <fs-metric-bar-list [items]="categoryBars()" format="currency" [currency]="d.currency" emptyText="Sin ventas por categoría en este período." />
+                <fs-pie-chart [items]="categoryBars()" format="currency" [currency]="d.currency" emptyText="Sin ventas por categoría en este período." ariaLabel="Ingresos por categoría" />
               </article>
               <article class="report"><h3>Por hora</h3><p class="muted">Facturación por hora del día</p>
-                <fs-metric-bar-list [items]="hourBars()" format="currency" [currency]="d.currency" emptyText="Sin ventas en este período." />
+                <fs-bar-chart [items]="hourBars()" format="currency" [currency]="d.currency" emptyText="Sin ventas en este período." ariaLabel="Ingresos por hora del día" />
               </article>
             </div>
           }
           @case ('sucursales') {
             <article class="report"><h3>Comparativo por sucursal</h3><p class="muted">Facturación del período seleccionado</p>
-              <fs-metric-bar-list [items]="branchBars()" format="currency" [currency]="d.currency" emptyText="Sin ventas por sucursal en este período." />
+              <fs-bar-chart [items]="branchBars()" format="currency" [currency]="d.currency" emptyText="Sin ventas por sucursal en este período." ariaLabel="Ingresos por sucursal" />
             </article>
             @if (comp(); as c) {
               <div class="compare-grid">
@@ -206,7 +207,7 @@ const VIEWS: { key: ViewId; label: string }[] = [
                 @if (!statuses(d).length) { <p class="empty">Sin pedidos registrados.</p> }
               </article>
               <article class="report"><h3>Por categoría de prenda</h3><p class="muted">Facturación del período seleccionado</p>
-                <fs-metric-bar-list [items]="categoryBars()" format="currency" [currency]="d.currency" emptyText="Sin ventas por categoría en este período." />
+                <fs-pie-chart [items]="categoryBars()" format="currency" [currency]="d.currency" emptyText="Sin ventas por categoría en este período." ariaLabel="Ingresos por categoría" />
               </article>
             </div>
           }
@@ -243,13 +244,10 @@ const VIEWS: { key: ViewId; label: string }[] = [
           @case ('pagos') {
             <div class="reports">
               <article class="report"><h3>Métodos de pago</h3><p class="muted">Pedidos del período según método</p>
-                @for (m of d.payment_methods; track m.method) {
-                  <div class="status-row"><span>{{ label(m.method) }}</span><b>{{ m.orders | number }}</b></div>
-                } @empty { <p class="empty">Sin pedidos registrados en el período.</p> }
+                <fs-pie-chart [items]="paymentPie(d)" format="number" emptyText="Sin pedidos registrados en el período." ariaLabel="Pedidos por método de pago" />
               </article>
               <article class="report"><h3>Estado de pedidos</h3><p class="muted">Pedidos del período filtrado</p>
-                @for (state of statuses(d); track state.key) { <div class="status-row"><span>{{ state.label }}</span><b>{{ state.count | number }}</b></div> }
-                @if (!statuses(d).length) { <p class="empty">Sin pedidos registrados.</p> }
+                <fs-pie-chart [items]="statusPie(d)" format="number" emptyText="Sin pedidos registrados." ariaLabel="Pedidos por estado" />
               </article>
             </div>
           }
@@ -452,6 +450,12 @@ export class DashboardComponent {
   statuses(d: Dashboard) {
     return Object.entries(d.by_status ?? {}).map(([key, count]) => ({ key, count, label: STATUS_LABEL[key] ?? key }));
   }
+  statusPie(d: Dashboard): PieSlice[] {
+    return this.statuses(d).map((s) => ({ label: s.label, value: s.count }));
+  }
+  paymentPie(d: Dashboard): PieSlice[] {
+    return (d.payment_methods ?? []).map((m) => ({ label: this.label(m.method), value: m.orders }));
+  }
   comp() {
     const c = this.data()?.comparison;
     const mode = this.compareMode();
@@ -479,11 +483,11 @@ export class DashboardComponent {
     const [year, month] = key.split('-').map(Number);
     return new Date(year, month - 1, 1).toLocaleDateString('es-BO', { month: 'short', year: '2-digit' });
   }
-  monthlyBars(): BarItem[] { return (this.data()?.monthly_sales ?? []).map((m) => ({ label: this.monthLabel(m.month), value: m.total })); }
-  categoryBars(): BarItem[] { return (this.data()?.category_breakdown ?? []).map((c) => ({ label: c.category, value: c.total })); }
-  branchBars(): BarItem[] { return (this.data()?.branch_performance ?? []).map((b) => ({ label: b.branch, value: b.total })); }
-  weekdayBars(): BarItem[] { return (this.data()?.weekday_distribution ?? []).map((w) => ({ label: w.weekday, value: w.total })); }
-  hourBars(): BarItem[] { return (this.data()?.hourly_distribution ?? []).map((h) => ({ label: h.hour + ':00', value: h.total })); }
+  monthlyBars(): BarChartItem[] { return (this.data()?.monthly_sales ?? []).map((m) => ({ label: this.monthLabel(m.month), value: m.total })); }
+  categoryBars(): BarChartItem[] { return (this.data()?.category_breakdown ?? []).map((c) => ({ label: c.category, value: c.total })); }
+  branchBars(): BarChartItem[] { return (this.data()?.branch_performance ?? []).map((b) => ({ label: b.branch, value: b.total })); }
+  weekdayBars(): BarChartItem[] { return (this.data()?.weekday_distribution ?? []).map((w) => ({ label: w.weekday, value: w.total })); }
+  hourBars(): BarChartItem[] { return (this.data()?.hourly_distribution ?? []).map((h) => ({ label: h.hour + ':00', value: h.total })); }
   async exportReport(format: 'xlsx' | 'csv') {
     if (this.exporting()) return;
     this.exporting.set(true); this.exportError.set('');
