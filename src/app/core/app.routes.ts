@@ -71,13 +71,7 @@ export const routes: Routes = [
     loadComponent: auth,
     data: { mode: 'resend' },
   },
-  {
-    path: 'cambiar-contrasena',
-    title: 'Cambiar contraseña | FashionStore',
-    loadComponent: auth,
-    canActivate: [authGuard],
-    data: { mode: 'change' },
-  },
+  { path: 'cambiar-contrasena', redirectTo: 'mi-cuenta/seguridad', pathMatch: 'full' },
   {
     // Espacio personal del cliente: un solo módulo con menú propio.
     path: 'mi-cuenta',
@@ -116,6 +110,14 @@ export const routes: Routes = [
           import('../../features/reservas-vestidor/presentation/mis-reservas.component').then(
             (m) => m.MisReservasComponent,
           ),
+      },
+      {
+        // Antes vivía suelta en /cambiar-contrasena y se salía del módulo:
+        // el cliente quedaba sin el menú de su cuenta para volver.
+        path: 'seguridad',
+        title: 'Seguridad | FashionStore',
+        loadComponent: auth,
+        data: { mode: 'change' },
       },
     ],
   },

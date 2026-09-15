@@ -1,6 +1,8 @@
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { CommerceService } from '../../ventas-pagos/infrastructure/commerce.service';
+import { CartStateService } from '../../ventas-pagos/application/cart-state.service';
 import { SessionService } from '../../auth/application/session.service';
 import { IconComponent } from '../../../shared/icon.component';
 import { DecimalPipe } from '@angular/common';
@@ -10,9 +12,13 @@ import { CatalogService } from '../infrastructure/catalog.service';
 import { Product, Entity } from '../domain/catalog.models';
 import { errorMessage } from '../../../shared/errors';
 import { TryOnListService } from '../../reservas-vestidor/application/try-on-list.service';
+import {
+  MAX_ITEM_QUANTITY,
+  MIN_ITEM_QUANTITY,
+} from '../../reservas-vestidor/domain/reservas.models';
 @Component({
   selector: 'fs-product-page',
-  imports: [RouterLink, DecimalPipe, IconComponent],
+  imports: [RouterLink, DecimalPipe, IconComponent, FormsModule],
   template: `<section class="container section">
     <a class="back-link" routerLink="/">← Volver al catálogo</a>
     @if (error()) {
@@ -67,7 +73,7 @@ import { TryOnListService } from '../../reservas-vestidor/application/try-on-lis
           <h3>Tallas y colores</h3>
           <div class="variant-list">
             @for (v of p.variants; track v.id) {
-              <button [class.selected]="variant()?.id === v.id" (click)="variant.set(v)">
+              <button [class.selected]="variant()?.id === v.id" (click)="selectVariant(v)">
                 <span class="swatch" [style.background]="v['color']['hex_code']"></span
                 >{{ v['size']['name'] }} · {{ v['color']['name'] }}
               </button>
@@ -85,6 +91,17 @@ import { TryOnListService } from '../../reservas-vestidor/application/try-on-lis
             <a class="button" routerLink="/carrito"><fs-icon name="cart" />Ver carrito</a>
           </div>
           <div class="form-actions">
+            <label class="check"
+              >Cantidad<input
+                type="number"
+                name="tryon-quantity"
+                [(ngModel)]="tryOnQuantity"
+                min="1"
+                max="10"
+                step="1"
+                (ngModelChange)="tryOnMessage.set('')"
+              /></label
+            >
             <button [disabled]="!variant()" (click)="addToTryOn()">
               <fs-icon name="calendar" />Agregar a mi visita
             </button>
@@ -105,6 +122,12 @@ import { TryOnListService } from '../../reservas-vestidor/application/try-on-lis
           }
           @if (tryOnMessage()) {
             <p class="alert success" role="status">{{ tryOnMessage() }}</p>
+            <div class="form-actions">
+              <a class="button primary" routerLink="/agendar-visita">
+                <fs-icon name="calendar" />Revisar selección y agendar
+              </a>
+              <a class="button" routerLink="/">Seguir explorando</a>
+            </div>
           }
           <div class="panel">
             <h3>Conocé nuestras sucursales</h3>
@@ -118,6 +141,7 @@ import { TryOnListService } from '../../reservas-vestidor/application/try-on-lis
 })
 export class ProductPageComponent {
   private commerce = inject(CommerceService);
+  private cartState = inject(CartStateService);
   private session = inject(SessionService);
   private router = inject(Router);
   private tryOn = inject(TryOnListService);
@@ -125,16 +149,26 @@ export class ProductPageComponent {
   cartMessage = signal('');
   cartError = signal('');
   tryOnMessage = signal('');
+  tryOnQuantity = MIN_ITEM_QUANTITY;
   hasArAsset() {
     return (this.product()?.ar_assets || []).some(
       (a) => a['is_active'] && a['asset_type'] === 'image_overlay',
     );
   }
+  selectVariant(v: Entity) {
+    this.variant.set(v);
+    this.tryOnMessage.set('');
+    this.tryOnQuantity = MIN_ITEM_QUANTITY;
+  }
   addToTryOn() {
     const p = this.product();
     const v = this.variant();
     if (!p || !v) return;
-    this.tryOn.add({
+    const quantity = Math.min(
+      Math.max(Math.floor(this.tryOnQuantity) || MIN_ITEM_QUANTITY, MIN_ITEM_QUANTITY),
+      MAX_ITEM_QUANTITY,
+    );
+    const result = this.tryOn.add({
       variant_id: v.id,
       product_id: p.id,
       name: p.name,
@@ -142,9 +176,19 @@ export class ProductPageComponent {
       size: v['size']['name'],
       color: v['color']['name'],
       image_url: this.selectedImage() || null,
-      quantity: 1,
+      quantity,
     });
-    this.tryOnMessage.set('Agregada a tu visita. Podés seguir sumando prendas y agendar cuando termines.');
+    if (result === 'limit_items')
+      return this.tryOnMessage.set(
+        'Ya tenés 20 prendas en tu selección. Revisá la lista o agendá la visita.',
+      );
+    if (result === 'limit_quantity')
+      return this.tryOnMessage.set(
+        'No podés agregar más de 10 unidades de la misma talla a una visita.',
+      );
+    this.tryOnMessage.set(
+      'Prenda añadida a tu selección. Elegí sucursal y horario para registrar la visita.',
+    );
   }
   async addToCart() {
     const selected = this.variant();
@@ -160,6 +204,7 @@ export class ProductPageComponent {
     this.cartMessage.set('');
     try {
       await this.commerce.add(selected.id);
+      await this.cartState.refresh();
       this.cartMessage.set(
         'Prenda agregada. Podés revisar la cantidad y disponibilidad en tu carrito.',
       );

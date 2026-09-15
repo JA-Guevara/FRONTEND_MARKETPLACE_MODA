@@ -34,6 +34,10 @@ export const ICON_PATHS: Record<string, string> = {
   camera: 'M4 8h3l1.5-2h7L17 8h3v11H4z M12 12.5a3 3 0 1 0 0 6 3 3 0 0 0 0-6',
   calendar: 'M4 5h16v15H4z M4 9h16 M8 3v4 M16 3v4',
   chat: 'M4 4h16v12H9l-5 4z M8 9h8 M8 12h5',
+  mic: 'M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z M19 10v2a7 7 0 0 1-14 0v-2 M12 19v3',
+  maximize: 'M4 9V4h5 M15 4h5v5 M20 15v5h-5 M9 20H4v-5',
+  reduce: 'M4 9h5V4 M15 4v5h5 M20 15h-5v5 M9 20v-5H4',
+  'arrow-down': 'M12 4v16 m-6-6 6 6 6-6',
 };
 
 @Component({

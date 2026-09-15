@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { CommerceService } from '../infrastructure/commerce.service';
+import { CartStateService } from '../application/cart-state.service';
 import { Branch, Cart, DeliveryAddress, Order, SavedAddress } from '../domain/commerce.models';
 import { ApiService } from '../../../app/core/shared/api.service';
 import { SessionService } from '../../auth/application/session.service';
@@ -229,6 +230,7 @@ export class CartPageComponent {
   private router = inject(Router);
   private session = inject(SessionService);
   private http = inject(ApiService);
+  private cartState = inject(CartStateService);
   cart = signal<Cart | null>(null);
   branches = signal<Branch[]>([]);
   loading = signal(true);
@@ -302,6 +304,7 @@ export class CartPageComponent {
     try {
       await this.api.write(method, '/cart/items/' + id, body);
       await this.loadCart();
+      await this.cartState.refresh();
     } catch (e) {
       this.error.set(errorMessage(e));
     } finally {
@@ -379,6 +382,7 @@ export class CartPageComponent {
         address: this.address,
         payment_method: this.method,
       });
+      await this.cartState.refresh();
       if (this.saveToProfile && !this.selectedAddress) await this.storeAddress();
       await this.router.navigate(['/mi-cuenta/pedidos'], { queryParams: { pedido: order.id } });
     } catch (e) {

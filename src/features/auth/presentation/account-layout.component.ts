@@ -1,5 +1,7 @@
-import { Component, inject, signal } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Component, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { filter, map } from 'rxjs';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { SessionService } from '../application/session.service';
 import { IconComponent } from '../../../shared/icon.component';
@@ -11,7 +13,7 @@ export const ACCOUNT_SECTIONS = [
   { path: '/mi-cuenta/direcciones', icon: 'box', label: 'Mis direcciones', hint: 'Entrega y facturación' },
   { path: '/mi-cuenta/pedidos', icon: 'cart', label: 'Mis pedidos', hint: 'Compras y pagos' },
   { path: '/mi-cuenta/reservas', icon: 'calendar', label: 'Mis reservas', hint: 'Visitas a sucursal' },
-  { path: '/cambiar-contrasena', icon: 'lock', label: 'Seguridad', hint: 'Cambiar contraseña' },
+  { path: '/mi-cuenta/seguridad', icon: 'lock', label: 'Seguridad', hint: 'Cambiar contraseña' },
 ];
 
 /**
@@ -53,7 +55,16 @@ export const ACCOUNT_SECTIONS = [
           <fs-icon name="close" />{{ busy() ? 'Cerrando…' : 'Cerrar sesión' }}
         </button>
       </aside>
-      <div class="account-content"><router-outlet /></div>
+      <div class="account-content">
+        <!-- Vuelta explícita al inicio del módulo: desde una sección interna el
+             menú puede quedar fuera de vista, sobre todo en pantallas chicas. -->
+        @if (!onProfile()) {
+          <a class="account-back" routerLink="/mi-cuenta">
+            <fs-icon name="arrow-left" />Volver a mi cuenta
+          </a>
+        }
+        <router-outlet />
+      </div>
     </div>
     @if (notice()) {
       <p class="alert error" role="alert">{{ notice() }}</p>
@@ -64,6 +75,15 @@ export class AccountLayoutComponent {
   session = inject(SessionService);
   private router = inject(Router);
   readonly sections = ACCOUNT_SECTIONS;
+  /** Ruta activa, para saber si ya estamos en la portada del módulo. */
+  private url = toSignal(
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      map((e) => e.urlAfterRedirects),
+    ),
+    { initialValue: this.router.url },
+  );
+  onProfile = computed(() => this.url().split('?')[0].replace(/\/$/, '') === '/mi-cuenta');
   busy = signal(false);
   notice = signal('');
   initials(user: { first_name: string; last_name: string }) {

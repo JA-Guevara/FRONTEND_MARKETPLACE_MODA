@@ -4,16 +4,18 @@ import { RouterLink, ActivatedRoute } from '@angular/router';
 import { ReservasService } from '../infrastructure/reservas.service';
 import { Reservation, reservationLabel } from '../domain/reservas.models';
 import { errorMessage } from '../../../shared/errors';
+import { IconComponent } from '../../../shared/icon.component';
 @Component({
   selector: 'fs-mis-reservas',
-  imports: [DatePipe, RouterLink],
+  styleUrl: './reservas.scss',
+  imports: [DatePipe, RouterLink, IconComponent],
   template: `<section class="container section">
     <p class="eyebrow">MI CUENTA</p>
     <h1>Mis reservas</h1>
     <p class="muted">Seguimiento de las visitas que agendaste para probarte prendas en sucursal.</p>
-    @if (confirmed) {
+    @if (confirmed()) {
       <p class="alert success" role="status">
-        Visita agendada. La sucursal ya puede ver tu reserva y prepararla.
+        Solicitud de visita registrada. Está pendiente de confirmación de la sucursal.
       </p>
     }
     @if (error()) {
@@ -23,7 +25,13 @@ import { errorMessage } from '../../../shared/errors';
       <p class="empty" role="status">Cargando reservas…</p>
     } @else if (!reservations().length) {
       <div class="empty-state">
-        <h2>Todavía no agendaste ninguna visita</h2>
+        <h2>
+          {{
+            query
+              ? 'No hay reservas que coincidan con tu búsqueda'
+              : 'Todavía no agendaste ninguna visita'
+          }}
+        </h2>
         <a routerLink="/">Ir al catálogo</a>
       </div>
     } @else {
@@ -33,7 +41,14 @@ import { errorMessage } from '../../../shared/errors';
             <div class="order-header">
               <div>
                 <h2>{{ r.scheduled_at | date: 'dd/MM/yyyy HH:mm' }}</h2>
-                <p class="muted">{{ r.items.length }} prenda(s)</p>
+                @if (r.branch_name) {
+                  <p class="muted">{{ r.branch_name }}</p>
+                }
+                <p class="muted">
+                  {{ r.items.length }} {{ r.items.length === 1 ? 'prenda' : 'prendas' }} ·
+                  {{ totalUnits(r.items) }}
+                  {{ totalUnits(r.items) === 1 ? 'unidad' : 'unidades' }}
+                </p>
               </div>
               <span class="commerce-status">{{ label(r.status) }}</span>
             </div>
@@ -73,30 +88,68 @@ import { errorMessage } from '../../../shared/errors';
           </article>
         }
       </div>
+      @if (pages() > 1) {
+        <div class="pagination">
+          <button (click)="page = page - 1; load()" [disabled]="page <= 1 || loading()">
+            <fs-icon name="arrow-left" />Anterior</button
+          ><span>Página {{ page }} de {{ pages() }}</span
+          ><button (click)="page = page + 1; load()" [disabled]="page >= pages() || loading()">
+            Siguiente<fs-icon name="arrow-right" />
+          </button>
+        </div>
+      }
     }
   </section>`,
 })
 export class MisReservasComponent {
   private api = inject(ReservasService);
   private route = inject(ActivatedRoute);
-  confirmed = this.route.snapshot.queryParamMap.get('agendada') === '1';
+  /** Id de la reserva recién creada. La confirmación solo se muestra cuando esa
+   * reserva figura en la respuesta del backend; un parámetro escrito a mano no
+   * basta (ya no se usa agendada=1). */
+  private routeQuery = this.route.snapshot.queryParamMap;
+  query = this.routeQuery.get('nueva') || '';
   reservations = signal<Reservation[]>([]);
   loading = signal(true);
   error = signal('');
   busy = signal('');
+  confirmed = signal(false);
+  page = 1;
+  pages = signal(0);
   label = reservationLabel;
   constructor() {
     void this.load();
+  }
+  totalUnits(items: Reservation['items']): number {
+    return items.reduce((sum, i) => sum + i.quantity, 0);
   }
   async load() {
     this.loading.set(true);
     this.error.set('');
     try {
-      this.reservations.set((await this.api.mine()).items);
+      const result = await this.api.mine(this.page);
+      this.reservations.set(result.items);
+      this.pages.set(result.pages);
+      await this.verifyConfirmation();
     } catch (e) {
       this.error.set(errorMessage(e));
     } finally {
       this.loading.set(false);
+    }
+  }
+  /** La confirmación proviene del backend: el id debe existir y pertenecer al
+   * usuario. GET /reservations/{id} aplica esa restricción, así que un
+   * parámetro inventado no puede fabricar una confirmación. */
+  private async verifyConfirmation() {
+    if (!this.query) {
+      this.confirmed.set(false);
+      return;
+    }
+    try {
+      await this.api.get(this.query);
+      this.confirmed.set(true);
+    } catch {
+      this.confirmed.set(false);
     }
   }
   async cancel(r: Reservation) {

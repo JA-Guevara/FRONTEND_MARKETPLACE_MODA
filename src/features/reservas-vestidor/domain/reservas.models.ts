@@ -19,6 +19,10 @@ export interface Reservation {
   tracking: { status: string; note: string; date: string }[];
   created_at: string;
   updated_at: string;
+  /** Campos enriquecidos por el backend administrativo (solo lectura). */
+  branch_name?: string | null;
+  user_name?: string | null;
+  user_email?: string | null;
 }
 /** Prenda elegida en el catálogo para probar en sucursal, antes de agendar. */
 export interface TryOnEntry {
@@ -40,13 +44,19 @@ export const reservationLabel = (value: string): string =>
     cancelled: 'Cancelada',
   })[value] || value;
 
-/** Respuesta de /reservations/availability: si la sucursal tiene esa talla. */
+/** Respuesta de /reservations/availability: si la sucursal alcanza la cantidad. */
 export interface VariantAvailability {
   variant_id: string;
   available: boolean;
   quantity: number;
+  requested: number;
   size: string | null;
   color: string | null;
   product: string | null;
   reason: string | null;
 }
+
+/** Límites compartidos con el backend (RF09/RF10). */
+export const MAX_TRYON_ITEMS = 20;
+export const MIN_ITEM_QUANTITY = 1;
+export const MAX_ITEM_QUANTITY = 10;

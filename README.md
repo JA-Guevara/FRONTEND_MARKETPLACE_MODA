@@ -147,6 +147,10 @@ desde botones dispersos.
 - **Cabecera.** El saludo «Hola, {nombre}» abre un menú desplegable con las mismas secciones y
   «Desconectar». Se cierra al elegir una opción, al tocar fuera o con Escape.
 - En pantallas angostas el menú pasa a una tira horizontal desplazable sobre el contenido.
+- **Volver al inicio del módulo.** Cada sección interna muestra «Volver a mi cuenta»; en la portada
+  del módulo no aparece, porque ya se está ahí.
+- **Seguridad** dejó de ser una página suelta: vive en `/mi-cuenta/seguridad`, dentro del módulo, así
+  el cliente conserva el menú. La URL anterior `/cambiar-contrasena` redirige ahí.
 
 ## Perfil del cliente y direcciones
 
