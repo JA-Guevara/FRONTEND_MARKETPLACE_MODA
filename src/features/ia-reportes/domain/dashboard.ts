@@ -78,9 +78,6 @@ export interface ReportQuery {
   status?: string;
   low_stock_lt?: number;
 }
-export type ViewId =
-  | 'resumen' | 'ventas' | 'comparativas' | 'sucursales'
-  | 'productos' | 'inventario' | 'reservas' | 'pagos';
 export interface InterpretResult {
   ok: boolean;
   vista: string;
