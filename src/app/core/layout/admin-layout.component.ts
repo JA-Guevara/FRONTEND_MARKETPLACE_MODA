@@ -44,6 +44,11 @@ import { resources } from '../shared/resources';
           [routerLinkActiveOptions]="{ exact: true }"
           >Vista general</a
         >
+        @if (session.can('dashboard.read')) {
+          <a class="admin-overview" routerLink="/admin/dashboard" routerLinkActive="active"
+            >Dashboard<span>↗</span></a
+          >
+        }
         @for (group of groups; track group) {
           @if (groupItems(group).length) {
             <h3>{{ group }}</h3>

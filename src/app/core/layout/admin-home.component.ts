@@ -2,14 +2,19 @@ import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { resources } from '../shared/resources';
 import { SessionService } from '../../../features/auth/application/session.service';
-import { DashboardComponent } from '../../../features/ia-reportes/presentation/dashboard.component';
 @Component({
   selector: 'fs-admin-home',
-  imports: [RouterLink, DashboardComponent],
+  imports: [RouterLink],
   template: `<p class="eyebrow">FASHIONSTORE / ADMINISTRACIÓN</p>
     <h1>Tu tienda, al día.</h1>
     <p class="muted">Hola, {{ session.user()?.first_name }}. Elegí un área para comenzar.</p>
-    @if (session.can('dashboard.read')) { <fs-dashboard /> }
+    @if (session.can('dashboard.read')) {
+      <a class="panel admin-card admin-card-featured" routerLink="/admin/dashboard">
+        <p class="eyebrow">REPORTES</p>
+        <h2>Centro de reportes <span>↗</span></h2>
+        <p>KPIs, gráficos, comparativas y exportación — con IA para interpretar y explicar.</p>
+      </a>
+    }
     <h2>Gestionar la tienda</h2>
     <div class="admin-cards">
       @for (item of available(); track item.key) {

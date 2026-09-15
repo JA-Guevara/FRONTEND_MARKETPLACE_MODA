@@ -2037,3 +2037,14 @@ td .button { min-height: 30px; padding: 5px 9px; font-size: 11.5px; }
 .account-back:hover {
   color: var(--ink);
 }
+
+/* Tarjeta destacada de "Vista general" que lleva al Centro de reportes
+   (módulo de dashboard separado, no embebido en la home del admin). */
+.admin-card-featured {
+  border: 1px solid var(--accent);
+  background: #f1e7ea;
+  margin-bottom: 24px;
+}
+.admin-card-featured:hover {
+  background: #e9d7dc;
+}

@@ -145,6 +145,16 @@ export const routes: Routes = [
     canActivate: [authGuard],
     children: [
       {
+        path: 'dashboard',
+        title: 'Centro de reportes | FashionStore',
+        canActivate: [authGuard],
+        data: { permission: 'dashboard.read' },
+        loadComponent: () =>
+          import('../../features/ia-reportes/presentation/dashboard.component').then(
+            (m) => m.DashboardComponent,
+          ),
+      },
+      {
         path: 'pedidos',
         title: 'Pedidos y pagos | FashionStore',
         canActivate: [authGuard],
