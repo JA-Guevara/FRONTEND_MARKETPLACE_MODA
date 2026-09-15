@@ -1,5 +1,7 @@
 # Estado y punto de reanudación
 
+Actualización 15/09 — Probador web manual estabilizado: 98 pruebas frontend y build aprobados, 4 pruebas HTTP del backend. Ver PROBADOR_VIRTUAL.md. No confundir con seguimiento corporal: no implementado; cámara física/móvil y despliegue pendientes. Las secciones anteriores conservan sus fechas históricas.
+
 Actualizado: 12 de septiembre de 2026. Este registro distingue código existente de funciones verificadas. No equivale a una entrega terminada.
 
 ## Fuentes y alcance

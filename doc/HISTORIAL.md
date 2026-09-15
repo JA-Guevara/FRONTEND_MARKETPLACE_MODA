@@ -1,5 +1,12 @@
 # Historial de avance
 
+## 2026-09-15 — Estabilización del probador manual web
+
+- Corregido ciclo de vida de cámara/video, permisos, cancelación tardía, cierre, desconexión y cambio de producto/cámara.
+- Recursos ausentes/rotos, controles de teclado y estilos propios adaptables. Se identifica explícitamente como superposición manual.
+- 98 pruebas frontend (15 nuevas del probador) y build aprobados; 4 pruebas HTTP backend aprobadas.
+- Detalle en PROBADOR_VIRTUAL.md. Cámara física, revisión visual móvil, seguimiento corporal y despliegue pendientes.
+
 ## 2026-09-12 — Incidente publicado y diseño
 
 - Verificadas rutas públicas y preflight del backend publicado; petición autenticada pendiente de logs.

@@ -1,12 +1,20 @@
 import { Component, DestroyRef, ElementRef, OnDestroy, ViewChild, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NavigationEnd, Router } from '@angular/router';
-import { filter } from 'rxjs';
+import { filter, firstValueFrom } from 'rxjs';
 import { CommerceService } from '../infrastructure/commerce.service';
 import { SessionService } from '../../auth/application/session.service';
+import { CatalogService } from '../../usuarios-catalogo/infrastructure/catalog.service';
+import { Entity, ProductDraftInput } from '../../usuarios-catalogo/domain/catalog.models';
 import { IconComponent } from '../../../shared/icon.component';
 import { BotAvatarComponent, BotState } from '../../../shared/bot-avatar.component';
 import { errorMessage } from '../../../shared/errors';
+
+/** Pedidos de alta de prenda ("registrame una campera...", "creá un producto
+ * nuevo..."): se detectan por palabras clave, nunca por IA, para decidir de
+ * forma predecible si se muestra el borrador editable en vez de la respuesta
+ * de texto normal. */
+const PRODUCT_INTENT = /\b(registra|registrar|registrame|crea|crear|creame|agrega|agregar|agregame|da(?:me)? de alta|alta de)\b.*\b(prenda|producto|camisa|remera|pantalon|campera|chaqueta|vestido|falda|short|buzo|casaca|polera)\b/i;
 
 interface ChatEntry {
   from: 'user' | 'assistant';
@@ -69,6 +77,13 @@ const SUGGESTIONS = [
     .ai-chip { color: var(--accent); border: 0; background: none; font-size: 12px; min-height: 0;
       padding: 0; }
     .ai-new { align-self: center; justify-self: end; margin-top: 6px; }
+    .ai-draft { display: grid; gap: 8px; background: white; border: 1px solid var(--line); border-radius: 12px;
+      padding: 12px; font-size: 13px; }
+    .ai-draft__title { margin: 0; font-weight: 600; font-size: 12.5px; }
+    .ai-draft label { gap: 3px; font-size: 12px; }
+    .ai-draft input, .ai-draft select, .ai-draft textarea { font-size: 13px; padding: 7px 9px; }
+    .ai-draft__actions { display: flex; gap: 8px; }
+    .ai-draft__actions button { flex: 1; min-height: 34px; }
     .ai-msg--assistant .button-text { font-size: inherit; }
     @media (max-width: 600px) {
       .ai-widget { right: 12px; bottom: 12px; }
@@ -130,6 +145,24 @@ const SUGGESTIONS = [
           @for (m of history(); track $index) {
             <p [class]="'ai-msg ai-msg--' + m.from">{{ m.text }}</p>
           }
+          @if (productDraft(); as d) {
+            <form class="ai-draft" (ngSubmit)="confirmDraft()">
+              <p class="ai-draft__title">Prenda a registrar — revisá antes de crear</p>
+              <label>Nombre<input name="draftName" [(ngModel)]="d.name" required maxlength="180" /></label>
+              <label>Precio (Bs)<input name="draftPrice" type="number" min="0" step="0.01" [(ngModel)]="d.base_price" required /></label>
+              <label>Categoría
+                <select name="draftCategory" [(ngModel)]="d.category_id" required>
+                  <option value="" disabled>Elegí una categoría</option>
+                  @for (c of draftCategories(); track c.id) { <option [value]="c.id">{{ c['name'] }}</option> }
+                </select>
+              </label>
+              <label>Descripción<textarea name="draftDescription" rows="2" [(ngModel)]="d.description" required maxlength="2000"></textarea></label>
+              <div class="ai-draft__actions">
+                <button type="submit" class="primary" [disabled]="draftBusy()">{{ draftBusy() ? 'Creando…' : 'Crear prenda' }}</button>
+                <button type="button" (click)="discardDraft()" [disabled]="draftBusy()">Descartar</button>
+              </div>
+            </form>
+          }
           @if (busy()) {
             <p class="ai-msg ai-msg--assistant" role="status"><fs-bot-avatar state="processing" />
             <span class="ai-msg--thinking">…</span></p>
@@ -183,6 +216,7 @@ const SUGGESTIONS = [
 export class AssistantWidgetComponent implements OnDestroy {
   private commerce = inject(CommerceService);
   private session = inject(SessionService);
+  private catalog = inject(CatalogService);
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
   @ViewChild('log') private logRef?: ElementRef<HTMLDivElement>;
@@ -194,6 +228,10 @@ export class AssistantWidgetComponent implements OnDestroy {
   listening = signal(false);
   history = signal<ChatEntry[]>([]);
   showNew = signal(false);
+  /** Borrador de prenda pendiente de revisión (null = no hay ninguno abierto). */
+  productDraft = signal<ProductDraftInput | null>(null);
+  draftCategories = signal<Entity[]>([]);
+  draftBusy = signal(false);
   suggestions = SUGGESTIONS;
   currentModule = signal(this.resolveModule(this.router.url));
   private lastUserText = '';
@@ -242,6 +280,7 @@ export class AssistantWidgetComponent implements OnDestroy {
     this.open.set(false);
     this.history.set([]);
     this.error.set('');
+    this.productDraft.set(null);
   }
   toggleVoice() {
     if (!this.recognition) return;
@@ -319,7 +358,89 @@ export class AssistantWidgetComponent implements OnDestroy {
     this.lastUserText = text;
     this.history.update((h) => [...h, { from: 'user', text }]);
     this.scrollToBottom();
-    await this.sendToBackend();
+    if (PRODUCT_INTENT.test(text) && this.session.can('catalog.write')) {
+      await this.requestProductDraft(text);
+    } else {
+      await this.sendToBackend();
+    }
+  }
+  /** CU: "ayudame a registrar una prenda" — la IA propone los campos, pero
+   * nunca crea nada sola: el admin revisa este borrador y confirma, igual que
+   * un alta manual desde el catálogo. */
+  private async requestProductDraft(text: string) {
+    this.busy.set(true);
+    this.setBot('processing');
+    try {
+      if (!this.draftCategories().length) {
+        this.draftCategories.set(await firstValueFrom(this.catalog.reference('categories')));
+      }
+      const result = await this.catalog.draftProduct(text);
+      if (!result.available) {
+        this.history.update((h) => [
+          ...h,
+          { from: 'assistant', text: 'No pude preparar el borrador ahora mismo. Probá de nuevo o cargala manualmente desde el catálogo.' },
+        ]);
+        this.setBot('error');
+        return;
+      }
+      this.productDraft.set({
+        name: result.name,
+        description: result.description,
+        base_price: result.base_price,
+        category_id: result.category_id ?? '',
+        brand: result.brand,
+        gender: result.gender,
+      });
+      this.history.update((h) => [
+        ...h,
+        {
+          from: 'assistant',
+          text: result.matched
+            ? 'Preparé un borrador con lo que entendí. Revisalo abajo y confirmá para crearla.'
+            : 'Preparé un borrador, pero no encontré una categoría exacta — elegí una antes de confirmar.',
+        },
+      ]);
+      this.setBot('success');
+    } catch (e) {
+      this.setBot('error');
+      this.error.set(errorMessage(e));
+    } finally {
+      this.busy.set(false);
+      const el = this.logRef?.nativeElement;
+      if (el && el.scrollHeight - el.scrollTop - el.clientHeight > 64) this.showNew.set(true);
+      else this.scrollToBottom();
+    }
+  }
+  async confirmDraft() {
+    const d = this.productDraft();
+    if (!d || this.draftBusy()) return;
+    if (!d.category_id) {
+      this.error.set('Elegí una categoría antes de crear la prenda.');
+      return;
+    }
+    this.draftBusy.set(true);
+    this.error.set('');
+    try {
+      const created = await this.catalog.createProduct(d);
+      this.history.update((h) => [
+        ...h,
+        {
+          from: 'assistant',
+          text: `Prenda creada: "${created.name}". Podés agregarle tallas, colores e imágenes desde el editor de catálogo.`,
+        },
+      ]);
+      this.productDraft.set(null);
+      this.setBot('success');
+    } catch (e) {
+      this.error.set(errorMessage(e));
+      this.setBot('error');
+    } finally {
+      this.draftBusy.set(false);
+      this.scrollToBottom();
+    }
+  }
+  discardDraft() {
+    this.productDraft.set(null);
   }
   async retry() {
     if (!this.lastUserText || this.busy()) return;
