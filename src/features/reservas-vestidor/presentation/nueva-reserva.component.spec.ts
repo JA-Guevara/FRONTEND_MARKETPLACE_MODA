@@ -3,10 +3,10 @@ import { provideRouter, Router } from '@angular/router';
 import { CommerceService } from '../../ventas-pagos/infrastructure/commerce.service';
 import { ReservasService } from '../infrastructure/reservas.service';
 import { TryOnListService } from '../application/try-on-list.service';
-import { AgendarVisitaComponent } from './agendar-visita.component';
+import { NuevaReservaComponent } from './nueva-reserva.component';
 import { VariantAvailability } from '../domain/reservas.models';
 
-describe('Agendar visita para probar prendas', () => {
+describe('Nueva reserva para probar prendas', () => {
   beforeEach(() => {
     sessionStorage.removeItem('fs-try-on-list');
   });
@@ -35,7 +35,7 @@ describe('Agendar visita para probar prendas', () => {
         { provide: ReservasService, useValue: reservas },
       ],
     });
-    const component = TestBed.runInInjectionContext(() => new AgendarVisitaComponent());
+    const component = TestBed.runInInjectionContext(() => new NuevaReservaComponent());
     await Promise.resolve();
     return { component, reservas, tryOn: TestBed.inject(TryOnListService) };
   }

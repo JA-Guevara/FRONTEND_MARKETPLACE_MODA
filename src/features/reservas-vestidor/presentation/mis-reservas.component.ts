@@ -12,10 +12,10 @@ import { IconComponent } from '../../../shared/icon.component';
   template: `<section class="container section">
     <p class="eyebrow">MI CUENTA</p>
     <h1>Mis reservas</h1>
-    <p class="muted">Seguimiento de las visitas que agendaste para probarte prendas en sucursal.</p>
+    <p class="muted">Seguimiento de las reservas que hiciste para probarte prendas en sucursal.</p>
     @if (confirmed()) {
       <p class="alert success" role="status">
-        Solicitud de visita registrada. Está pendiente de confirmación de la sucursal.
+        Solicitud de reserva registrada. Está pendiente de confirmación de la sucursal.
       </p>
     }
     @if (error()) {
@@ -29,7 +29,7 @@ import { IconComponent } from '../../../shared/icon.component';
           {{
             query
               ? 'No hay reservas que coincidan con tu búsqueda'
-              : 'Todavía no agendaste ninguna visita'
+              : 'Todavía no hiciste ninguna reserva'
           }}
         </h2>
         <a routerLink="/">Ir al catálogo</a>

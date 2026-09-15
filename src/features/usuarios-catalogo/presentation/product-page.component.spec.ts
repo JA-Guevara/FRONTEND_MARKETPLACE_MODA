@@ -33,7 +33,7 @@ const PRODUCT: Product = {
   ar_assets: [],
 };
 
-describe('Agregar prendas a la visita desde el detalle', () => {
+describe('Agregar prendas a la reserva desde el detalle', () => {
   beforeEach(() => {
     sessionStorage.removeItem('fs-try-on-list');
   });
@@ -64,7 +64,7 @@ describe('Agregar prendas a la visita desde el detalle', () => {
     expect(tryOn.items()[0].variant_id).toBe('v1');
     expect(tryOn.items()[0].quantity).toBe(1);
     expect(component.tryOnMessage()).toBe(
-      'Prenda añadida a tu selección. Elegí sucursal y horario para registrar la visita.',
+      'Prenda añadida a tu selección. Elegí sucursal y horario para registrar la reserva.',
     );
   });
   it('recorta la cantidad a 1..10 y avisa al superar el máximo por talla', async () => {

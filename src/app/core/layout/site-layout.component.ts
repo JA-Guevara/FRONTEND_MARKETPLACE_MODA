@@ -71,7 +71,7 @@ import { CartStateService } from '../../../features/ventas-pagos/application/car
           }
         </nav>
         <div class="account-nav">
-          <a routerLink="/agendar-visita" class="button visit-link" aria-label="Revisar selección para probarte prendas en sucursal"><fs-icon name="calendar" />Mi visita@if (tryOn.distinctCount) {<span class="visit-counter" aria-label="{{ tryOn.distinctCount }} variantes seleccionadas">{{ tryOn.distinctCount }}</span>}</a>
+          <a routerLink="/reservar" class="button visit-link" aria-label="Revisar selección para reservar y probarte prendas en sucursal"><fs-icon name="calendar" />Reservas@if (tryOn.distinctCount) {<span class="visit-counter" aria-label="{{ tryOn.distinctCount }} variantes seleccionadas">{{ tryOn.distinctCount }}</span>}</a>
           <a routerLink="/carrito" class="button cart-link" aria-label="Ver carrito de compras"><fs-icon name="cart" />Carrito@if (cart.count()) {<span class="cart-counter" aria-label="{{ cart.count() }} prendas en el carrito">{{ cart.count() }}</span>}</a>
           @if (session.user(); as user) {
             <div class="account-menu">

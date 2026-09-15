@@ -27,7 +27,7 @@ const MODULE_LABELS: { prefix: string; label: string }[] = [
   { prefix: '/admin/stock', label: 'Existencias (gestión)' },
   { prefix: '/admin/bitacora', label: 'Bitácora' },
   { prefix: '/admin', label: 'Dashboard de reportes' },
-  { prefix: '/agendar-visita', label: 'Agendar visita' },
+  { prefix: '/reservar', label: 'Nueva reserva' },
   { prefix: '/mi-cuenta/reservas', label: 'Mis reservas' },
   { prefix: '/mi-cuenta/pedidos', label: 'Mis pedidos' },
   { prefix: '/mi-cuenta/direcciones', label: 'Mis direcciones' },

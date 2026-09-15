@@ -17,7 +17,7 @@ const NEXT_STATUS: Record<string, string> = { pending: 'confirmed', confirmed: '
   template: `<p class="eyebrow">GESTIÓN COMERCIAL</p>
     <h1>Reservas de prendas</h1>
     <p class="muted">
-      Atendé las visitas agendadas: confirmá, prepará las prendas y registrá la recepción del
+      Atendé las reservas: confirmá, prepará las prendas y registrá la recepción del
       cliente.
     </p>
     <form class="toolbar" (ngSubmit)="page = 1; apply()">

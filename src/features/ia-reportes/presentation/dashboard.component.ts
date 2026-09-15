@@ -222,7 +222,7 @@ const VISTA_SLIDE: Record<string, 0 | 1> = {
                 <article class="report"><h3>Métodos de pago</h3><p class="muted">Pedidos del período según método</p>
                   <fs-data-table [headers]="['Método','Pedidos']" [rows]="paymentRows(d)" emptyText="Sin pedidos registrados en el período." ariaLabel="Pedidos por método de pago" />
                 </article>
-                <article class="report"><h3>Reservas por estado</h3><p class="muted">Visitas con horario en el período y sucursales seleccionadas</p>
+                <article class="report"><h3>Reservas por estado</h3><p class="muted">Reservas con horario en el período y sucursales seleccionadas</p>
                   <fs-data-table [headers]="['Estado','Reservas']" [rows]="reservationRows(d)" emptyText="Sin reservas registradas." ariaLabel="Reservas por estado" />
                 </article>
               </div>

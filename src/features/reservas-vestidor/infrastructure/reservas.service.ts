@@ -6,8 +6,8 @@ import { Reservation, TryOnEntry, VariantAvailability } from '../domain/reservas
 @Injectable({ providedIn: 'root' })
 export class ReservasService {
   private api = inject(ApiService);
-  /** Crea una visita. El backend responde 201 con la reserva; una clave
-   * idempotente (misma intento) hace que un reintento no duplique la visita. */
+  /** Crea una reserva. El backend responde 201 con la reserva; una clave
+   * idempotente (mismo intento) hace que un reintento no duplique la reserva. */
   async create(
     branch_id: string,
     scheduled_at: string,

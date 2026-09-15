@@ -103,7 +103,7 @@ import {
               /></label
             >
             <button [disabled]="!variant()" (click)="addToTryOn()">
-              <fs-icon name="calendar" />Agregar a mi visita
+              <fs-icon name="calendar" />Agregar a mi reserva
             </button>
             @if (hasArAsset()) {
               <a class="button" [routerLink]="'/prendas/' + p.slug + '/vestidor'">
@@ -123,8 +123,8 @@ import {
           @if (tryOnMessage()) {
             <p class="alert success" role="status">{{ tryOnMessage() }}</p>
             <div class="form-actions">
-              <a class="button primary" routerLink="/agendar-visita">
-                <fs-icon name="calendar" />Revisar selección y agendar
+              <a class="button primary" routerLink="/reservar">
+                <fs-icon name="calendar" />Revisar selección y reservar
               </a>
               <a class="button" routerLink="/">Seguir explorando</a>
             </div>
@@ -180,14 +180,14 @@ export class ProductPageComponent {
     });
     if (result === 'limit_items')
       return this.tryOnMessage.set(
-        'Ya tenés 20 prendas en tu selección. Revisá la lista o agendá la visita.',
+        'Ya tenés 20 prendas en tu selección. Revisá la lista o confirmá la reserva.',
       );
     if (result === 'limit_quantity')
       return this.tryOnMessage.set(
-        'No podés agregar más de 10 unidades de la misma talla a una visita.',
+        'No podés agregar más de 10 unidades de la misma talla a una reserva.',
       );
     this.tryOnMessage.set(
-      'Prenda añadida a tu selección. Elegí sucursal y horario para registrar la visita.',
+      'Prenda añadida a tu selección. Elegí sucursal y horario para registrar la reserva.',
     );
   }
   async addToCart() {

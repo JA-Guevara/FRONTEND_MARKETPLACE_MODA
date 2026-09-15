@@ -41,9 +41,9 @@ export type TryOnResult =
   | 'limit_quantity';
 
 /** Lista, del lado del navegador, de las prendas que el cliente quiere
- * probarse en sucursal antes de agendar una visita (RF09: reservar varias
+ * probarse en sucursal antes de confirmar la reserva (RF09: reservar varias
  * prendas). Se persiste en sessionStorage; el backend solo ve la lista final
- * cuando el cliente confirma la visita en /reservations. */
+ * cuando el cliente confirma la reserva en /reservations. */
 @Injectable({ providedIn: 'root' })
 export class TryOnListService {
   items = signal<TryOnEntry[]>(readStorage());

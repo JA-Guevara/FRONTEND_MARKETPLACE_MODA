@@ -22,12 +22,12 @@ function newIdemKey(): string {
 }
 
 @Component({
-  selector: 'fs-agendar-visita',
+  selector: 'fs-nueva-reserva',
   styleUrl: './reservas.scss',
   imports: [FormsModule, RouterLink, IconComponent],
   template: `<section class="container section">
     <p class="eyebrow">RESERVAS</p>
-    <h1>Agendar visita para probarte prendas</h1>
+    <h1>Nueva reserva para probarte prendas</h1>
     <p class="muted">
       Elegí la sucursal y el horario aproximado. Vas a poder probarte estas prendas y decidir cuáles
       comprar cuando llegues a la tienda. La hora se interpreta en tu zona horaria (GMT-04:00,
@@ -44,7 +44,7 @@ function newIdemKey(): string {
     }
     @if (!tryOn.items().length) {
       <div class="empty-state">
-        <h2>Todavía no agregaste prendas a tu visita</h2>
+        <h2>Todavía no agregaste prendas a tu reserva</h2>
         <a routerLink="/">Ir al catálogo</a>
       </div>
     } @else {
@@ -134,7 +134,7 @@ function newIdemKey(): string {
             placeholder="Ej.: prefiero la tarde"
         /></label>
         <button class="primary" type="submit" [disabled]="!canConfirm()">
-          <fs-icon name="calendar" />{{ busy() ? 'Agendando…' : 'Confirmar visita' }}
+          <fs-icon name="calendar" />{{ busy() ? 'Reservando…' : 'Confirmar reserva' }}
         </button>
       </form>
       @if (unavailable.length) {
@@ -153,7 +153,7 @@ function newIdemKey(): string {
     }
   </section>`,
 })
-export class AgendarVisitaComponent {
+export class NuevaReservaComponent {
   readonly MIN_QTY = MIN_ITEM_QUANTITY;
   readonly MAX_QTY = MAX_ITEM_QUANTITY;
   tryOn = inject(TryOnListService);
@@ -179,9 +179,9 @@ export class AgendarVisitaComponent {
   private static localInput(date: Date) {
     return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   }
-  /** Regla documentada, igual que el backend: la visita debe ser futura. El
+  /** Regla documentada, igual que el backend: la reserva debe ser futura. El
    * mínimo se recorta al próximo minuto para no enviar una hora que ya pasó. */
-  minDateTime = AgendarVisitaComponent.localInput(
+  minDateTime = NuevaReservaComponent.localInput(
     new Date(Date.now() + 60 * 1000),
   ).slice(0, 16);
   scheduledAt = this.minDateTime;

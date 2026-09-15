@@ -122,11 +122,11 @@ export const routes: Routes = [
     ],
   },
   {
-    path: 'agendar-visita',
-    title: 'Agendar visita | FashionStore',
+    path: 'reservar',
+    title: 'Nueva reserva | FashionStore',
     loadComponent: () =>
-      import('../../features/reservas-vestidor/presentation/agendar-visita.component').then(
-        (m) => m.AgendarVisitaComponent,
+      import('../../features/reservas-vestidor/presentation/nueva-reserva.component').then(
+        (m) => m.NuevaReservaComponent,
       ),
     canActivate: [authGuard],
   },

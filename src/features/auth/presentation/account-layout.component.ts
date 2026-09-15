@@ -12,7 +12,7 @@ export const ACCOUNT_SECTIONS = [
   { path: '/mi-cuenta', icon: 'users', label: 'Mi perfil', hint: 'Datos personales', exact: true },
   { path: '/mi-cuenta/direcciones', icon: 'box', label: 'Mis direcciones', hint: 'Entrega y facturación' },
   { path: '/mi-cuenta/pedidos', icon: 'cart', label: 'Mis pedidos', hint: 'Compras y pagos' },
-  { path: '/mi-cuenta/reservas', icon: 'calendar', label: 'Mis reservas', hint: 'Visitas a sucursal' },
+  { path: '/mi-cuenta/reservas', icon: 'calendar', label: 'Mis reservas', hint: 'Prueba en sucursal' },
   { path: '/mi-cuenta/seguridad', icon: 'lock', label: 'Seguridad', hint: 'Cambiar contraseña' },
 ];
 
