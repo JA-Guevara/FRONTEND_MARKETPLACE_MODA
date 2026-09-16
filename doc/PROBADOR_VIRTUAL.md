@@ -1,5 +1,23 @@
 # Probador virtual web: estado y verificación
 
+## Actualización 16/09 (Etapas 5–7)
+- **Gestión de recursos AR desde el editor de producto**: fila `image_overlay` con botón
+  "Editar" (URL, preview y `is_active`); al activar una prenda, las demás del mismo tipo
+  quedan inactivas (PATCH `/catalog/admin/products/{id}/ar-assets/{asset_id}`).
+- **Seguimiento corporal (opcional)**: toggle "Seguir mi postura". Descarga MediaPipe
+  Tasks Vision desde su CDN en tiempo de ejecución (`src/shared/pose-tracking.service.ts`,
+  sin añadir dependencia al bundle) y mueve la prenda siguiendo el torso
+  (`src/shared/pose-projection.ts`, funciones puras probadas). Si el modelo no se puede
+  descargar (sin red), queda el ajuste manual y se avisa. La escala es manual: la postura
+  marca posición, no tamaño. Nada del video sale del navegador.
+- **Comprar/reservar desde el probador**: botones que llevan a la ficha de la prenda donde
+  ya se resuelve variante (color/talla) y se agrega al carrito o se reserva.
+- Suites: probador ahora **20 pruebas** (más 5 de proyección), total frontend **120 / 18
+  archivos**; backend **64 passed**; `ng build` OK (solo aviso preexistente del dashboard).
+- **Pendiente (usuario)**: cámara física, móvil, HTTPS y despliegue.
+
+Fecha 15/09 (histórico de la tanda anterior)
+
 Fecha: 15/09/2026. Alcance de esta sesión: revisar y estabilizar la implementación existente de cámara con superposición manual. Flutter aplazado por instrucción del usuario. No se desplegaron cambios.
 
 ## Resultado actual

@@ -39,6 +39,14 @@ const EXPLAIN_INTENT = new RegExp(
   `\\b(explic[aá](me)?|explicar|analiza(me)?|analizame|interpreta(me)?|por ?qu[eé])${UI_WORD_END}(?:[^.!?]){0,60}?\\b(${REPORT_NOUNS}|${CONTEXT_TERMS})\\b`,
   'i',
 );
+/** Pedidos de ver un reporte con un filtro en la pantalla: "mostrame ventas de
+ * la sucursal norte", "filtrá el dashboard por la categoría camisas". Se
+ * interpretan igual que los demás y el filtro resuelto se APLICA en el
+ * dashboard (Etapa 3), además de responder por chat. */
+const APPLY_INTENT = new RegExp(
+  `\\b(mostr[ae](me)?|muestr[ae](me)?|filtr[ae](me)?|aplic[aá]\\s+(el\\s+|este\\s+|los\\s+)?filtros?)\\b(?:[^.!?]){0,80}?\\b(${REPORT_NOUNS}|${CONTEXT_TERMS})\\b`,
+  'i',
+);
 const EXPORT_REPORT_LABEL: Record<ExportReport, string> = {
   ventas: 'ventas', pedidos: 'pedidos', pagos: 'pagos',
   prendas_vendidas: 'prendas vendidas', existencias: 'existencias', sucursales: 'sucursales',
@@ -306,7 +314,7 @@ export class AssistantWidgetComponent implements OnDestroy {
   /** A qué handler reintentar: los pedidos de reporte y el borrador de prenda
    * usan flujos distintos al chat general, y "Reintentar" debe repetir el
    * mismo y no caer en el chat general. */
-  private lastIntent: 'chat' | 'draft' | 'export' | 'explain' = 'chat';
+  private lastIntent: 'chat' | 'draft' | 'export' | 'explain' | 'apply' = 'chat';
   botState = signal<BotState>('idle');
   private recognition: any;
   private botTimer: ReturnType<typeof setTimeout> | null = null;
@@ -389,6 +397,7 @@ export class AssistantWidgetComponent implements OnDestroy {
     if (this.session.can('dashboard.read')) {
       list.push('Exportame el reporte de ventas de este mes');
       list.push('Explicame por qué bajaron los pedidos pagados');
+      list.push('Mostrame las ventas de la sucursal central');
     }
     if (this.session.can('catalog.write')) {
       list.push('Registrame una campera de cuero negra a 450 Bs');
@@ -452,6 +461,9 @@ export class AssistantWidgetComponent implements OnDestroy {
     } else if (EXPLAIN_INTENT.test(text) && this.session.can('dashboard.read')) {
       this.lastIntent = 'explain';
       await this.requestExplain(text);
+    } else if (APPLY_INTENT.test(text) && this.session.can('dashboard.read')) {
+      this.lastIntent = 'apply';
+      await this.requestApply(text);
     } else {
       this.lastIntent = 'chat';
       await this.sendToBackend();
@@ -542,6 +554,7 @@ export class AssistantWidgetComponent implements OnDestroy {
     this.error.set('');
     if (this.lastIntent === 'export') await this.requestExport(this.lastUserText);
     else if (this.lastIntent === 'explain') await this.requestExplain(this.lastUserText);
+    else if (this.lastIntent === 'apply') await this.requestApply(this.lastUserText);
     else if (this.lastIntent === 'draft') await this.requestProductDraft(this.lastUserText);
     else await this.sendToBackend();
   }
@@ -606,19 +619,34 @@ export class AssistantWidgetComponent implements OnDestroy {
         this.setBot('idle');
         return;
       }
-      const blob = await firstValueFrom(this.dashboard.exportUrl(report, format, q));
+      // Herramienta tipada del servidor: la descarga la genera un caso de uso
+      // autorizado (allowlist), queda en bitacora con el correo del analista y
+      // request_id hace idempotente la operacion (no duplica auditoria).
+      const requestId =
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : Math.random().toString(36).slice(2);
+      const response = await firstValueFrom(
+        this.dashboard.executeTool(requestId, 'export_report', [report], format, q),
+      );
+      const blob = response.body;
+      if (!blob) throw new Error('El servidor no devolvió el archivo.');
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
       anchor.download = `fashionstore_${report}.${format}`;
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
+      const replayed = response.headers.get('X-Idempotent-Replay') === 'true';
       const aclaraciones = interpreted.aclaraciones.length ? ' ' + interpreted.aclaraciones.join(' ') : '';
       this.history.update((h) => [
         ...h,
         {
           from: 'assistant',
-          text: `Descargando el reporte de ${EXPORT_REPORT_LABEL[report]} en ${format.toUpperCase()}.${aclaraciones}`,
+          text:
+            (replayed ? 'Enviaste la misma solicitud dos veces: ' : 'Descargando el reporte de ') +
+            `${EXPORT_REPORT_LABEL[report]} en ${format.toUpperCase()}.${aclaraciones}` +
+            (replayed ? ' No lo generé de nuevo para no duplicar nada.' : ''),
         },
       ]);
       this.setBot('success');
@@ -656,6 +684,84 @@ export class AssistantWidgetComponent implements OnDestroy {
         reply = result.message || 'No pude explicar esa métrica ahora mismo.';
       }
       this.history.update((h) => [...h, { from: 'assistant', text: reply }]);
+      this.setBot('success');
+    } catch (e) {
+      this.setBot('error');
+      this.error.set(errorMessage(e));
+    } finally {
+      this.busy.set(false);
+      const el = this.logRef?.nativeElement;
+      if (el && el.scrollHeight - el.scrollTop - el.clientHeight > 64) this.showNew.set(true);
+      else this.scrollToBottom();
+    }
+  }
+  /** CU (Etapa 3): "mostrame ventas de la sucursal norte" — interpreta el
+   * pedido como cualquier otro reporte, pero el filtro resuelto se APLICA en la
+   * pantalla del dashboard (no se queda solo en el chat). */
+  private async requestApply(text: string) {
+    this.busy.set(true);
+    this.setBot('processing');
+    try {
+      const current = this.assistantContext.report();
+      const interpreted = await firstValueFrom(this.dashboard.interpret(text, current));
+      const q: ReportQuery = {
+        branch_id: interpreted.filtros.branch_id ?? current.branch_id ?? null,
+        category_id: interpreted.filtros.category_id ?? current.category_id ?? null,
+        status: interpreted.filtros.status ?? current.status ?? undefined,
+        date_from: interpreted.filtros.date_from ?? current.date_from ?? undefined,
+        date_to: interpreted.filtros.date_to ?? current.date_to ?? undefined,
+      };
+      const mentionsBranchButNotGrouping =
+        /sucursal|local|tienda\s+de/i.test(text) && !/por\s+sucursal/i.test(text);
+      if (mentionsBranchButNotGrouping && !q.branch_id) {
+        this.history.update((h) => [
+          ...h,
+          {
+            from: 'assistant',
+            text: 'No pude resolver a qué sucursal te referís. Sin ese dato no aplico el filtro para no ocultar ninguna sucursal — elegila en el dashboard o decime su nombre.',
+          },
+        ]);
+        this.setBot('idle');
+        return;
+      }
+      if (/categor[íi]a|rubro|departamento/i.test(text) && !q.category_id) {
+        this.history.update((h) => [
+          ...h,
+          {
+            from: 'assistant',
+            text: 'No pude resolver la categoría que mencionás. Sin ese dato no aplico el filtro — elegila en el dashboard o decime su nombre.',
+          },
+        ]);
+        this.setBot('idle');
+        return;
+      }
+      const parts: string[] = [];
+      if (q.branch_id) parts.push('sucursal');
+      if (q.category_id) parts.push('categoría');
+      if (q.status) parts.push('estado');
+      if (q.date_from || q.date_to) parts.push('período');
+      if (!parts.length) {
+        this.history.update((h) => [
+          ...h,
+          {
+            from: 'assistant',
+            text: 'No encontré un filtro claro para aplicar. Decime, por ejemplo, "mostrame las ventas de la sucursal norte" o "filtrá por la categoría camisas".',
+          },
+        ]);
+        this.setBot('idle');
+        return;
+      }
+      this.assistantContext.applyToScreen(q, 'widget');
+      const alreadyThere = this.router.url.split('?')[0] === '/admin';
+      if (!alreadyThere) await this.router.navigate(['/admin']);
+      const aclaraciones = interpreted.aclaraciones.length ? ' ' + interpreted.aclaraciones.join(' ') : '';
+      this.history.update((h) => [
+        ...h,
+        {
+          from: 'assistant',
+          text: `Apliqué el filtro de ${parts.join(' y ')} en el dashboard y lo ${alreadyThere ? 'actualicé' : 'abrí'}.${aclaraciones}`,
+        },
+      ]);
       this.setBot('success');
     } catch (e) {
       this.setBot('error');

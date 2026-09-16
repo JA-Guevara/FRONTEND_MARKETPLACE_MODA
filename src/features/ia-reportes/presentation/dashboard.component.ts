@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, effect, inject, signal } from '@angular/core';
 import { CurrencyPipe, DecimalPipe, PercentPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
@@ -29,6 +29,7 @@ const STATUS_LABEL: Record<string, string> = {
   shipped: 'En camino', delivered: 'Entregado', cancelled: 'Cancelado',
 };
 const METHOD_LABEL: Record<string, string> = { stripe: 'Stripe', manual: 'Manual', cash: 'Efectivo' };
+const ALL_REPORTS: ExportReport[] = ['ventas', 'pedidos', 'pagos', 'prendas_vendidas', 'existencias', 'sucursales'];
 /** A qué slide del carrusel saltar cuando la IA interpreta una consulta como
  * referida a esa "vista" (el backend sigue devolviendo el mismo vocabulario
  * de siempre; acá solo se traduce a gráficos (0) o tablas (1)). */
@@ -51,21 +52,36 @@ const VISTA_SLIDE: Record<string, 0 | 1> = {
           <p class="muted">Métricas recalculadas por el servidor sobre el período y los filtros visibles.</p>
         </div>
         <div class="heading-actions">
-          <label class="export-label">Exportar
-            <select [ngModel]="exportReportSel()" (ngModelChange)="exportReportSel.set($event)" aria-label="Reporte a exportar">
-              <option value="ventas">Ventas</option>
-              <option value="pedidos">Pedidos</option>
-              <option value="pagos">Pagos</option>
-              <option value="prendas_vendidas">Prendas vendidas</option>
-              <option value="existencias">Existencias</option>
-              <option value="sucursales">Sucursales</option>
-            </select>
-          </label>
-          <button type="button" class="ghost" (click)="exportReport('xlsx')" [disabled]="exporting()">{{ exporting() ? 'Generando…' : 'Excel' }}</button>
-          <button type="button" class="ghost" (click)="exportReport('csv')" [disabled]="exporting()">CSV</button>
+          <button type="button" class="ghost" (click)="exportOpen.set(!exportOpen())" [class.active]="exportOpen()" [attr.aria-expanded]="exportOpen()">Exportar reportes</button>
           <button type="button" (click)="load()" [disabled]="loading()">{{ loading() ? 'Actualizando…' : 'Actualizar' }}</button>
         </div>
       </div>
+      @if (exportOpen()) {
+        <div class="export-panel" role="region" aria-label="Exportar varios reportes">
+          <div class="export-head">
+            <b>Exportar</b>
+            <span class="muted">Selecciona uno o varios reportes y el formato. Cada archivo lleva los filtros visibles: {{ exportSummary() }}.</span>
+          </div>
+          <div class="export-reports" role="group" aria-label="Reportes a exportar">
+            @for (r of exportOptions; track r.value) {
+              <label class="check">
+                <input type="checkbox" [checked]="selReports().includes(r.value)" (change)="toggleReport(r.value, $event)" aria-label="{{ r.label }}" />
+                <span>{{ r.label }}</span>
+              </label>
+            }
+            <button type="button" class="chip-clear" (click)="selectAll()">Seleccionar todos</button>
+            @if (selReports().length) { <button type="button" class="chip-clear" (click)="selReports.set([])">Limpiar ({{ selReports().length }})</button> }
+          </div>
+          <div class="export-actions">
+            <button type="button" [disabled]="!selReports().length || multiExporting()" (click)="exportMultiple('xlsx')">Excel</button>
+            <button type="button" [disabled]="!selReports().length || multiExporting()" (click)="exportMultiple('pdf')">PDF</button>
+            <button type="button" [disabled]="!selReports().length || multiExporting()" (click)="exportMultiple('csv')">CSV</button>
+            @if (multiExporting()) { <span class="busy">…</span> }
+          </div>
+          @if (multiError()) { <p class="error" role="alert">{{ multiError() }}</p> }
+          @if (multiDone()) { <p class="done" role="status">{{ multiDone() }}</p> }
+        </div>
+      }
       @if (exportError()) { <p class="error" role="alert">{{ exportError() }}</p> }
       <div class="filters" role="group" aria-label="Filtros y período del reporte">
         <div class="period-bar" role="group" aria-label="Período del reporte">
@@ -141,7 +157,7 @@ const VISTA_SLIDE: Record<string, 0 | 1> = {
                   <p class="muted">Variantes con menos de {{ lowStockThreshold() }} unidades en alguna sucursal.</p>
                   <p class="alert-big" [class.alert-ok]="!d.low_stock_variants.length">{{ d.low_stock_variants.length | number }} variantes</p>
                   @if (d.low_stock_variants.length) {
-                    <button type="button" class="ghost" (click)="slide.set(1); exportReportSel.set('existencias')">Ver detalle y exportar existencias</button>
+                    <button type="button" class="ghost" (click)="slide.set(1); exportOpen.set(true); selReports.set(['existencias'])">Ver detalle y exportar existencias</button>
                   } @else { <p class="empty">Ninguna variante está bajo el umbral.</p> }
                 </article>
               </div>
@@ -288,8 +304,12 @@ const VISTA_SLIDE: Record<string, 0 | 1> = {
     </section>`,
   styles: [`
     :host{display:block;min-width:0}.dashboard{display:grid;gap:1rem;margin:1.5rem 0 2rem;min-width:0}.heading{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}.heading h2{font-size:1.65rem;margin:.25rem 0}.muted{font-size:.85rem;margin:.4rem 0;line-height:1.5}
-    .eyebrow{font-size:.67rem}.heading-actions{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}.export-label{font-size:.78rem;color:#645d55;display:inline-flex;gap:.4rem;align-items:center}
-    select.field,.export-label select{font-size:.78rem;padding:.38rem .6rem;border-radius:8px;vertical-align:middle}
+    .eyebrow{font-size:.67rem}.heading-actions{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}.heading-actions button.active{background:#24231f;color:#fff;border-color:#24231f}
+    select.field{font-size:.78rem;padding:.38rem .6rem;border-radius:8px;vertical-align:middle}
+    .export-panel{display:grid;gap:.6rem;background:#fff;border:1px solid #e5ded5;border-radius:16px;padding:.9rem 1rem;margin-top:-.2rem}.export-head{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap}.export-head b{font-size:.9rem}.export-head .muted{font-size:.78rem;color:#645d55;margin:0}
+    .export-reports{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center}.check{display:inline-flex;gap:.35rem;align-items:center;font-size:.82rem;background:#fff;border:1px solid #e5ded5;border-radius:20px;padding:.28rem .65rem}.check input{accent-color:#74394E;width:auto}
+    .export-actions{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}.busy{letter-spacing:.2em;color:#645d55;animation:fsbusy 1.2s ease-in-out infinite}@keyframes fsbusy{0%,100%{opacity:.25}50%{opacity:1}}
+    .export-panel .done{color:#217A65;font-size:.82rem;margin:0}.export-panel .error{margin:0}
     .filters{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
     .period-bar{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}.period-bar button{font-size:.75rem;padding:.4rem .8rem;border-radius:20px}.period-bar button.active{background:#24231f;color:#fff;border-color:#24231f}
     .chip-clear{font-size:.75rem;padding:.4rem .8rem;border-radius:20px;background:#f5efe8;border-color:#e5ded5;color:#645d55}
@@ -341,6 +361,10 @@ export class DashboardComponent {
   sectionLabel = (k: string) => ({ hallazgo: 'Hallazgo', cifras: 'Cifras', interpretacion: 'Interpretación', accion: 'Acción sugerida', limitaciones: 'Limitaciones' })[k] ?? k;
   exporting = signal(false); exportError = signal('');
   exportReportSel = signal<ExportReport>('ventas');
+  exportOpen = signal(true);
+  selReports = signal<ExportReport[]>([]);
+  multiExporting = signal(false); multiError = signal(''); multiDone = signal('');
+  exportOptions = ALL_REPORTS.map((value) => ({ value, label: ({ ventas: 'Ventas', pedidos: 'Pedidos', pagos: 'Pagos', prendas_vendidas: 'Prendas vendidas', existencias: 'Existencias', sucursales: 'Sucursales' })[value] }));
   thinking = signal(false); insight = signal(''); insightError = signal('');
   interpretDraft = ''; interpreting = signal(false);
   interpretResult = signal<InterpretResult | null>(null); interpretError = signal('');
@@ -349,7 +373,27 @@ export class DashboardComponent {
   explanation = signal<ExplainResult | null>(null); explainError = signal('');
 
   constructor() {
+    effect(() => {
+      const request = this.assistantContext.applyRequest();
+      if (!request) return;
+      this.assistantContext.consumeApply();
+      this.applyFilterQuery(request.query);
+    });
     void this.loadLists();
+    void this.load();
+  }
+  /** Aplica en la pantalla un query pedido desde el chat (asistente): actualiza
+   * los selects y el rango de fechas visibles y recalcula con esos filtros. */
+  private applyFilterQuery(q: ReportQuery) {
+    this.filters.update((f) => ({
+      ...f,
+      branch_id: q.branch_id ?? null,
+      category_id: q.category_id ?? null,
+      status: q.status || undefined,
+      low_stock_lt: q.low_stock_lt,
+    }));
+    this.customFrom.set(q.date_from ?? '');
+    this.customTo.set(q.date_to ?? '');
     void this.load();
   }
   private async loadLists() {
@@ -495,15 +539,58 @@ export class DashboardComponent {
     this.exporting.set(true); this.exportError.set('');
     try {
       const blob = await firstValueFrom(this.service.exportUrl(this.exportReportSel(), format, this.appliedQuery()));
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = `fashionstore_report.${format}`;
-      anchor.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      this.downloadBlob(blob, `fashionstore_report.${format}`);
     } catch (error: any) {
       this.exportError.set(errorMessage(error));
     } finally { this.exporting.set(false); }
+  }
+  toggleReport(value: ExportReport, event: Event) {
+    const checked = (event.target as HTMLInputElement).checked;
+    this.selReports.update((sel) => (checked ? (sel.includes(value) ? sel : [...sel, value]) : sel.filter((r) => r !== value)));
+  }
+  selectAll() { this.selReports.set(ALL_REPORTS); }
+  /** Resumen honesto de los filtros VISIBLES con los que el servidor calculó las
+   * métricas; también son los que recibe la exportación múltiple. */
+  exportSummary() {
+    const q = this.appliedQuery();
+    const parts: string[] = [];
+    if (q.date_from || q.date_to) {
+      parts.push(q.date_from ? 'desde ' + q.date_from.slice(0, 10) : 'desde el inicio');
+      if (q.date_to) parts.push('hasta ' + q.date_to.slice(0, 10));
+    } else {
+      parts.push('todo el historial');
+    }
+    if (q.branch_id) parts.push('sucursal: ' + (this.branches().find((b) => b.id === q.branch_id)?.name ?? q.branch_id));
+    if (q.category_id) parts.push('categoría: ' + ((this.categories().find((c) => c.id === q.category_id) as any)?.['name'] ?? q.category_id));
+    if (q.status) parts.push('estado: ' + (STATUS_LABEL[q.status] ?? q.status));
+    return parts.join(' · ');
+  }
+  async exportMultiple(format: 'xlsx' | 'pdf' | 'csv') {
+    const reports = this.selReports();
+    if (!reports.length || this.multiExporting()) return;
+    this.multiExporting.set(true); this.multiError.set(''); this.multiDone.set('');
+    try {
+      const response = await firstValueFrom(this.service.exportMultiple(reports, format, this.appliedQuery()));
+      const disposition = response.headers.get('Content-Disposition') ?? '';
+      const match = /filename="([^"]+)"/.exec(disposition);
+      const filename = match?.[1] ?? `fashionstore_reportes.${format}`;
+      const truncated = response.headers.get('X-Export-Truncated') === 'true';
+      this.downloadBlob(response.body as Blob, filename);
+      this.multiDone.set(
+        `${reports.length} ${reports.length === 1 ? 'reporte exportado' : 'reportes exportados'} (${format.toUpperCase()}, con los filtros visibles).` +
+        (truncated ? ' Advertencia: se aplicó el límite de filas por reporte; revisa el detalle en el archivo.' : ''),
+      );
+    } catch (error: any) {
+      this.multiError.set(errorMessage(error));
+    } finally { this.multiExporting.set(false); }
+  }
+  private downloadBlob(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   async ask() {
     if (this.thinking() || !this.data()?.ai_ready) return;

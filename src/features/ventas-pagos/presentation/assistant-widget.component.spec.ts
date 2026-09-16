@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { HttpHeaders } from '@angular/common/http';
 import { NavigationEnd, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { AssistantWidgetComponent } from './assistant-widget.component';
@@ -26,7 +27,7 @@ function setup(options: { permissions?: string[] } = {}) {
     draftProduct: vi.fn(),
     createProduct: vi.fn(),
   };
-  const dashboard = { interpret: vi.fn(), explain: vi.fn(), insights: vi.fn(), exportUrl: vi.fn() };
+  const dashboard = { interpret: vi.fn(), explain: vi.fn(), insights: vi.fn(), executeTool: vi.fn() };
   TestBed.configureTestingModule({
     imports: [AssistantWidgetComponent],
     providers: [
@@ -34,7 +35,7 @@ function setup(options: { permissions?: string[] } = {}) {
       { provide: SessionService, useValue: { user: () => null, can: (p: string) => (options.permissions ?? []).includes(p) } },
       { provide: CatalogService, useValue: catalog },
       { provide: DashboardService, useValue: dashboard },
-      { provide: Router, useValue: { url: '/', events: of(new NavigationEnd(1, '/', '/')) } },
+      { provide: Router, useValue: { url: '/', navigate: vi.fn().mockResolvedValue(true), events: of(new NavigationEnd(1, '/', '/')) } },
     ],
   });
   const fixture = TestBed.createComponent(AssistantWidgetComponent);
@@ -75,6 +76,34 @@ describe('Asistente: indicador de espera con tres puntos', () => {
     expect(userMessages()).toBe(before);
     expect(fixture.componentInstance.productDraft()).not.toBeNull();
     expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('"registrame una prenda" crea SOLO tras confirmar el borrador (una sola llamada)', async () => {
+    const { fixture, catalog } = setup({ permissions: ['catalog.write'] });
+    fixture.componentInstance.open.set(true);
+    fixture.detectChanges();
+    catalog.draftProduct.mockResolvedValueOnce({
+      available: true, matched: true, name: 'Campera de cuero negra', description: 'Campera de cuero',
+      base_price: '450.00', category_id: 'cat-1', brand: 'FashionStore', gender: 'mujer',
+    });
+    await fixture.componentInstance.send('registrame una campera de cuero negra a 450 Bs');
+    fixture.detectChanges();
+    expect(catalog.createProduct).not.toHaveBeenCalled();
+    // El borrador se revisa (formulario en pantalla) y al confirmar se crea la prenda.
+    catalog.createProduct.mockResolvedValueOnce({
+      id: 'p-1', name: 'Campera de cuero negra', slug: 'campera-de-cuero-negra', base_price: '450.00',
+      description: '', gender: 'mujer', brand: 'FashionStore', is_active: true, deleted_at: null,
+      category: { id: 'cat-1', name: 'Camperas' }, season: null, collection: null, is_featured: false,
+      variants: [], images: [], ar_assets: [], suppliers: [],
+    } as any);
+    const draft = fixture.componentInstance.productDraft();
+    expect(draft).not.toBeNull();
+    const confirmed = fixture.componentInstance.confirmDraft();
+    await confirmed;
+    fixture.detectChanges();
+    expect(catalog.createProduct).toHaveBeenCalledTimes(1);
+    expect(fixture.componentInstance.productDraft()).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Prenda creada:');
   });
 
   it('muestra tres puntos sin robot en el mensaje de espera y desaparecen al responder', async () => {
@@ -158,13 +187,20 @@ describe('Asistente: contexto compartido de reportes', () => {
     });
   }
 
+  function toolResponse(replay = false) {
+    return of({
+      body: new Blob(['x'], { type: 'application/octet-stream' }),
+      headers: new HttpHeaders({ 'X-Idempotent-Replay': String(replay) }),
+    });
+  }
+
   it('"exportá esto" usa los filtros visibles del dashboard y exporta eso, no todo', async () => {
     const { fixture, dashboard, ctx } = setup({ permissions: ['dashboard.read'] });
     fixture.componentInstance.toggle();
     const visible = { branch_id: 'b-x', category_id: null, date_from: '2026-08-01', date_to: '2026-09-01', status: undefined };
     ctx.setReport(visible);
     dashboard.interpret.mockReturnValue(allNullInterpret());
-    dashboard.exportUrl.mockReturnValue(of(new Blob(['x'], { type: 'application/octet-stream' })));
+    dashboard.executeTool.mockReturnValue(toolResponse());
     const restore = fakeDownload();
     try {
       await fixture.componentInstance.send('exportá esto');
@@ -174,12 +210,15 @@ describe('Asistente: contexto compartido de reportes', () => {
     }
     // La interpretación se hace sobre el contexto visible, no en el vacío.
     expect(dashboard.interpret).toHaveBeenCalledWith('exportá esto', visible);
-    // El reporte es el de ventas, y los campos que el intérprete no resolvió
-    // caen al contexto visible.
-    expect(dashboard.exportUrl).toHaveBeenCalledWith('ventas', 'xlsx', {
-      branch_id: 'b-x', category_id: null, status: undefined,
-      date_from: '2026-08-01', date_to: '2026-09-01',
-    });
+    // La herramienta export_report recibe el reporte y los campos que el
+    // intérprete no resolvió caen al contexto visible.
+    expect(dashboard.executeTool).toHaveBeenCalledWith(
+      expect.any(String), 'export_report', ['ventas'], 'xlsx',
+      {
+        branch_id: 'b-x', category_id: null, status: undefined,
+        date_from: '2026-08-01', date_to: '2026-09-01',
+      },
+    );
     expect(fixture.nativeElement.textContent).toContain('Descargando el reporte de ventas');
   });
 
@@ -193,7 +232,7 @@ describe('Asistente: contexto compartido de reportes', () => {
         filtros: { branch_id: 'b-norte', category_id: null, date_from: null, date_to: null, status: null },
       }),
     );
-    dashboard.exportUrl.mockReturnValue(of(new Blob(['x'], { type: 'application/octet-stream' })));
+    dashboard.executeTool.mockReturnValue(toolResponse());
     const restore = fakeDownload();
     try {
       await fixture.componentInstance.send('exportame ventas de la sucursal norte');
@@ -201,10 +240,13 @@ describe('Asistente: contexto compartido de reportes', () => {
     } finally {
       restore();
     }
-    expect(dashboard.exportUrl).toHaveBeenCalledWith('ventas', 'xlsx', {
-      branch_id: 'b-norte', category_id: null, status: undefined,
-      date_from: undefined, date_to: undefined,
-    });
+    expect(dashboard.executeTool).toHaveBeenCalledWith(
+      expect.any(String), 'export_report', ['ventas'], 'xlsx',
+      {
+        branch_id: 'b-norte', category_id: null, status: undefined,
+        date_from: undefined, date_to: undefined,
+      },
+    );
     expect(fixture.nativeElement.textContent).toContain('reporte de ventas');
   });
 
@@ -220,8 +262,28 @@ describe('Asistente: contexto compartido de reportes', () => {
     );
     await fixture.componentInstance.send('exportame ventas de la sucursal norte');
     fixture.detectChanges();
-    expect(dashboard.exportUrl).not.toHaveBeenCalled();
+    expect(dashboard.executeTool).not.toHaveBeenCalled();
     expect(fixture.nativeElement.textContent).toContain('Sin ese filtro no descargo el reporte');
+  });
+
+  it('"mostrame ventas de la sucursal norte" aplica el filtro en la pantalla del dashboard', async () => {
+    const { fixture, dashboard, ctx } = setup({ permissions: ['dashboard.read'] });
+    fixture.componentInstance.toggle();
+    dashboard.interpret.mockReturnValue(
+      of({
+        ok: true, vista: 'resumen', agrupacion: null, metrica: 'revenue', comparacion: 'none',
+        aclaraciones: [],
+        filtros: { branch_id: 'b-norte', category_id: null, date_from: null, date_to: null, status: null },
+      }),
+    );
+    await fixture.componentInstance.send('mostrame las ventas de la sucursal norte');
+    fixture.detectChanges();
+    // El filtro resuelto se encola para que el dashboard lo aplique, no se
+    // queda solo como texto del chat.
+    const applied = ctx.applyRequest();
+    expect(applied).not.toBeNull();
+    expect(applied!.query.branch_id).toBe('b-norte');
+    expect(fixture.nativeElement.textContent).toContain('Apliqué el filtro de sucursal');
   });
 
   it('"explicame esto" usa el contexto y la respuesta incluye las limitaciones del análisis', async () => {

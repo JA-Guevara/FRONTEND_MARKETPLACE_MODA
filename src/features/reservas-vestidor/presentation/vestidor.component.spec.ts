@@ -5,6 +5,7 @@ import { VestidorComponent } from './vestidor.component';
 import { CatalogService } from '../../usuarios-catalogo/infrastructure/catalog.service';
 import { SessionService } from '../../auth/application/session.service';
 import { ApiService } from '../../../app/core/shared/api.service';
+import { PoseTrackingService } from '../../../shared/pose-tracking.service';
 
 describe('Probador manual: cámara y recursos', () => {
   const originalMedia = Object.getOwnPropertyDescriptor(navigator, 'mediaDevices');
@@ -51,6 +52,7 @@ describe('Probador manual: cámara y recursos', () => {
         ),
     };
     const api = { write: vi.fn().mockReturnValue(of({ data: {} })) };
+    const pose = { ensure: vi.fn().mockResolvedValue(true), detectTorso: vi.fn(), ready: vi.fn(), dispose: vi.fn() };
     TestBed.configureTestingModule({
       imports: [VestidorComponent],
       providers: [
@@ -58,6 +60,7 @@ describe('Probador manual: cámara y recursos', () => {
         { provide: ActivatedRoute, useValue: { paramMap: route } },
         { provide: CatalogService, useValue: catalog },
         { provide: ApiService, useValue: api },
+        { provide: PoseTrackingService, useValue: pose },
         {
           provide: SessionService,
           useValue: { user: () => (authenticated ? { id: 'u1' } : null) },
@@ -72,7 +75,7 @@ describe('Probador manual: cámara y recursos', () => {
       fixture.nativeElement.querySelector('img').dispatchEvent(new Event('load'));
       fixture.detectChanges();
     }
-    return { fixture, component: fixture.componentInstance, api, route, catalog };
+    return { fixture, component: fixture.componentInstance, api, route, catalog, pose };
   }
   it('crea el video antes del permiso y no activa la cámara automáticamente', async () => {
     const { fixture, component, api } = await setup();
@@ -226,5 +229,63 @@ describe('Probador manual: cámara y recursos', () => {
     expect(component.offsetX()).toBe(0);
     expect(component.offsetY()).toBe(0);
     expect(component.scale()).toBe(1);
+  });
+  it('re-acota la prenda si el escenario cambia de tamaño (probador estable)', async () => {
+    const { component } = await setup();
+    const stage = (component as any).stageRef.nativeElement;
+    const rect = (w: number, h: number) =>
+      ({ width: w, height: h, top: 0, left: 0, right: w, bottom: h, x: 0, y: 0 }) as DOMRect;
+    vi.spyOn(stage, 'getBoundingClientRect').mockReturnValue(rect(300, 400));
+    component.nudge(500, 600);
+    // Núcleo del ajuste: el movimiento no se sale de la zona de la prenda.
+    expect(component.offsetX()).toBe(135);
+    expect(component.offsetY()).toBe(180);
+    // Rotación / ventana más chica mientras la cámara está activa: la prenda
+    // sigue dentro aunque el usuario no la haya tocado.
+    vi.spyOn(stage, 'getBoundingClientRect').mockReturnValue(rect(120, 160));
+    (component as any).ensureClamped();
+    expect(component.offsetX()).toBe(54);
+    expect(component.offsetY()).toBe(72);
+  });
+  it('no activa el seguimiento de postura sin cámara y avisa', async () => {
+    const { component, pose } = await setup();
+    await component.togglePose();
+    expect(component.poseMode()).toBe(false);
+    expect(component.poseError()).toContain('Activá la cámara');
+    expect(pose.ensure).not.toHaveBeenCalled();
+  });
+  it('con cámara activa, seguir la postura mueve la prenda y se puede apagar', async () => {
+    const { component, pose } = await setup();
+    const media = stream();
+    camera.mockResolvedValue(media.value);
+    await component.startCamera();
+    pose.detectTorso.mockReturnValue({ x: 0.65, y: 0.6 });
+    await component.togglePose();
+    expect(component.poseMode()).toBe(true);
+    expect(pose.ensure).toHaveBeenCalled();
+    expect(component.poseTracking()).toBe(true);
+    // Cámara frontal (espejada): x 0.65 del torso queda a la izquierda del centro.
+    expect(component.offsetX()).toBeLessThan(0);
+    // El torso está debajo del centro del escenario.
+    expect(component.offsetY()).toBeGreaterThan(0);
+    component.togglePose();
+    expect(component.poseMode()).toBe(false);
+  });
+  it('si el modelo de postura no se puede cargar, queda el ajuste manual', async () => {
+    const { component, pose } = await setup();
+    const media = stream();
+    camera.mockResolvedValue(media.value);
+    await component.startCamera();
+    pose.ensure.mockResolvedValue(false);
+    await component.togglePose();
+    expect(component.poseMode()).toBe(false);
+    expect(component.poseError()).toContain('ajuste manual sigue disponible');
+  });
+  it('ofrece comprar o reservar desde el probador resolviendo la variante en la ficha', async () => {
+    const { fixture } = await setup();
+    const buttons = fixture.nativeElement.querySelectorAll('.fitting-shopping button');
+    expect(buttons.length).toBe(2);
+    expect(buttons[0]?.textContent).toContain('Elegir color/talla y comprar');
+    expect(buttons[1]?.textContent).toContain('Reservar esta prenda');
   });
 });

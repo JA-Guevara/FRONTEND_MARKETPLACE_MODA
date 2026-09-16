@@ -16,6 +16,8 @@ import { SessionService } from '../../auth/application/session.service';
 import { ApiService } from '../../../app/core/shared/api.service';
 import { IconComponent } from '../../../shared/icon.component';
 import { errorMessage } from '../../../shared/errors';
+import { PoseTrackingService } from '../../../shared/pose-tracking.service';
+import { poseOffset, smoothPose } from '../../../shared/pose-projection';
 
 type CameraState = 'off' | 'requesting' | 'active' | 'error';
 
@@ -132,7 +134,18 @@ type CameraState = 'off' | 'requesting' | 'active' | 'error';
             <button type="button" [disabled]="cameraState() !== 'active'" (click)="switchCamera()">
               <fs-icon name="refresh" />Cambiar cámara
             </button>
+            <button
+              type="button"
+              [class.active]="poseMode()"
+              [disabled]="cameraState() !== 'active' || poseBusy()"
+              (click)="togglePose()"
+            >
+              <fs-icon name="camera" />{{ poseBusy() ? 'Preparando…' : poseMode() ? 'Apagar seguimiento' : 'Seguir mi postura' }}
+            </button>
           </div>
+          @if (poseError()) {
+            <p class="alert error" role="alert">{{ poseError() }}</p>
+          }
           <fieldset [disabled]="cameraState() !== 'active' || !imageReady()">
             <legend>Ajustar prenda</legend>
             <label
@@ -155,13 +168,24 @@ type CameraState = 'off' | 'requesting' | 'active' | 'error';
               <fs-icon name="refresh" />Centrar y restablecer
             </button>
           </fieldset>
+          @if (productName()) {
+            <div class="fitting-shopping" role="group" aria-label="Comprar o reservar esta prenda">
+              <p>
+                La variante (color y talla) se elige en la ficha de la prenda al agregar al carrito
+                o al reservar.
+              </p>
+              <button type="button" class="primary" [routerLink]="['/prendas', slug]">
+                Elegir color/talla y comprar
+              </button>
+              <button type="button" [routerLink]="['/prendas', slug]">Reservar esta prenda</button>
+            </div>
+          }
           <p class="fitting-note">
             La cámara no se graba ni se envía al servidor. El movimiento de la prenda se ajusta
             manualmente.
           </p>
           <p class="fitting-note">
-            Se muestra el recurso general del producto; el color y la talla no se adaptan
-            automáticamente.
+            {{ poseMode() ? 'La postura se detecta en tu navegador y mueve la prenda siguiendo tu torso. El tamaño de la prenda sigue siendo manual. Nada se envía al servidor ni se guarda.' : 'Se muestra el recurso general del producto; el color y la talla no se adaptan automáticamente.' }}
           </p>
           @if (auditNotice()) {
             <p class="fitting-note" role="status">{{ auditNotice() }}</p>
@@ -176,6 +200,7 @@ export class VestidorComponent implements OnInit, OnDestroy {
   private catalog = inject(CatalogService);
   private api = inject(ApiService);
   private session = inject(SessionService);
+  private poseService = inject(PoseTrackingService);
   private destroyRef = inject(DestroyRef);
   @ViewChild('video') videoRef?: ElementRef<HTMLVideoElement>;
   @ViewChild('stage') stageRef?: ElementRef<HTMLDivElement>;
@@ -190,6 +215,10 @@ export class VestidorComponent implements OnInit, OnDestroy {
   imageReady = signal(false);
   imageFailed = signal(false);
   auditNotice = signal('');
+  poseMode = signal(false);
+  poseBusy = signal(false);
+  poseError = signal('');
+  poseTracking = signal(false);
   offsetX = signal(0);
   offsetY = signal(0);
   scale = signal(1);
@@ -197,9 +226,14 @@ export class VestidorComponent implements OnInit, OnDestroy {
   private destroyed = false;
   private loadVersion = 0;
   private cameraVersion = 0;
+  private poseVersion = 0;
+  private poseTarget = { x: 0, y: 0 };
+  private poseInitialized = false;
   private recorded = false;
   private stream: MediaStream | null = null;
   private detachEnded: (() => void) | null = null;
+  private detachResize: (() => void) | null = null;
+  private stageObserver: ResizeObserver | null = null;
   private drag: {
     id: number;
     element: HTMLElement;
@@ -226,6 +260,7 @@ export class VestidorComponent implements OnInit, OnDestroy {
     this.imageFailed.set(false);
     this.auditNotice.set('');
     this.recorded = false;
+    this.stopPose();
     this.reset();
     try {
       const product = await firstValueFrom(this.catalog.product(slug));
@@ -241,6 +276,7 @@ export class VestidorComponent implements OnInit, OnDestroy {
       if (!['https:', 'http:'].includes(url.protocol))
         throw new Error('El recurso del probador no tiene una dirección válida.');
       this.assetUrl.set(url.href);
+      this.observeStage();
     } catch (e) {
       if (!this.destroyed && version === this.loadVersion) this.error.set(errorMessage(e));
     } finally {
@@ -288,6 +324,9 @@ export class VestidorComponent implements OnInit, OnDestroy {
       };
       track?.addEventListener('ended', ended);
       this.detachEnded = () => track?.removeEventListener('ended', ended);
+      const onResize = () => this.ensureClamped();
+      video.addEventListener('resize', onResize);
+      this.detachResize = () => video.removeEventListener('resize', onResize);
       video.muted = true;
       video.srcObject = stream;
       await video.play();
@@ -312,9 +351,12 @@ export class VestidorComponent implements OnInit, OnDestroy {
   }
   stopCamera() {
     ++this.cameraVersion;
+    this.stopPose();
     this.endDrag();
     this.detachEnded?.();
     this.detachEnded = null;
+    this.detachResize?.();
+    this.detachResize = null;
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;
     const video = this.videoRef?.nativeElement;
@@ -338,6 +380,75 @@ export class VestidorComponent implements OnInit, OnDestroy {
     this.imageReady.set(false);
     this.imageFailed.set(true);
     this.stopCamera();
+  }
+  /** Etapa 6: seguimiento corporal (MediaPipe Pose). Descarga el modelo la
+   * primera vez; si no se puede, sigue funcionando el ajuste manual y se avisa. */
+  async togglePose() {
+    if (this.poseBusy()) return;
+    if (this.poseMode()) {
+      this.stopPose();
+      return;
+    }
+    if (this.cameraState() !== 'active') {
+      this.poseError.set('Activá la cámara antes de usar el seguimiento de postura.');
+      return;
+    }
+    this.poseBusy.set(true);
+    this.poseError.set('');
+    try {
+      const ok = await this.poseService.ensure();
+      if (this.destroyed || this.cameraState() !== 'active') return;
+      if (!ok) {
+        this.poseMode.set(false);
+        this.poseError.set(
+          'No se pudo descargar el modelo de seguimiento (¿sin conexión?). El ajuste manual sigue disponible.',
+        );
+        return;
+      }
+      this.poseMode.set(true);
+      void this.runPoseLoop();
+    } catch (e) {
+      this.poseMode.set(false);
+      this.poseError.set(errorMessage(e));
+    } finally {
+      this.poseBusy.set(false);
+    }
+  }
+  private stopPose(cameraEnded = false) {
+    ++this.poseVersion;
+    this.poseMode.set(false);
+    this.poseTracking.set(false);
+    this.poseInitialized = false;
+    if (cameraEnded) this.poseError.set('');
+  }
+  /** Bucle frugal: detecta el torso ~cada 130 ms mientras haya cámara activa y
+   * seguimiento encendido; la posición se suaviza y no se mueve la prenda
+   * mientras el usuario la está arrastrando a mano. */
+  private async runPoseLoop() {
+    const version = ++this.poseVersion;
+    while (!this.destroyed && this.poseMode() && this.cameraState() === 'active') {
+      if (this.poseVersion !== version) return;
+      const video = this.videoRef?.nativeElement;
+      const torso = video ? this.poseService.detectTorso(video) : null;
+      if (torso) {
+        const stage = this.stageRef?.nativeElement;
+        const w = stage?.clientWidth || 320;
+        const h = stage?.clientHeight || 420;
+        const target = poseOffset(torso, this.facing() === 'user', w, h);
+        if (!this.poseInitialized) {
+          this.poseTarget = { x: target.offsetX, y: target.offsetY };
+          this.poseInitialized = true;
+        } else {
+          this.poseTarget = smoothPose(this.poseTarget, { x: target.offsetX, y: target.offsetY }, 0.5);
+        }
+        if (!this.drag) {
+          this.offsetX.set(Math.round(this.poseTarget.x * 100) / 100);
+          this.offsetY.set(Math.round(this.poseTarget.y * 100) / 100);
+        }
+        this.poseTracking.set(true);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 130));
+    }
   }
   private async recordSession(version: number) {
     if (this.recorded || !this.session.user()) return;
@@ -366,6 +477,27 @@ export class VestidorComponent implements OnInit, OnDestroy {
       h = (bounds?.height || 420) * 0.45;
     this.offsetX.set(Math.max(-w, Math.min(w, x)));
     this.offsetY.set(Math.max(-h, Math.min(h, y)));
+  }
+  /** Mantiene la prenda dentro de la zona del escenario cuando cambia el
+   * tamaño de la cámara o de la pantalla (rotación, cambio de dispositivo)
+   * sin disparar gestos: solo re-acota la posición actual. */
+  private ensureClamped() {
+    this.position(this.offsetX(), this.offsetY());
+  }
+  /** Estabilidad del probador: re-acota la superposición si el escenario cambia
+   * de tamaño mientras la cámara está activa. */
+  private observeStage() {
+    this.stageObserver?.disconnect();
+    this.stageObserver = null;
+    try {
+      const stage = this.stageRef?.nativeElement;
+      if (stage && typeof ResizeObserver !== 'undefined') {
+        this.stageObserver = new ResizeObserver(() => this.ensureClamped());
+        this.stageObserver.observe(stage);
+      }
+    } catch {
+      /* observación opcional: no rompe el probador */
+    }
   }
   nudge(x: number, y: number) {
     this.position(this.offsetX() + x, this.offsetY() + y);
@@ -406,6 +538,9 @@ export class VestidorComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.destroyed = true;
     ++this.loadVersion;
+    this.stopPose();
     this.stopCamera();
+    this.stageObserver?.disconnect();
+    this.stageObserver = null;
   }
 }

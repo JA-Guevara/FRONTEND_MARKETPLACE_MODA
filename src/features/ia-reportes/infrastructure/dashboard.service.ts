@@ -29,7 +29,8 @@ export class DashboardService {
       .write<ExplainResult>('POST', '/analytics/assistant/explain', { question, filters })
       .pipe(map(r => r.data));
   }
-  /** Exporta el reporte autorizado con los filtros visibles (xlsx/csv). */
+  /** Exporta el reporte autorizado con los filtros visibles (xlsx/csv).
+   * Se mantiene para retrocompatibilidad; el panel nuevo usa exportMultiple. */
   exportUrl(report: ExportReport, format: 'xlsx' | 'csv', query: ReportQuery) {
     let params = new HttpParams().set('report', report).set('format', format);
     for (const [key, value] of Object.entries(query)) {
@@ -40,5 +41,46 @@ export class DashboardService {
       params,
       responseType: 'blob',
     });
+  }
+  /** Exportación múltiple (xlsx/PDF/csv): varios reportes en una sola
+   * operación, con los filtros VISIBLES del dashboard. El servidor valida los
+   * tipos y devuelve el archivo; los encabezados X-Export-* comunican
+   * truncamiento para mostrar la nota honesta en el panel. */
+  exportMultiple(reports: ExportReport[], format: 'xlsx' | 'pdf' | 'csv', query: ReportQuery) {
+    const filters: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(query)) {
+      if (value === '' || value === undefined || value === null) continue;
+      filters[key] = value;
+    }
+    const body: Record<string, unknown> = { reports, format };
+    if (Object.keys(filters).length) body['filters'] = filters;
+    return this.http.post(environment.apiUrl + '/analytics/reports/export-multiple', body, {
+      responseType: 'blob',
+      observe: 'response',
+    });
+  }
+  /** Ejecuta una herramienta tipada del asistente (hoy export_report) contra el
+   * registro autorizado del servidor. request_id hace idempotente la operacion:
+   * si se repite, el servidor no vuelve a auditar ni regenera el trabajo y
+   * responde con X-Idempotent-Replay: true. */
+  executeTool(
+    requestId: string,
+    tool: 'export_report',
+    reports: ExportReport[],
+    format: 'xlsx' | 'pdf' | 'csv',
+    query: ReportQuery,
+  ) {
+    const filters: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(query)) {
+      if (value === '' || value === undefined || value === null) continue;
+      filters[key] = value;
+    }
+    const params: Record<string, unknown> = { reports, format };
+    if (Object.keys(filters).length) params['filters'] = filters;
+    return this.http.post(environment.apiUrl + '/analytics/assistant/execute', {
+      tool,
+      request_id: requestId,
+      params,
+    }, { responseType: 'blob', observe: 'response' });
   }
 }

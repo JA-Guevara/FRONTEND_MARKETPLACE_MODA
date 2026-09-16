@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
+import { HttpResponse, HttpHeaders } from '@angular/common/http';
 import { DashboardComponent } from './dashboard.component';
 import { DashboardService } from '../infrastructure/dashboard.service';
 import { Dashboard } from '../domain/dashboard';
@@ -50,5 +51,35 @@ describe('Centro de reportes', () => {
     expect(fixture.nativeElement.querySelector('[role="alert"]').textContent).toContain('Servidor no disponible');
     expect(fixture.nativeElement.querySelector('.metrics')).toBeNull();
     expect(fixture.componentInstance.loading()).toBe(false);
+  });
+  it('deshabilita exportar sin selección y no llama a la exportación múltiple', async () => {
+    TestBed.configureTestingModule({ imports: [DashboardComponent], providers: [{ provide: DashboardService, useValue: { load: () => of(empty), insights: vi.fn(), exportMultiple: vi.fn() } }] });
+    const fixture = TestBed.createComponent(DashboardComponent);
+    await fixture.whenStable(); fixture.detectChanges();
+    fixture.componentInstance.selReports.set([]);
+    fixture.detectChanges();
+    const excel = Array.from(fixture.nativeElement.querySelectorAll('button') as HTMLButtonElement[]).find((b) => b.textContent?.trim() === 'Excel');
+    expect(excel?.disabled).toBe(true);
+    await fixture.componentInstance.exportMultiple('xlsx');
+    const service = TestBed.inject(DashboardService) as unknown as { exportMultiple: ReturnType<typeof vi.fn> };
+    expect(service.exportMultiple).not.toHaveBeenCalled();
+  });
+  it('exporta varios reportes en una sola solicitud con los filtros visibles y avisa truncamiento', async () => {
+    const exportMultiple = vi.fn().mockReturnValue(of(new HttpResponse({
+      body: new Blob(['pdf']),
+      headers: new HttpHeaders({ 'Content-Disposition': 'attachment; filename="fashionstore_reportes_20260916_100000.pdf"', 'X-Export-Truncated': 'true' }),
+    })));
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock');
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    TestBed.configureTestingModule({ imports: [DashboardComponent], providers: [{ provide: DashboardService, useValue: { load: () => of(empty), insights: vi.fn(), exportMultiple } }] });
+    const fixture = TestBed.createComponent(DashboardComponent);
+    await fixture.whenStable(); fixture.detectChanges();
+    fixture.componentInstance.selReports.set(['ventas', 'pedidos']);
+    await fixture.componentInstance.exportMultiple('pdf');
+    const called = exportMultiple.mock.calls[0];
+    expect(called[0]).toEqual(['ventas', 'pedidos']);
+    expect(called[1]).toBe('pdf');
+    expect(fixture.componentInstance.multiDone()).toContain('2 reportes exportados');
+    expect(fixture.componentInstance.multiDone()).toContain('Advertencia');
   });
 });

@@ -139,7 +139,7 @@ import { lookup } from '../application/resources';
                   <td>
                     @if (canWrite() && !p['deleted_at']) {
                       <div class="row-actions">
-                        @if (section === 'variants' || section === 'suppliers') {
+                        @if (section === 'variants' || section === 'suppliers' || section === 'ar-assets') {
                           <button (click)="open(item)">Editar</button>
                         }
                         <button class="danger-text" (click)="pending = item">Eliminar</button>
@@ -324,6 +324,9 @@ export class ProductEditorComponent {
         },
         { key: 'asset_url', label: 'URL del recurso', type: 'url', required: true },
         { key: 'preview_url', label: 'URL de vista previa', type: 'url' },
+        ...(item
+          ? [{ key: 'is_active', label: 'Activo (recurso por defecto del probador)', type: 'checkbox' as const }]
+          : []),
       ],
       suppliers: [
         {
@@ -363,7 +366,9 @@ export class ProductEditorComponent {
         this.path +
         '/' +
         this.section +
-        (this.current && this.section === 'variants' ? '/' + this.current.id : '');
+        (this.current && (this.section === 'variants' || this.section === 'ar-assets')
+          ? '/' + this.current.id
+          : '');
       const payload = this.section === 'suppliers' ? this.supplierPayload(body) : body;
       const r = await firstValueFrom(
         this.api.write<Product>(

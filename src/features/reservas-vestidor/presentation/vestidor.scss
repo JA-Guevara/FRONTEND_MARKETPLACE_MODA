@@ -91,6 +91,24 @@ video.mirrored {
   gap: 8px;
   margin: 16px 0;
 }
+.fitting-shopping {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+  padding: 12px;
+  border: 1px solid var(--border, #e2d9d3);
+  border-radius: 8px;
+  background: #faf7f4;
+}
+.fitting-shopping p {
+  margin: 0;
+  font-size: 0.95rem;
+}
+.fitting-actions button.active {
+  background: #74394e;
+  border-color: #74394e;
+  color: #fff;
+}
 button {
   min-height: 44px;
   white-space: normal;
