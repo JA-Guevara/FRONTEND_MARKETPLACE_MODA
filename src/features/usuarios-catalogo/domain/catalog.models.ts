@@ -1,4 +1,13 @@
 export type { Product, Entity, Page } from '../../../shared/models';
+import type { Entity } from '../../../shared/models';
+
+/** Criterio único de disponibilidad del probador: la prenda tiene una imagen
+ * para superponer (image_overlay) activa. Lo usan catálogo, ficha y probador. */
+export function hasVestidor(product: { ar_assets?: Entity[] }): boolean {
+  return (product.ar_assets || []).some(
+    (a) => a['is_active'] && a['asset_type'] === 'image_overlay',
+  );
+}
 
 /** Borrador de prenda extraído por IA a partir de un pedido en lenguaje
  * natural (POST /catalog/admin/products/draft). No crea nada: el admin lo

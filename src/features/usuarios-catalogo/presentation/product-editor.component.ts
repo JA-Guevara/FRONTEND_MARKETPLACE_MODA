@@ -7,19 +7,20 @@ import { SessionService } from '../../auth/application/session.service';
 import { Field } from '../../../shared/form-schema';
 import { EntityFormComponent } from '../../../shared/entity-form.component';
 import { ImageFormComponent } from '../../../shared/image-form.component';
+import { ArAssetFormComponent } from './ar-asset-form.component';
 import { Entity, Product } from '../domain/catalog.models';
 import { errorMessage } from '../../../shared/errors';
 import { lookup } from '../application/resources';
 @Component({
   selector: 'fs-product-editor',
-  imports: [RouterLink, EntityFormComponent, ImageFormComponent, DialogFocusDirective],
+  imports: [RouterLink, EntityFormComponent, ImageFormComponent, ArAssetFormComponent, DialogFocusDirective],
   template: `
     <a routerLink="/admin/products" class="back-link">← Todas las prendas</a>
     <div class="page-heading">
       <div>
         <p class="eyebrow">CATÁLOGO / DETALLE</p>
         <h1>{{ product()?.name || 'Prenda' }}</h1>
-        <p class="muted">Variantes, imágenes, recursos AR y proveedores</p>
+        <p class="muted">Variantes, imágenes, probador virtual y proveedores</p>
       </div>
       <button (click)="load()">Actualizar</button>
     </div>
@@ -47,7 +48,14 @@ import { lookup } from '../application/resources';
         @if (section === 'suppliers') {
           <p class="muted">La lista se guarda completa. Solo un proveedor puede ser principal.</p>
         }
-        @if (section === 'images') {
+        @if (section === 'ar-assets') {
+            <p class="muted">
+              El recurso del probador es una imagen frontal preparada (PNG o WebP con transparencia), distinta
+              de las fotos comerciales. El vestidor web solo superpone imágenes 2D; los formatos 3D se guardan
+              pero no se muestran.
+            </p>
+          }
+          @if (section === 'images') {
           <div class="image-gallery" aria-label="Galería de la prenda">
             @for (item of rows(); track item.id) {
               <article class="image-card">
@@ -96,6 +104,7 @@ import { lookup } from '../application/resources';
                       }
                       @case ('ar-assets') {
                         <strong>{{ item['asset_type'] }}</strong>
+                        <p>{{ item['asset_url'] }}</p>
                       }
                       @case ('suppliers') {
                         <strong>{{ supplierName(item['supplier_id']) }}</strong>
@@ -122,10 +131,12 @@ import { lookup } from '../application/resources';
                         >
                       }
                       @case ('ar-assets') {
+                        <span class="badge" [class.inactive]="!item['is_active']">{{
+                          item['is_active'] ? 'Activo (en uso por el probador)' : 'Inactivo'
+                        }}</span>
                         <a [href]="item['asset_url']" target="_blank" rel="noopener noreferrer"
                           >Abrir recurso ↗</a
                         >
-                        <p>{{ item['is_active'] ? 'Activo' : 'Inactivo' }}</p>
                       }
                       @case ('suppliers') {
                         <p>SKU: {{ item['supplier_sku'] || '—' }}</p>
@@ -141,6 +152,13 @@ import { lookup } from '../application/resources';
                       <div class="row-actions">
                         @if (section === 'variants' || section === 'suppliers' || section === 'ar-assets') {
                           <button (click)="open(item)">Editar</button>
+                        }
+                        @if (
+                          section === 'ar-assets' &&
+                          item['asset_type'] === 'image_overlay' &&
+                          item['is_active']
+                        ) {
+                          <a [routerLink]="'/prendas/' + p['slug'] + '/vestidor'">Ver probador ↗</a>
                         }
                         <button class="danger-text" (click)="pending = item">Eliminar</button>
                       </div>
@@ -172,7 +190,14 @@ import { lookup } from '../application/resources';
           @if (formError()) {
             <p class="alert error" role="alert">{{ formError() }}</p>
           }
-          @if (section === 'images' && !current) {
+          @if (section === 'ar-assets') {
+            <fs-ar-asset-form
+              [busy]="busy()"
+              [current]="current"
+              (saved)="save($event)"
+              (cancel)="editing.set(false)"
+            />
+          } @else if (section === 'images' && !current) {
             <fs-image-form [busy]="busy()" (saved)="save($event)" (cancel)="editing.set(false)" />
           } @else {
           <fs-entity-form
@@ -229,7 +254,7 @@ export class ProductEditorComponent {
   tabs = [
     { key: 'variants', label: 'Variantes' },
     { key: 'images', label: 'Imágenes' },
-    { key: 'ar-assets', label: 'Recursos AR' },
+    { key: 'ar-assets', label: 'Probador virtual' },
     { key: 'suppliers', label: 'Proveedores' },
   ];
   private get path() {
@@ -269,7 +294,7 @@ export class ProductEditorComponent {
       {
         variants: 'variante',
         images: 'imagen',
-        'ar-assets': 'recurso AR',
+        'ar-assets': 'recurso del probador',
         suppliers: 'proveedor',
       } as Record<string, string>
     )[this.section];
@@ -308,25 +333,6 @@ export class ProductEditorComponent {
         { key: 'alt_text', label: 'Descripción de la imagen', maxLength: 255 },
         { key: 'sort_order', label: 'Orden', type: 'number', min: 0, default: 0 },
         { key: 'is_primary', label: 'Imagen principal', type: 'checkbox' },
-      ],
-      'ar-assets': [
-        {
-          key: 'asset_type',
-          label: 'Tipo de recurso',
-          type: 'select',
-          required: true,
-          options: [
-            { value: 'image_overlay', label: 'Imagen superpuesta' },
-            { value: 'glb', label: 'GLB' },
-            { value: 'gltf', label: 'GLTF' },
-            { value: 'usdz', label: 'USDZ' },
-          ],
-        },
-        { key: 'asset_url', label: 'URL del recurso', type: 'url', required: true },
-        { key: 'preview_url', label: 'URL de vista previa', type: 'url' },
-        ...(item
-          ? [{ key: 'is_active', label: 'Activo (recurso por defecto del probador)', type: 'checkbox' as const }]
-          : []),
       ],
       suppliers: [
         {

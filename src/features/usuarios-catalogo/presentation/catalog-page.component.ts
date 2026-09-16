@@ -5,7 +5,7 @@ import { DecimalPipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, firstValueFrom, of, switchMap, tap } from 'rxjs';
 import { CatalogService } from '../infrastructure/catalog.service';
-import { Entity, Page, Product } from '../domain/catalog.models';
+import { Entity, Page, Product, hasVestidor } from '../domain/catalog.models';
 import { errorMessage } from '../../../shared/errors';
 import { CommerceService } from '../../ventas-pagos/infrastructure/commerce.service';
 import { RecommendedProduct } from '../../ventas-pagos/domain/commerce.models';
@@ -138,6 +138,11 @@ import { RecommendedProduct } from '../../ventas-pagos/domain/commerce.models';
                     }
                     @if (product.is_featured) {
                       <span class="product-tag">Destacada</span>
+                    }
+                    @if (vestidor(product)) {
+                      <span class="product-tag product-tag-fitter" title="Tiene probador virtual"
+                        >Probador</span
+                      >
                     }
                   </div>
                   <p class="eyebrow">{{ product.category['name'] }}</p>
@@ -329,6 +334,9 @@ export class CatalogPageComponent {
   }
   image(product: Product) {
     return (product.images.find((i) => i['is_primary']) || product.images[0])?.['url'];
+  }
+  vestidor(product: Product) {
+    return hasVestidor(product);
   }
   hideImage(event: Event) {
     const image = event.target as HTMLImageElement;

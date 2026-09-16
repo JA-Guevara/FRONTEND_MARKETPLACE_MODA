@@ -1,15 +1,18 @@
 # Estado y punto de reanudación
 
-Actualización 16/09 (Etapas 2–6 completadas): herramientas tipadas del asistente
+Actualización 16/09 (revisión del probador + Etapas 2–6): herramientas tipadas del asistente
 (`/analytics/assistant/execute`), aplicación de recomendaciones en dashboard, borrador
-de producto honesto con IA, edición de recursos AR por producto, probador estable con
-seguimiento corporal MediaPipe (opcional, carga desde CDN, nunca interrumpe el manual)
-y acciones de compra/reserva desde el probador. Suites completas: backend **64 passed**,
-frontend **120 passed / 18 archivos**, `ng build` OK (solo el aviso preexistente de
-presupuesto de estilos del dashboard). Pendiente de revisión visual con cámara física,
-móvil y despliegue (usuario).
+de producto honesto con IA, edición de recursos del probador por producto (con subida de
+imagen y "Ver probador"), y probador estable con seguimiento corporal MediaPipe opcional
+corregido (`result.landmarks`), proyección cover-aware con escala/inclinación y estados
+`searching/tracking/lost`, más conservación de variante y acciones de compra/reserva.
+Se centralizó la disponibilidad en `hasVestidor()`, que resuelve que el botón solo aparece
+con un recurso `image_overlay` activo. Suites completas: backend **64 passed**, frontend
+**140 passed / 21 archivos**, `ng build` OK (solo el aviso preexistente de presupuesto de
+estilos del dashboard). Pendiente de revisión visual con cámara física, móvil y despliegue
+(usuario).
 
-Actualización 15/09 — Probador web manual estabilizado: 98 pruebas frontend y build aprobados, 4 pruebas HTTP del backend. Ver PROBADOR_VIRTUAL.md. No confundir con seguimiento corporal: no implementado; cámara física/móvil y despliegue pendientes. Las secciones anteriores conservan sus fechas históricas.
+Actualización 15/09 — Probador web manual estabilizado: 98 pruebas frontend y build aprobados, 4 pruebas HTTP del backend. Ver PROBADOR_VIRTUAL.md. El seguimiento corporal se añadió después (16/09); cámara física/móvil y despliegue siguen pendientes. Las secciones anteriores conservan sus fechas históricas.
 
 Actualizado: 12 de septiembre de 2026. Este registro distingue código existente de funciones verificadas. No equivale a una entrega terminada.
 

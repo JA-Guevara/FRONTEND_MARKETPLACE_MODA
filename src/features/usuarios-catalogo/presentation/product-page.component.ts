@@ -9,7 +9,7 @@ import { DecimalPipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, of, switchMap } from 'rxjs';
 import { CatalogService } from '../infrastructure/catalog.service';
-import { Product, Entity } from '../domain/catalog.models';
+import { Product, Entity, hasVestidor } from '../domain/catalog.models';
 import { errorMessage } from '../../../shared/errors';
 import { TryOnListService } from '../../reservas-vestidor/application/try-on-list.service';
 import {
@@ -84,6 +84,27 @@ import {
           @if (variant()) {
             <p class="muted">SKU: {{ variant()!['sku'] }}</p>
           }
+          <div class="fitting-access">
+            <h3>Probador virtual</h3>
+            @if (hasArAsset()) {
+              <p class="muted">
+                Activá tu cámara para ver una aproximación de cómo se ve la prenda. Nada se
+                graba ni se envía al servidor. El permiso de cámara se pide cuando entrás.
+              </p>
+              <a
+                class="button primary"
+                [routerLink]="'/prendas/' + p.slug + '/vestidor'"
+                [queryParams]="variant() ? { variante: variant()!.id } : undefined"
+              >
+                <fs-icon name="camera" />Probarme esta prenda
+              </a>
+            } @else {
+              <p class="muted">Esta prenda todavía no tiene probador disponible.</p>
+              @if (session.can('catalog.read')) {
+                <a class="button" [routerLink]="['/admin/products', p.id]">Configurar probador</a>
+              }
+            }
+          </div>
           <div class="form-actions">
             <button class="primary" [disabled]="!variant() || adding()" (click)="addToCart()">
               <fs-icon name="cart" />{{ adding() ? 'Agregando…' : 'Agregar al carrito' }}
@@ -105,11 +126,6 @@ import {
             <button [disabled]="!variant()" (click)="addToTryOn()">
               <fs-icon name="calendar" />Agregar a mi reserva
             </button>
-            @if (hasArAsset()) {
-              <a class="button" [routerLink]="'/prendas/' + p.slug + '/vestidor'">
-                <fs-icon name="camera" />Probar con cámara
-              </a>
-            }
           </div>
           @if (!variant()) {
             <p class="muted">Elegí una talla y un color para continuar.</p>
@@ -142,7 +158,7 @@ import {
 export class ProductPageComponent {
   private commerce = inject(CommerceService);
   private cartState = inject(CartStateService);
-  private session = inject(SessionService);
+  session = inject(SessionService);
   private router = inject(Router);
   private tryOn = inject(TryOnListService);
   adding = signal(false);
@@ -150,10 +166,9 @@ export class ProductPageComponent {
   cartError = signal('');
   tryOnMessage = signal('');
   tryOnQuantity = MIN_ITEM_QUANTITY;
+  /// La ficha decide con el mismo criterio que el catálogo y el probador.
   hasArAsset() {
-    return (this.product()?.ar_assets || []).some(
-      (a) => a['is_active'] && a['asset_type'] === 'image_overlay',
-    );
+    return hasVestidor(this.product() ?? { ar_assets: [] });
   }
   selectVariant(v: Entity) {
     this.variant.set(v);
@@ -252,7 +267,11 @@ export class ProductPageComponent {
       )
       .subscribe((p) => {
         this.product.set(p);
-        this.variant.set(null);
+        // Conserva la variante elegida al volver del probador (query ?variante=).
+        const wantedId = this.route.snapshot?.queryParamMap?.get('variante') ?? null;
+        this.variant.set(
+          wantedId ? (p?.variants.find((v) => v.id === wantedId) ?? null) : null,
+        );
         this.selectedImage.set(
           (p?.images.find((i) => i['is_primary']) || p?.images[0])?.['url'] || '',
         );

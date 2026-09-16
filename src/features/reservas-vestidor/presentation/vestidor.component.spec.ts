@@ -36,6 +36,16 @@ describe('Probador manual: cámara y recursos', () => {
     } as unknown as MediaStream;
     return { track, value };
   }
+  /** Pose real de MediaPipe: landmarks con hombros (11, 12) y caderas (23, 24),
+   * formando el torso centrado en (x, y). */
+  function torsoLandmarks(x: number, y: number) {
+    const l: { x: number; y: number; visibility: number }[] = [];
+    l[11] = { x: x - 0.1, y, visibility: 0.99 };
+    l[12] = { x: x + 0.1, y, visibility: 0.99 };
+    l[23] = { x: x - 0.12, y: y + 0.3, visibility: 0.95 };
+    l[24] = { x: x + 0.12, y: y + 0.3, visibility: 0.95 };
+    return l;
+  }
   async function setup(hasAsset = true, authenticated = false) {
     const route = new BehaviorSubject(convertToParamMap({ slug: 'polera' }));
     const catalog = {
@@ -259,17 +269,48 @@ describe('Probador manual: cámara y recursos', () => {
     const media = stream();
     camera.mockResolvedValue(media.value);
     await component.startCamera();
-    pose.detectTorso.mockReturnValue({ x: 0.65, y: 0.6 });
+    pose.detectTorso.mockReturnValue(torsoLandmarks(0.65, 0.6));
     await component.togglePose();
     expect(component.poseMode()).toBe(true);
     expect(pose.ensure).toHaveBeenCalled();
+    expect(component.poseState()).toBe('tracking');
     expect(component.poseTracking()).toBe(true);
-    // Cámara frontal (espejada): x 0.65 del torso queda a la izquierda del centro.
+    // Cámara frontal (espejada): el torso a la derecha del video queda a la izquierda del centro.
     expect(component.offsetX()).toBeLessThan(0);
-    // El torso está debajo del centro del escenario.
+    // El pecho está por debajo del centro del escenario.
     expect(component.offsetY()).toBeGreaterThan(0);
     component.togglePose();
     expect(component.poseMode()).toBe(false);
+    expect(component.poseState()).toBe('off');
+  });
+  it('mientras no detecta a nadie muestra "buscando" y no declara seguimiento activo', async () => {
+    const { component, pose } = await setup();
+    const media = stream();
+    camera.mockResolvedValue(media.value);
+    await component.startCamera();
+    pose.detectTorso.mockReturnValue(undefined);
+    await component.togglePose();
+    expect(component.poseState()).toBe('searching');
+    expect(component.poseTracking()).toBe(false);
+  });
+  it('al perder a la persona atenúa la prenda y se reanuda al volver al encuadre', async () => {
+    const { component, pose } = await setup();
+    const media = stream();
+    camera.mockResolvedValue(media.value);
+    await component.startCamera();
+    pose.detectTorso
+      .mockReturnValueOnce(torsoLandmarks(0.5, 0.6))
+      .mockReturnValue(undefined);
+    await component.togglePose();
+    expect(component.poseState()).toBe('tracking');
+    await new Promise((resolve) => setTimeout(resolve, 1400));
+    expect(component.poseState()).toBe('lost');
+    expect(component.poseFaded()).toBe(true);
+    // Vuelve al encuadre: retoma el seguimiento y restaura la prenda.
+    pose.detectTorso.mockReturnValue(torsoLandmarks(0.5, 0.6));
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(component.poseState()).toBe('tracking');
+    expect(component.poseFaded()).toBe(false);
   });
   it('si el modelo de postura no se puede cargar, queda el ajuste manual', async () => {
     const { component, pose } = await setup();
@@ -285,7 +326,7 @@ describe('Probador manual: cámara y recursos', () => {
     const { fixture } = await setup();
     const buttons = fixture.nativeElement.querySelectorAll('.fitting-shopping button');
     expect(buttons.length).toBe(2);
-    expect(buttons[0]?.textContent).toContain('Elegir color/talla y comprar');
-    expect(buttons[1]?.textContent).toContain('Reservar esta prenda');
+    expect(buttons[0]?.textContent).toContain('Elegir talla y comprar');
+    expect(buttons[1]?.textContent).toContain('Elegir talla y reservar');
   });
 });

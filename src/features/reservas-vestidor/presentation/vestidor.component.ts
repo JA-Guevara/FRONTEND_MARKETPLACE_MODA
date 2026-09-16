@@ -17,9 +17,16 @@ import { ApiService } from '../../../app/core/shared/api.service';
 import { IconComponent } from '../../../shared/icon.component';
 import { errorMessage } from '../../../shared/errors';
 import { PoseTrackingService } from '../../../shared/pose-tracking.service';
-import { poseOffset, smoothPose } from '../../../shared/pose-projection';
+import {
+  shoulderPose,
+  smoothPose,
+  scaleFromShoulders,
+  POSE_LOST_MS,
+  VideoBox,
+} from '../../../shared/pose-projection';
 
 type CameraState = 'off' | 'requesting' | 'active' | 'error';
+type PoseState = 'off' | 'busy' | 'searching' | 'tracking' | 'lost';
 
 /** Superposición manual 2D: no detecta postura ni determina la talla. */
 @Component({
@@ -28,7 +35,11 @@ type CameraState = 'off' | 'requesting' | 'active' | 'error';
   styleUrl: './vestidor.scss',
   host: { '(document:visibilitychange)': 'onVisibilityChange()' },
   template: `<section class="fitting-page">
-    <a [routerLink]="['/prendas', slug]">← Volver a la prenda</a>
+    <a
+      [routerLink]="['/prendas', slug]"
+      [queryParams]="varianteId ? { variante: varianteId } : undefined"
+      >← Volver a la prenda</a
+    >
     <header>
       <p class="eyebrow">PROBADOR VIRTUAL · AJUSTE MANUAL</p>
       <h1>{{ productName() || 'Probador virtual' }}</h1>
@@ -75,12 +86,15 @@ type CameraState = 'off' | 'requesting' | 'active' | 'error';
               [alt]="'Vista frontal de ' + productName()"
               draggable="false"
               [class.ready]="imageReady() && cameraState() === 'active'"
+              [class.pose-faded]="poseFaded()"
               [style.transform]="
                 'translate(-50%, -50%) translate(' +
                 offsetX() +
                 'px,' +
                 offsetY() +
-                'px) scale(' +
+                'px) rotate(' +
+                poseRot() +
+                'rad) scale(' +
                 scale() +
                 ')'
               "
@@ -146,6 +160,21 @@ type CameraState = 'off' | 'requesting' | 'active' | 'error';
           @if (poseError()) {
             <p class="alert error" role="alert">{{ poseError() }}</p>
           }
+          @if (poseState() !== 'off' && poseState() !== 'busy' && cameraState() === 'active') {
+            <p class="pose-status" [class.lost]="poseState() === 'lost'" role="status">
+              @switch (poseState()) {
+                @case ('searching') {
+                  Buscando a una persona… Encuadrá hombros y cintura a buena luz.
+                }
+                @case ('tracking') {
+                  Seguimiento activo: la prenda sigue tu torso, inclinación y distancia.
+                }
+                @case ('lost') {
+                  Te perdimos de vista. Volvé al encuadre y el seguimiento se reanuda solo.
+                }
+              }
+            </p>
+          }
           <fieldset [disabled]="cameraState() !== 'active' || !imageReady()">
             <legend>Ajustar prenda</legend>
             <label
@@ -174,10 +203,21 @@ type CameraState = 'off' | 'requesting' | 'active' | 'error';
                 La variante (color y talla) se elige en la ficha de la prenda al agregar al carrito
                 o al reservar.
               </p>
-              <button type="button" class="primary" [routerLink]="['/prendas', slug]">
-                Elegir color/talla y comprar
+              <button
+                type="button"
+                class="primary"
+                [routerLink]="['/prendas', slug]"
+                [queryParams]="varianteId ? { variante: varianteId } : undefined"
+              >
+                Elegir talla y comprar
               </button>
-              <button type="button" [routerLink]="['/prendas', slug]">Reservar esta prenda</button>
+              <button
+                type="button"
+                [routerLink]="['/prendas', slug]"
+                [queryParams]="varianteId ? { variante: varianteId } : undefined"
+              >
+                Elegir talla y reservar
+              </button>
             </div>
           }
           <p class="fitting-note">
@@ -185,7 +225,11 @@ type CameraState = 'off' | 'requesting' | 'active' | 'error';
             manualmente.
           </p>
           <p class="fitting-note">
-            {{ poseMode() ? 'La postura se detecta en tu navegador y mueve la prenda siguiendo tu torso. El tamaño de la prenda sigue siendo manual. Nada se envía al servidor ni se guarda.' : 'Se muestra el recurso general del producto; el color y la talla no se adaptan automáticamente.' }}
+            {{
+              poseMode()
+                ? 'El seguimiento procesa el video en tu navegador (MediaPipe): ajusta posición, tamaño e inclinación a medida que te movés. No se promete talla exacta, tela ni comportamiento 3D. Podés arrastrar/ajustar en cualquier momento.'
+                : 'Modo manual: mové, girás y escalás la prenda vos. Podés activar el seguimiento para que la prenda siga tu torso.'
+            }}
           </p>
           @if (auditNotice()) {
             <p class="fitting-note" role="status">{{ auditNotice() }}</p>
@@ -205,6 +249,7 @@ export class VestidorComponent implements OnInit, OnDestroy {
   @ViewChild('video') videoRef?: ElementRef<HTMLVideoElement>;
   @ViewChild('stage') stageRef?: ElementRef<HTMLDivElement>;
   slug = '';
+  varianteId: string | null = null;
   loading = signal(true);
   error = signal('');
   cameraError = signal('');
@@ -219,6 +264,9 @@ export class VestidorComponent implements OnInit, OnDestroy {
   poseBusy = signal(false);
   poseError = signal('');
   poseTracking = signal(false);
+  poseState = signal<PoseState>('off');
+  poseFaded = signal(false);
+  poseRot = signal(0);
   offsetX = signal(0);
   offsetY = signal(0);
   scale = signal(1);
@@ -229,6 +277,11 @@ export class VestidorComponent implements OnInit, OnDestroy {
   private poseVersion = 0;
   private poseTarget = { x: 0, y: 0 };
   private poseInitialized = false;
+  private poseLast = 0;
+  private poseRefShoulder = 0;
+  private poseStartScale = 1;
+  private poseSmoothScale = 1;
+  private poseSmoothRot = 0;
   private recorded = false;
   private stream: MediaStream | null = null;
   private detachEnded: (() => void) | null = null;
@@ -246,6 +299,7 @@ export class VestidorComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
       this.slug = params.get('slug') || '';
+      this.varianteId = this.route.snapshot?.queryParamMap?.get('variante') || null;
       void this.load(this.slug);
     });
   }
@@ -395,20 +449,30 @@ export class VestidorComponent implements OnInit, OnDestroy {
     }
     this.poseBusy.set(true);
     this.poseError.set('');
+    this.poseState.set('busy');
     try {
       const ok = await this.poseService.ensure();
       if (this.destroyed || this.cameraState() !== 'active') return;
       if (!ok) {
         this.poseMode.set(false);
+        this.poseState.set('off');
         this.poseError.set(
           'No se pudo descargar el modelo de seguimiento (¿sin conexión?). El ajuste manual sigue disponible.',
         );
         return;
       }
       this.poseMode.set(true);
+      this.poseStartScale = this.scale();
+      this.poseSmoothScale = this.poseStartScale;
+      this.poseSmoothRot = 0;
+      this.poseInitialized = false;
+      this.poseLast = 0;
+      this.poseRefShoulder = 0;
+      this.poseState.set('searching');
       void this.runPoseLoop();
     } catch (e) {
       this.poseMode.set(false);
+      this.poseState.set('off');
       this.poseError.set(errorMessage(e));
     } finally {
       this.poseBusy.set(false);
@@ -419,33 +483,72 @@ export class VestidorComponent implements OnInit, OnDestroy {
     this.poseMode.set(false);
     this.poseTracking.set(false);
     this.poseInitialized = false;
+    this.poseState.set('off');
+    this.poseFaded.set(false);
+    this.poseLast = 0;
+    this.poseRefShoulder = 0;
     if (cameraEnded) this.poseError.set('');
   }
-  /** Bucle frugal: detecta el torso ~cada 130 ms mientras haya cámara activa y
-   * seguimiento encendido; la posición se suaviza y no se mueve la prenda
-   * mientras el usuario la está arrastrando a mano. */
+  private clampScale(value: number) {
+    return Math.max(0.4, Math.min(3, value));
+  }
+  /** Bucle frugal (~130 ms): proyecta el torso al escenario (teniendo en cuenta
+   * el recorte por cover y el espejo), suaviza posición/escala/inclinación y
+   * reacciona a la pérdida de detección. No se lanzan detecciones superpuestas:
+   * cada iteración espera su intervalo y el versionado corta al salir. */
   private async runPoseLoop() {
     const version = ++this.poseVersion;
     while (!this.destroyed && this.poseMode() && this.cameraState() === 'active') {
       if (this.poseVersion !== version) return;
       const video = this.videoRef?.nativeElement;
-      const torso = video ? this.poseService.detectTorso(video) : null;
-      if (torso) {
+      const landmarks = video ? this.poseService.detectTorso(video) : null;
+      const now = Date.now();
+      if (landmarks) {
         const stage = this.stageRef?.nativeElement;
-        const w = stage?.clientWidth || 320;
-        const h = stage?.clientHeight || 420;
-        const target = poseOffset(torso, this.facing() === 'user', w, h);
-        if (!this.poseInitialized) {
-          this.poseTarget = { x: target.offsetX, y: target.offsetY };
-          this.poseInitialized = true;
-        } else {
-          this.poseTarget = smoothPose(this.poseTarget, { x: target.offsetX, y: target.offsetY }, 0.5);
+        const bounds = stage?.getBoundingClientRect ? stage.getBoundingClientRect() : null;
+        const box: VideoBox = {
+          videoW: video?.videoWidth || 640,
+          videoH: video?.videoHeight || 480,
+          containerW: bounds?.width || 320,
+          containerH: bounds?.height || 420,
+          mirrored: this.facing() === 'user',
+        };
+        const pose = shoulderPose(landmarks, box);
+        if (pose) {
+          if (!this.poseRefShoulder) {
+            this.poseRefShoulder = pose.shoulderPx;
+            this.poseSmoothScale = this.poseStartScale;
+          }
+          const targetScale = this.clampScale(
+            this.poseStartScale * scaleFromShoulders(pose.shoulderPx, this.poseRefShoulder),
+          );
+          const targetRot = pose.rotation * 0.6;
+          this.poseSmoothScale += (targetScale - this.poseSmoothScale) * 0.3;
+          this.poseSmoothRot += (targetRot - this.poseSmoothRot) * 0.3;
+          this.poseTarget = smoothPose(this.poseTarget, { x: pose.offsetX, y: pose.offsetY }, 0.5);
+          this.poseLast = now;
+          this.poseTracking.set(true);
+          this.poseState.set('tracking');
+          this.poseFaded.set(false);
+          if (!this.drag) {
+            this.offsetX.set(Math.round(this.poseTarget.x * 100) / 100);
+            this.offsetY.set(Math.round(this.poseTarget.y * 100) / 100);
+            this.scale.set(Math.round(this.clampScale(this.poseSmoothScale) * 100) / 100);
+            this.poseRot.set(Math.round(this.poseSmoothRot * 1000) / 1000);
+          } else {
+            // El usuario arrastra a mano: no pelear con la postura.
+            this.poseSmoothScale = this.scale();
+            this.poseSmoothRot = this.poseRot();
+            this.poseTarget = { x: this.offsetX(), y: this.offsetY() };
+          }
         }
-        if (!this.drag) {
-          this.offsetX.set(Math.round(this.poseTarget.x * 100) / 100);
-          this.offsetY.set(Math.round(this.poseTarget.y * 100) / 100);
-        }
-        this.poseTracking.set(true);
+      } else if (this.poseLast && now - this.poseLast > POSE_LOST_MS) {
+        this.poseState.set('lost');
+        this.poseTracking.set(false);
+        this.poseFaded.set(true);
+      } else if (!this.poseLast) {
+        this.poseState.set('searching');
+        this.poseFaded.set(false);
       }
       await new Promise((resolve) => setTimeout(resolve, 130));
     }
@@ -534,6 +637,8 @@ export class VestidorComponent implements OnInit, OnDestroy {
     this.offsetX.set(0);
     this.offsetY.set(0);
     this.scale.set(1);
+    this.poseRot.set(0);
+    this.poseSmoothRot = 0;
   }
   ngOnDestroy() {
     this.destroyed = true;
@@ -542,5 +647,6 @@ export class VestidorComponent implements OnInit, OnDestroy {
     this.stopCamera();
     this.stageObserver?.disconnect();
     this.stageObserver = null;
+    this.poseService.dispose();
   }
 }

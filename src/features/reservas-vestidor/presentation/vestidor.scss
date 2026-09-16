@@ -109,6 +109,22 @@ video.mirrored {
   border-color: #74394e;
   color: #fff;
 }
+.fitting-overlay.pose-faded {
+  opacity: 0.25;
+  transition: opacity 0.25s ease;
+}
+.pose-status {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #eef2e6;
+  color: #3d523b;
+  font-size: 0.95rem;
+}
+.pose-status.lost {
+  background: #f6e7c9;
+  color: #7a5a17;
+}
 button {
   min-height: 44px;
   white-space: normal;
