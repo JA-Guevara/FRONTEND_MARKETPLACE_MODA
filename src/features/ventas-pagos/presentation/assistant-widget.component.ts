@@ -10,6 +10,7 @@ import { DashboardService } from '../../ia-reportes/infrastructure/dashboard.ser
 import { ExportReport, InterpretResult, ReportQuery } from '../../ia-reportes/domain/dashboard';
 import { IconComponent } from '../../../shared/icon.component';
 import { BotAvatarComponent, BotState } from '../../../shared/bot-avatar.component';
+import { AssistantContextService } from '../../../shared/assistant-context.service';
 import { errorMessage } from '../../../shared/errors';
 
 /** Pedidos de alta de prenda ("registrame una campera...", "creá un producto
@@ -22,12 +23,20 @@ const PRODUCT_INTENT = /\b(registra|registrar|registrame|crea|crear|creame|agreg
  * de ventas" o "explicame por qué bajaron los pedidos" de una pregunta
  * general de la tienda. */
 const REPORT_NOUNS = 'reporte|dashboard|ventas|ingresos|pedidos|pagos|existencias|stock|sucursales|prendas vendidas|ticket|reservas|tendencia';
+/** Referencias al contexto visible del dashboard: "exportá esto", "explicame
+ * eso mismo". Sin un sustantivo de reporte, estas frases le dicen al asistente
+ * que trabaje con los filtros que la pantalla ya está mostrando. */
+const CONTEXT_TERMS = 'esto|eso|eso mismo|lo que estoy viendo|lo que veo|en pantalla|el contexto actual|este contexto|este dashboard';
+/** Fin de palabra tolerante a acentos: "exportá" termina en "á", que JS no
+ * considera palabra, así que \b no existe ahí. El lookahead impide que la
+ * conjugación sea parte de una palabra más larga ("exportarx"). */
+const UI_WORD_END = '(?![a-z0-9_])';
 const EXPORT_INTENT = new RegExp(
-  `\\b(exporta(me)?|exportar|descarga(me)?|descargar|b[aá]jame|mand[aá]me|envi[aá]me|pasame)\\b.*\\b(${REPORT_NOUNS})\\b`,
+  `\\b(export[aá](me)?|exportar|descarga(me)?|descargar|b[aá]jame|mand[aá]me|envi[aá]me|pasame)${UI_WORD_END}(?:[^.!?]){0,60}?\\b(${REPORT_NOUNS}|${CONTEXT_TERMS})\\b`,
   'i',
 );
 const EXPLAIN_INTENT = new RegExp(
-  `\\b(explica(me)?|explicar|analiza(me)?|analizame|interpreta(me)?|por ?qu[eé])\\b.*\\b(${REPORT_NOUNS})\\b`,
+  `\\b(explic[aá](me)?|explicar|analiza(me)?|analizame|interpreta(me)?|por ?qu[eé])${UI_WORD_END}(?:[^.!?]){0,60}?\\b(${REPORT_NOUNS}|${CONTEXT_TERMS})\\b`,
   'i',
 );
 const EXPORT_REPORT_LABEL: Record<ExportReport, string> = {
@@ -37,15 +46,19 @@ const EXPORT_REPORT_LABEL: Record<ExportReport, string> = {
 /** Deduce el tipo de reporte a exportar: primero por palabra explícita en el
  * pedido, y si no hay ninguna, por lo que interpretó la IA de la consulta.
  * `null` cuando lo pedido (p.ej. "reservas" o "dashboard") no es uno de los
- * seis reportes exportables como archivo. */
+ * seis reportes exportables como archivo.
+ * Orden importante: los sustantivos de reporte concretos (ventas, pedidos,
+ * pagos, existencias) ganan a "sucursal", porque "ventas de la sucursal
+ * central" es el reporte de ventas filtrado por esa sucursal y no el reporte
+ * comparativo de sucursales. */
 function exportReportType(text: string, interpreted: InterpretResult): ExportReport | null {
   const t = text.toLowerCase();
   if (/prendas vendidas|mas vendid/.test(t)) return 'prendas_vendidas';
   if (/existencia|stock/.test(t)) return 'existencias';
-  if (/sucursal/.test(t)) return 'sucursales';
   if (/pago/.test(t)) return 'pagos';
   if (/pedido/.test(t)) return 'pedidos';
   if (/venta/.test(t)) return 'ventas';
+  if (/sucursal/.test(t)) return 'sucursales';
   if (interpreted.agrupacion === 'sucursal' || interpreted.vista === 'sucursales') return 'sucursales';
   if (interpreted.metrica === 'low_stock') return 'existencias';
   if (interpreted.metrica === 'units') return 'prendas_vendidas';
@@ -123,6 +136,17 @@ const SUGGESTIONS = [
     .ai-draft__actions { display: flex; gap: 8px; }
     .ai-draft__actions button { flex: 1; min-height: 34px; }
     .ai-msg--assistant .button-text { font-size: inherit; }
+    .ai-msg--typing { display: inline-flex; align-items: center; gap: 5px; }
+    .ai-msg--typing .ai-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+      animation: ai-dot-blink 1.2s ease-in-out infinite; }
+    .ai-msg--typing .ai-dot:nth-child(2) { animation-delay: 0.15s; }
+    .ai-msg--typing .ai-dot:nth-child(3) { animation-delay: 0.3s; }
+    .ai-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+      clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+    @keyframes ai-dot-blink {
+      0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+      30% { opacity: 1; transform: translateY(-3px); }
+    }
     @media (max-width: 600px) {
       .ai-widget { right: 12px; bottom: 12px; }
       .ai-launcher { width: 54px; height: 54px; }
@@ -134,6 +158,7 @@ const SUGGESTIONS = [
     }
     @media (prefers-reduced-motion: reduce) {
       .ai-panel, .ai-widget, .ai-launcher { transition: none !important; }
+      .ai-msg--typing .ai-dot { animation: none; opacity: 0.55; }
     }
   `,
   template: `<div class="ai-widget" [class.open]="open()">
@@ -202,8 +227,12 @@ const SUGGESTIONS = [
             </form>
           }
           @if (busy()) {
-            <p class="ai-msg ai-msg--assistant" role="status"><fs-bot-avatar state="processing" />
-            <span class="ai-msg--thinking">…</span></p>
+            <p class="ai-msg ai-msg--assistant ai-msg--typing" role="status">
+              <span class="ai-dot" aria-hidden="true"></span>
+              <span class="ai-dot" aria-hidden="true"></span>
+              <span class="ai-dot" aria-hidden="true"></span>
+              <span class="ai-sr">El asistente está escribiendo</span>
+            </p>
           }
           @if (error()) {
             <p class="alert error" role="alert">{{ error() }}</p>
@@ -220,7 +249,7 @@ const SUGGESTIONS = [
             name="message"
             rows="1"
             [(ngModel)]="draft"
-            maxlength="500"
+            maxlength="1000"
             placeholder="Escribí o hablá…"
             [disabled]="busy()"
             aria-label="Mensaje al asistente"
@@ -257,6 +286,7 @@ export class AssistantWidgetComponent implements OnDestroy {
   private catalog = inject(CatalogService);
   private dashboard = inject(DashboardService);
   private router = inject(Router);
+  private assistantContext = inject(AssistantContextService);
   private destroyRef = inject(DestroyRef);
   @ViewChild('log') private logRef?: ElementRef<HTMLDivElement>;
   open = signal(false);
@@ -273,9 +303,10 @@ export class AssistantWidgetComponent implements OnDestroy {
   draftBusy = signal(false);
   currentModule = signal(this.resolveModule(this.router.url));
   private lastUserText = '';
-  /** A qué handler reintentar: los pedidos de reporte usan un flujo distinto
-   * al chat general, y "Reintentar" debe repetir el mismo. */
-  private lastIntent: 'chat' | 'export' | 'explain' = 'chat';
+  /** A qué handler reintentar: los pedidos de reporte y el borrador de prenda
+   * usan flujos distintos al chat general, y "Reintentar" debe repetir el
+   * mismo y no caer en el chat general. */
+  private lastIntent: 'chat' | 'draft' | 'export' | 'explain' = 'chat';
   botState = signal<BotState>('idle');
   private recognition: any;
   private botTimer: ReturnType<typeof setTimeout> | null = null;
@@ -299,7 +330,7 @@ export class AssistantWidgetComponent implements OnDestroy {
         let text = '';
         for (let i = 0; i < event.results.length; i++) text += event.results[i][0].transcript;
         text = text.trim();
-        if (text) void this.send(text);
+        if (text) this.draft = text;
       });
     }
     this.destroyRef.onDestroy(() => this.stopVoice());
@@ -413,7 +444,7 @@ export class AssistantWidgetComponent implements OnDestroy {
     this.history.update((h) => [...h, { from: 'user', text }]);
     this.scrollToBottom();
     if (PRODUCT_INTENT.test(text) && this.session.can('catalog.write')) {
-      this.lastIntent = 'chat';
+      this.lastIntent = 'draft';
       await this.requestProductDraft(text);
     } else if (EXPORT_INTENT.test(text) && this.session.can('dashboard.read')) {
       this.lastIntent = 'export';
@@ -507,20 +538,23 @@ export class AssistantWidgetComponent implements OnDestroy {
   async retry() {
     if (!this.lastUserText || this.busy()) return;
     // Reintento: no se agrega de nuevo el mensaje del usuario, y repite el
-    // mismo tipo de pedido (chat, exportar o explicar).
+    // mismo tipo de pedido (borrador de prenda, chat, exportar o explicar).
     this.error.set('');
     if (this.lastIntent === 'export') await this.requestExport(this.lastUserText);
     else if (this.lastIntent === 'explain') await this.requestExplain(this.lastUserText);
+    else if (this.lastIntent === 'draft') await this.requestProductDraft(this.lastUserText);
     else await this.sendToBackend();
   }
-  /** CU: "exportame el reporte de ventas del último mes" — interpreta la
-   * consulta con el mismo motor determinista del dashboard (sin inventar
-   * filtros) y descarga el reporte, sin necesidad de estar en esa pantalla. */
+  /** CU: "exportame el reporte de ventas del último mes" o "exportá esto" —
+   * interpreta la consulta con el mismo motor determinista del dashboard y lo
+   * combina con el contexto visible (el filtro que el dashboard está
+   * mostrando ahora), para no pedir de nuevo lo que ya está en pantalla. */
   private async requestExport(text: string) {
     this.busy.set(true);
     this.setBot('processing');
     try {
-      const interpreted = await firstValueFrom(this.dashboard.interpret(text, {}));
+      const current = this.assistantContext.report();
+      const interpreted = await firstValueFrom(this.dashboard.interpret(text, current));
       const format: 'xlsx' | 'csv' = /\bcsv\b/i.test(text) ? 'csv' : 'xlsx';
       const report = exportReportType(text, interpreted);
       if (!report) {
@@ -534,14 +568,45 @@ export class AssistantWidgetComponent implements OnDestroy {
         this.setBot('idle');
         return;
       }
-      const query: ReportQuery = {
-        branch_id: interpreted.filtros.branch_id ?? null,
-        category_id: interpreted.filtros.category_id ?? null,
-        status: interpreted.filtros.status || undefined,
-        date_from: interpreted.filtros.date_from ?? undefined,
-        date_to: interpreted.filtros.date_to ?? undefined,
+      // El intérprete gana por campo; lo que dejó sin resolver cae al contexto
+      // visible del dashboard ("exportá esto" = exactamente lo que se ve).
+      const q: ReportQuery = {
+        branch_id: interpreted.filtros.branch_id ?? current.branch_id ?? null,
+        category_id: interpreted.filtros.category_id ?? current.category_id ?? null,
+        status: interpreted.filtros.status ?? current.status ?? undefined,
+        date_from: interpreted.filtros.date_from ?? current.date_from ?? undefined,
+        date_to: interpreted.filtros.date_to ?? current.date_to ?? undefined,
       };
-      const blob = await firstValueFrom(this.dashboard.exportUrl(report, format, query));
+      // No exportar "todo" silenciosamente si el usuario mencionó un filtro
+      // que no se pudo resolver y el contexto visible tampoco lo aporta.
+      // No exportar "todo" silenciosamente si el usuario mencionó una sucursal
+      // puntual que no se pudo resolver y el contexto visible tampoco la aporta.
+      // "por sucursal" es una agrupación, no una sucursal concreta: no aplica.
+      const mentionsBranchButNotGrouping =
+        /sucursal|local|tienda\s+de/i.test(text) && !/por\s+sucursal/i.test(text);
+      if (report !== 'sucursales' && mentionsBranchButNotGrouping && !q.branch_id) {
+        this.history.update((h) => [
+          ...h,
+          {
+            from: 'assistant',
+            text: 'No pude resolver a qué sucursal te referís y el contexto visible no tiene ninguna seleccionada. Sin ese filtro no descargo el reporte para no incluir todos los datos — elegí la sucursal en el dashboard o aclarala en tu pedido.',
+          },
+        ]);
+        this.setBot('idle');
+        return;
+      }
+      if (/categor[íi]a|rubro|departamento/i.test(text) && !q.category_id) {
+        this.history.update((h) => [
+          ...h,
+          {
+            from: 'assistant',
+            text: 'No pude resolver la categoría que mencionás y el contexto visible no tiene ninguna seleccionada. Sin ese filtro no descargo el reporte para no incluir todas las categorías — elegila en el dashboard o aclará cuál es.',
+          },
+        ]);
+        this.setBot('idle');
+        return;
+      }
+      const blob = await firstValueFrom(this.dashboard.exportUrl(report, format, q));
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
@@ -568,16 +633,23 @@ export class AssistantWidgetComponent implements OnDestroy {
     }
   }
   /** CU: "explicame por qué bajaron los pedidos" — el servidor recalcula las
-   * métricas reales y la IA arma hallazgo/cifras/interpretación/acción. */
+   * métricas con el contexto visible y la IA arma hallazgo/cifras/interpretación/
+   * acción/limitaciones. */
   private async requestExplain(text: string) {
     this.busy.set(true);
     this.setBot('processing');
     try {
-      const result = await firstValueFrom(this.dashboard.explain(text, {}));
+      const result = await firstValueFrom(this.dashboard.explain(text, this.assistantContext.report()));
       let reply: string;
       if (result.available && result.sections) {
         const s = result.sections;
-        reply = [s.hallazgo, s.cifras, s.interpretacion, s.accion && `Sugerencia: ${s.accion}`]
+        reply = [
+          s.hallazgo,
+          s.cifras,
+          s.interpretacion,
+          s.accion && `Sugerencia: ${s.accion}`,
+          s.limitaciones && `Limitaciones: ${s.limitaciones}`,
+        ]
           .filter(Boolean)
           .join('\n\n');
       } else {

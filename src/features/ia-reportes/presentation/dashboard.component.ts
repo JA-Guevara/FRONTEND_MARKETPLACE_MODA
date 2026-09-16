@@ -9,6 +9,7 @@ import { BarChartComponent, BarChartItem } from './bar-chart.component';
 import { PieChartComponent, PieSlice } from './pie-chart.component';
 import { DataTableComponent } from './data-table.component';
 import { errorMessage } from '../../../shared/errors';
+import { AssistantContextService } from '../../../shared/assistant-context.service';
 import { CommerceService } from '../../ventas-pagos/infrastructure/commerce.service';
 import { Branch } from '../../ventas-pagos/domain/commerce.models';
 import { CatalogService } from '../../usuarios-catalogo/infrastructure/catalog.service';
@@ -322,6 +323,7 @@ export class DashboardComponent {
   private service = inject(DashboardService);
   private commerce = inject(CommerceService);
   private catalog = inject(CatalogService);
+  private assistantContext = inject(AssistantContextService);
   data = signal<Dashboard | null>(null);
   loading = signal(false); error = signal('');
   filters = signal<ReportQuery>({});
@@ -417,6 +419,7 @@ export class DashboardComponent {
       if (id !== this.seq) return;
       this.data.set(data);
       this.appliedQuery.set(q);
+      this.assistantContext.setReport(q);
       this.viewNote.set('');
     } catch (error) {
       if (id !== this.seq) return;
