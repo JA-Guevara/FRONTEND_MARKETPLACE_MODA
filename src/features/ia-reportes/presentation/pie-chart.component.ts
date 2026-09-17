@@ -19,9 +19,9 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
   template: `
     @if (items.length && total() > 0) {
       <div class="pie-wrap">
-        <svg viewBox="0 0 140 140" role="img" [attr.aria-label]="ariaLabel">
+        <svg viewBox="-6 -6 152 152" role="img" [attr.aria-label]="ariaLabel">
           <g transform="translate(70,70) rotate(-90)">
-            @for (item of items; track item.label; let i = $index) {
+            @for (item of items; track $index; let i = $index) {
               <circle
                 r="60"
                 cx="0"
@@ -46,7 +46,7 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
           </text>
         </svg>
         <ul class="pie-legend">
-          @for (item of items; track item.label; let i = $index) {
+          @for (item of items; track $index; let i = $index) {
             <li>
               <i [style.background]="color(i)"></i><span>{{ item.label }}</span
               ><b>{{ pct(item.value) | percent: '1.0-1' }}</b>

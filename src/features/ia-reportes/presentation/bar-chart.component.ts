@@ -32,7 +32,7 @@ const PLOT_HEIGHT = 150;
           [attr.y2]="baseline()"
           class="bar-chart-axis"
         />
-        @for (item of items; track item.label; let i = $index) {
+        @for (item of items; track $index; let i = $index) {
           <rect
             [attr.x]="barX(i)"
             [attr.y]="barY(item.value)"
@@ -46,7 +46,7 @@ const PLOT_HEIGHT = 150;
         }
       </svg>
       <div class="bar-chart-labels" [style.grid-template-columns]="'repeat(' + items.length + ', 1fr)'">
-        @for (item of items; track item.label; let i = $index) {
+        @for (item of items; track $index; let i = $index) {
           <div class="bar-chart-label">
             @if (i % labelStep() === 0) {
               <b>{{
@@ -70,7 +70,7 @@ const PLOT_HEIGHT = 150;
       }
       svg {
         width: 100%;
-        height: 150px;
+        height: 170px;
         display: block;
       }
       .bar-chart-axis {
@@ -78,7 +78,7 @@ const PLOT_HEIGHT = 150;
         stroke-width: 1;
       }
       .bar-chart-bar {
-        fill: #a87954;
+        fill: #74394e;
       }
       .bar-chart-labels {
         display: grid;

@@ -18,8 +18,17 @@ const NEXT_STATUS: Record<string, string> = { pending: 'confirmed', confirmed: '
     <h1>Reservas de prendas</h1>
     <p class="muted">
       Atendé las reservas: confirmá, prepará las prendas y registrá la recepción del
-      cliente.
+      cliente. Las reservas registradas aparecen en esta bandeja de la sucursal.
     </p>
+    <div class="toolbar" aria-label="Bandeja de reservas">
+      <button type="button" [disabled]="loading()" (click)="status = 'pending'; page = 1; apply()">
+        <fs-icon name="calendar" />Ver pendientes de preparación
+      </button>
+      <button type="button" [disabled]="loading()" (click)="apply()">
+        <fs-icon name="refresh" />Actualizar bandeja
+      </button>
+      @if (updatedAt()) { <span class="muted">Actualizada {{ updatedAt() | date: 'HH:mm:ss' }}</span> }
+    </div>
     <form class="toolbar" (ngSubmit)="page = 1; apply()">
       <label
         >Buscar<input
@@ -88,12 +97,12 @@ const NEXT_STATUS: Record<string, string> = { pending: 'confirmed', confirmed: '
                 <td>
                   @if (session.can('reservations.write')) {
                     @if (nextStatus(r)) {
-                      <button [disabled]="busy() === r.id" (click)="transition(r, nextStatus(r))">
+                      <button [disabled]="!!busy()" (click)="transition(r, nextStatus(r))">
                         {{ actionLabel(r) }}
                       </button>
                     }
                     @if (['pending', 'confirmed', 'ready'].includes(r.status)) {
-                      <button [disabled]="busy() === r.id" (click)="transition(r, 'cancelled')">
+                      <button [disabled]="!!busy()" (click)="transition(r, 'cancelled')">
                         Cancelar
                       </button>
                     }
@@ -129,6 +138,7 @@ export class AdminReservasComponent {
   loading = signal(true);
   error = signal('');
   busy = signal('');
+  updatedAt = signal<Date | null>(null);
   search = '';
   branchId = '';
   status = '';
@@ -153,6 +163,11 @@ export class AdminReservasComponent {
   }
   async apply() {
     const current = ++this.requestId;
+    if (this.date_from && this.date_to && this.date_from > this.date_to) {
+      this.error.set('La fecha Desde no puede ser posterior a Hasta.');
+      this.loading.set(false);
+      return;
+    }
     this.loading.set(true);
     this.error.set('');
     try {
@@ -167,6 +182,7 @@ export class AdminReservasComponent {
       if (current !== this.requestId) return;
       this.reservations.set(result.items);
       this.pages.set(result.pages);
+      this.updatedAt.set(new Date());
       if (result.pages && this.page > result.pages) {
         this.page = result.pages;
         await this.apply();
@@ -190,6 +206,7 @@ export class AdminReservasComponent {
     )[this.nextStatus(r)];
   }
   async transition(r: Reservation, status: string) {
+    if (this.busy() || !this.session.can('reservations.write')) return;
     this.busy.set(r.id);
     this.error.set('');
     try {

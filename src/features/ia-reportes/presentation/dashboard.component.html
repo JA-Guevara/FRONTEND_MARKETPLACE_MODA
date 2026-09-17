@@ -1,0 +1,224 @@
+<section aria-label="Centro de reportes de la tienda" class="dashboard">
+      <div class="heading">
+        <div>
+          <p class="eyebrow">FASHIONSTORE / INTELIGENCIA COMERCIAL</p>
+          <h2>El pulso de tu tienda</h2>
+          <p class="muted">Ventas, inventario y decisiones. Toda tu operación, en perspectiva.</p>
+        </div>
+        <div class="heading-actions">
+          <button type="button" class="ghost" (click)="exportOpen.set(!exportOpen())" [class.active]="exportOpen()" [attr.aria-expanded]="exportOpen()"><fs-icon name="download" /> Exportar reportes</button>
+          <button type="button" (click)="load()" [disabled]="loading()"><fs-icon name="refresh" /> {{ loading() ? 'Actualizando…' : 'Actualizar' }}</button>
+        </div>
+      </div>
+      @if (exportOpen()) {
+        <div class="export-panel" role="region" aria-label="Exportar varios reportes">
+          <div class="export-head">
+            <b>Exportar</b>
+            <span class="muted">Selecciona uno o varios reportes y el formato. Cada archivo lleva los filtros visibles: {{ exportSummary() }}.</span>
+          </div>
+          <div class="export-reports" role="group" aria-label="Reportes a exportar">
+            @for (r of exportOptions; track r.value) {
+              <label class="check">
+                <input type="checkbox" [checked]="selReports().includes(r.value)" (change)="toggleReport(r.value, $event)" aria-label="{{ r.label }}" />
+                <span>{{ r.label }}</span>
+              </label>
+            }
+            <button type="button" class="chip-clear" (click)="selectAll()">Seleccionar todos</button>
+            @if (selReports().length) { <button type="button" class="chip-clear" (click)="selReports.set([])">Limpiar ({{ selReports().length }})</button> }
+          </div>
+          <div class="export-actions">
+            <button type="button" [disabled]="!selReports().length || multiExporting()" (click)="exportMultiple('xlsx')">Excel</button>
+            <button type="button" [disabled]="!selReports().length || multiExporting()" (click)="exportMultiple('pdf')">PDF</button>
+            <button type="button" [disabled]="!selReports().length || multiExporting()" (click)="exportMultiple('csv')">CSV</button>
+            @if (multiExporting()) { <span class="busy">…</span> }
+          </div>
+          @if (multiError()) { <p class="error" role="alert">{{ multiError() }}</p> }
+          @if (multiDone()) { <p class="done" role="status">{{ multiDone() }}</p> }
+        </div>
+      }
+      @if (exportError()) { <p class="error" role="alert">{{ exportError() }}</p> }
+      <div class="filters" role="group" aria-label="Filtros y período del reporte">
+        <div class="period-bar" role="group" aria-label="Período del reporte">
+          @for (p of periods; track p.key) {
+            <button type="button" [class.active]="!customRange() && period() === p.key" (click)="setPeriod(p.key)">{{ p.label }}</button>
+          }
+          @if (customRange()) {
+            <button type="button" class="chip-clear" (click)="clearCustom()">☓ {{ customRange() }}</button>
+          }
+        </div>
+        <select class="field" [ngModel]="filters().branch_id ?? ''" (ngModelChange)="set('branch_id', $event)" aria-label="Filtrar por sucursal">
+          <option value="">Todas las sucursales</option>
+          @for (b of branches(); track b.id) { <option [value]="b.id">{{ b.name }}</option> }
+        </select>
+        <select class="field" [ngModel]="filters().category_id ?? ''" (ngModelChange)="set('category_id', $event)" aria-label="Filtrar por categoría">
+          <option value="">Todas las categorías</option>
+          @for (c of categories(); track c.id) { <option [value]="c.id">{{ c['name'] }}</option> }
+        </select>
+        <select class="field" [ngModel]="filters().status ?? ''" (ngModelChange)="set('status', $event)" aria-label="Filtrar por estado">
+          <option value="">Todos los estados</option>
+          @for (s of statusOptions; track s.key) { <option [value]="s.key">{{ s.label }}</option> }
+        </select>
+        <select class="field" [ngModel]="compareMode()" (ngModelChange)="compareMode.set($event)" aria-label="Comparación">
+          <option value="previous">Vs período anterior</option>
+          <option value="year_ago">Vs año pasado</option>
+          <option value="none">Sin comparación</option>
+        </select>
+      </div>
+      <details class="custom-dates"><summary>Rango de fechas personalizado</summary><form class="date-range" (ngSubmit)="applyDates()">
+        <label>Desde<input type="date" name="from" [(ngModel)]="rangeFrom" /></label>
+        <label>Hasta<input type="date" name="to" [(ngModel)]="rangeTo" /></label>
+        <button type="submit" class="ghost"><fs-icon name="calendar" /> Aplicar fechas</button>
+        @if (rangeError()) { <span class="error" role="alert">{{ rangeError() }}</span> }
+      </form></details>
+      @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+      @if (loading() && !data()) { <p role="status">Cargando actividad de tu tienda…</p> }
+      @if (data(); as d) {
+        <div class="data-context"><span><i></i> Datos del servidor · {{ d.meta.generated_at | date:'dd/MM HH:mm':'-0400' }}</span><span>{{ exportSummary() }}</span></div>
+        <div class="slide-switch">
+          <div class="slide-tabs" role="tablist" aria-label="Secciones del reporte" (keydown)="tabKey($event)">
+            @for (section of sections; track $index; let i = $index) {
+              <button type="button" role="tab" [id]="'report-tab-'+i" [attr.aria-controls]="'report-panel-'+i" [attr.tabindex]="slide() === i ? 0 : -1" [attr.aria-selected]="slide() === i" [class.active]="slide() === i" (click)="setSlide($any(i))"><span class="slide-num">{{ i + 1 }}</span>{{ section }}</button>
+            }
+          </div>
+          <div class="slide-arrows"><button type="button" class="ghost" (click)="moveSlide(-1)" [disabled]="slide() === 0" aria-label="Sección anterior"><fs-icon name="arrow-left" /></button><span>{{ slide()+1 }} / 3</span><button type="button" class="ghost" (click)="moveSlide(1)" [disabled]="slide() === 2" aria-label="Sección siguiente"><fs-icon name="arrow-right" /></button></div>
+        </div>
+        @if (slide() === 0) {
+          <div class="carousel-slide" role="tabpanel" id="report-panel-0" aria-labelledby="report-tab-0">
+              <div class="metrics">
+                <article><span>Ingresos cobrados</span><strong>{{ d.period.revenue | currency:d.currency:'code':'1.2-2' }}</strong>
+                  <small>{{ d.period.paid_orders | number }} pedidos pagados</small>
+                  @if (comp(); as c) { <b class="delta" [class.good]="good(c.revenue_delta_pct)" [class.bad]="!good(c.revenue_delta_pct)">{{ delta(c.revenue_delta_pct) }}</b> }
+                </article>
+                <article><span>Pedidos pagados</span><strong>{{ d.period.paid_orders | number }}</strong>
+                  <small>{{ d.period.pending_orders | number }} pendientes de pago</small>
+                  @if (comp(); as c) { <b class="delta" [class.good]="good(c.paid_delta_pct)" [class.bad]="!good(c.paid_delta_pct)">{{ delta(c.paid_delta_pct) }}</b> }
+                </article>
+                <article><span>Ticket promedio</span><strong>{{ d.period.ticket_avg | currency:d.currency:'code':'1.2-2' }}</strong><small>Por pedido pagado</small></article>
+                <article><span>Unidades vendidas</span><strong>{{ d.period.units_sold | number }}</strong><small>En el período</small></article>
+                <article><span>Tasa de cancelación</span><strong>{{ d.period.cancellation_rate | percent:'1.0-1' }}</strong><small>Del período</small></article>
+                <article><span>Reservas del período</span><strong>{{ reservationsTotal() | number }}</strong><small>Con horario en el período</small></article>
+              </div>
+              <div class="chart-navigation" aria-label="Carrusel de gráficos">
+                <div><p class="eyebrow">EXPLORAR GRÁFICOS</p><h3>{{ chartSections[chartSlide()] }}</h3></div>
+                <div class="slide-arrows"><button type="button" (click)="setChart(chartSlide()-1)" [disabled]="chartSlide()===0" aria-label="Grupo de gráficos anterior">‹</button><span>{{ chartSlide()+1 }} / 3</span><button type="button" (click)="setChart(chartSlide()+1)" [disabled]="chartSlide()===2" aria-label="Grupo de gráficos siguiente">›</button></div>
+              </div>
+              <div class="chart-chips" role="group" aria-label="Elegir grupo de gráficos">@for (name of chartSections; track $index) { <button type="button" [attr.aria-pressed]="chartSlide()===$index" [class.active]="chartSlide()===$index" (click)="setChart($index)">{{ name }}</button> }</div>
+              @if (chartSlide() === 0) {
+              <div class="trend-grid">
+                <article class="report trend-card">
+                  <div class="trend-heading">
+                    <div><h3>Ventas diarias y proyección a 7 días</h3><p class="muted">Datos observados y estimación lineal orientativa; no garantiza ventas futuras.</p></div>
+                    @if (d.projection.values.length) { <span class="trend-badge">{{ trendLabel(d.projection.trend) }}</span> }
+                  </div>
+                  <fs-trend-chart [currency]="d.currency" [actual]="actualTrend()" [projected]="projectedTrend()" ariaLabel="Ventas diarias y proyección" />
+                </article>
+                <article class="report stock-alert">
+                  <h3>Alertas de stock</h3>
+                  <p class="muted">Variantes con menos de {{ lowStockThreshold() }} unidades en alguna sucursal.</p>
+                  <p class="alert-big" [class.alert-ok]="!d.low_stock_variants.length">{{ d.low_stock_variants.length | number }} variantes</p>
+                  @if (d.low_stock_variants.length) {
+                    <button type="button" class="ghost" (click)="setSlide(1); tableKind.set('stock')">Ver existencias</button>
+                  } @else { <p class="empty">Ninguna variante está bajo el umbral.</p> }
+                </article>
+              </div>
+              <div class="charts-grid">
+                <article class="report"><h3>Ingresos acumulados</h3><p class="muted">Acumulado de los días incluidos en la serie visible</p><fs-trend-chart [actual]="cumulativeTrend()" [currency]="d.currency" ariaLabel="Evolución de ingresos acumulados" /></article>
+                <article class="report"><h3>Prendas protagonistas</h3><p class="muted">Unidades de las prendas más vendidas</p><fs-bar-chart [items]="productBars()" format="number" emptyText="Todavía no hay prendas vendidas para comparar." ariaLabel="Prendas más vendidas" /></article>
+              </div>
+              }
+              @if (chartSlide() === 1) {
+              <h3 class="section-label">Ventas y horarios</h3>
+              <div class="charts-grid">
+                <article class="report"><h3>Por sucursal</h3><p class="muted">Facturación del período seleccionado</p>
+                  <fs-bar-chart [items]="branchBars()" format="currency" [currency]="d.currency" emptyText="Sin ventas por sucursal en este período." ariaLabel="Ingresos por sucursal" />
+                </article>
+                <article class="report"><h3>Horario de mayor venta</h3><p class="muted">Facturación por hora del día</p>
+                  <fs-bar-chart [items]="hourBars()" format="currency" [currency]="d.currency" emptyText="Sin ventas en este período." ariaLabel="Ingresos por hora del día" />
+                </article>
+                <article class="report"><h3>Días de la semana</h3><p class="muted">Qué días vende más la tienda</p>
+                  <fs-bar-chart [items]="weekdayBars()" format="currency" [currency]="d.currency" emptyText="Sin ventas en este período." ariaLabel="Ingresos por día de la semana" />
+                </article>
+                <article class="report"><h3>Comparativa mensual</h3><p class="muted">Últimos 12 meses · {{ d.currency }}</p>
+                  <fs-bar-chart [items]="monthlyBars()" format="currency" [currency]="d.currency" emptyText="Todavía no hay ventas registradas por mes." ariaLabel="Ingresos por mes" />
+                </article>
+              </div>
+              }
+              @if (chartSlide() === 2) {
+              <h3 class="section-label">Composición y operación</h3>
+              <div class="pies-grid">
+                <article class="report"><h3>Por categoría de prenda</h3><p class="muted">Facturación del período</p>
+                  <fs-pie-chart [items]="categoryBars()" format="currency" [currency]="d.currency" emptyText="Sin ventas por categoría en este período." ariaLabel="Ingresos por categoría" />
+                </article>
+                <article class="report"><h3>Métodos de pago</h3><p class="muted">Pedidos del período</p>
+                  <fs-pie-chart [items]="paymentPie(d)" format="number" emptyText="Sin pedidos registrados en el período." ariaLabel="Pedidos por método de pago" />
+                </article>
+                <article class="report"><h3>Estado de pedidos</h3><p class="muted">Pedidos del período filtrado</p>
+                  <fs-pie-chart [items]="statusPie(d)" format="number" emptyText="Sin pedidos registrados." ariaLabel="Pedidos por estado" />
+                </article>
+                <article class="report"><h3>Reservas por estado</h3><p class="muted">Visitas con horario en el período</p><fs-pie-chart [items]="reservationPie(d)" format="number" emptyText="Sin reservas para este período." ariaLabel="Reservas por estado" /></article>
+              </div>
+              }
+          </div>
+        }
+        @if (slide() === 1) {
+          <div class="carousel-slide" role="tabpanel" id="report-panel-1" aria-labelledby="report-tab-1">
+            <article class="report">
+              <div class="trend-heading"><div><p class="eyebrow">EXPLORADOR DE DATOS</p><h3>El detalle detrás de cada gráfico</h3><p class="muted">Buscá y ordená los datos recibidos. Las exportaciones completas están en «Exportar reportes».</p></div>
+                <label>Ver tabla<select [ngModel]="tableKind()" (ngModelChange)="tableKind.set($event)" aria-label="Elegir tabla">@for (t of tableOptions; track t.key) { <option [value]="t.key">{{ t.label }}</option> }</select></label>
+              </div>
+              <p class="muted">La búsqueda afecta solo a esta tabla; no cambia los filtros ni el alcance de la exportación.</p>
+              @if (tableKind() === 'daily') { <p class="muted">Serie de días devuelta por el servidor; usá la exportación para consultar el detalle completo.</p> }
+              @if (tableKind() === 'stock') { <p class="muted">Instantánea actual: menos de {{ lowStockThreshold() }} unidades por variante y sucursal.</p> }
+              @let table = tableData(d);
+              <fs-data-table [headers]="table.headers" [rows]="table.rows" [datasetKey]="tableKind()" ariaLabel="Detalle del reporte seleccionado" />
+            </article>
+          </div>
+        }
+        @if (slide() === 2) {
+          <div class="carousel-slide" role="tabpanel" id="report-panel-2" aria-labelledby="report-tab-2">
+            <div class="ai-overview"><div><p class="eyebrow">DECISIONES CON CONTEXTO</p><h3>De los datos a la próxima acción</h3><p>Pedí explicaciones y recomendaciones sobre este reporte.</p></div><span class="trend-badge">{{ d.ai_ready ? 'IA disponible' : 'IA no disponible' }}</span></div>
+        <article class="report ai-pad">
+          <div class="ai-head"><div><p class="eyebrow">CENTRO DE IA</p><h3>Asistente de reportes</h3><p class="muted">Interpreta consultas y explica las métricas <b>recalculadas por el servidor</b> sobre el contexto visible.</p></div></div>
+          <div class="ai-grid">
+            <div class="ai-col">
+              <h4>Hacé una pregunta en lenguaje natural</h4>
+              <form (ngSubmit)="interpret()">
+                <input name="q" [(ngModel)]="interpretDraft" maxlength="300" placeholder='Ej: "ventas del último mes por sucursal"' [disabled]="interpreting()" aria-label="Consulta para interpretar" />
+                <button type="submit" [disabled]="interpreting() || !interpretDraft.trim()">{{ interpreting() ? 'Interpretando…' : 'Interpretar y filtrar' }}</button>
+              </form>
+              @if (interpretError()) { <p class="alert error" role="alert">{{ interpretError() }}</p> }
+              @if (interpretResult(); as r) {
+                <p class="insight-text" role="status">{{ r.respuesta }}</p>
+                @if (r.aclaraciones.length) { <ul class="notes">@for (a of r.aclaraciones; track a) { <li>{{ a }}</li> }</ul> }
+                <button type="button" class="ghost" [disabled]="!r.ok" (click)="applyInterpreted()">Aplicar vista y filtros interpretados</button>
+                @if (viewNote()) { <p class="muted">{{ viewNote() }}</p> }
+              }
+              <h4>Recomendaciones</h4>
+              @if (d.ai_ready) {
+                <button type="button" class="ghost" (click)="ask()" [disabled]="thinking()">{{ thinking() ? 'Analizando…' : 'Generar recomendaciones del contexto' }}</button>
+                @if (insight()) { <p class="insight-text" role="status">{{ insight() }}</p> }
+                @if (insightError()) { <p class="alert error" role="alert">{{ insightError() }}</p> }
+              } @else { <p class="empty">La IA explicativa no está configurada; las métricas reales ya están disponibles.</p> }
+            </div>
+            <div class="ai-col">
+              <h4>Explicar una métrica de esta vista</h4>
+              <form (ngSubmit)="explain()">
+                <input name="e" [(ngModel)]="explainDraft" maxlength="500" placeholder="¿Por qué bajan los pedidos pagados este período?" [disabled]="explaining()" aria-label="Pregunta para explicar" />
+                <button type="submit" [disabled]="explaining() || !explainDraft.trim()">{{ explaining() ? 'Analizando…' : 'Explicar' }}</button>
+              </form>
+              @if (explainError()) { <p class="alert error" role="alert">{{ explainError() }}</p> }
+              @if (explanation(); as ex) {
+                @if (ex.available && ex.sections) {
+                  @for (sec of sectionKeys; track sec) {
+                    <div class="explain-sec"><b>{{ sectionLabel(sec) }}</b><p>{{ ex.sections![sec] }}</p></div>
+                  }
+                } @else if (ex.message) { <p class="insight-text" role="status">{{ ex.message }}</p> }
+              }
+            </div>
+          </div>
+        </article>
+            <article class="report methodology"><h3>Qué está analizando</h3><p>{{ exportSummary() }}</p><p>Proyección: {{ d.projection.meta.method }} · horizonte de {{ d.projection.meta.horizon_days }} días. Es una estimación estadística, independiente de la explicación por IA.</p><p>{{ d.meta.note }}</p><p class="muted">Esta sección no entrena modelos. Un entrenamiento propio necesitaría un historial validado, evaluación de errores y control de versiones antes de activarse.</p></article>
+          </div>
+        }
+      }
+    </section>

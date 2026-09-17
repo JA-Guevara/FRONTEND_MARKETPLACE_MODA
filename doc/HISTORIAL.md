@@ -1,5 +1,12 @@
 # Historial de avance
 
+## 2026-09-17 — Dashboard en tres vistas y definición del probador
+
+- Once gráficos agrupados en carrusel, once tablas con búsqueda/orden/paginación y centro de análisis IA separado.
+- Corrección de altura de paneles ocultos, etiquetas de KPIs y escala temporal; rango de fechas completo de Bolivia.
+- 170 pruebas y compilación frontend aprobadas. Probador: recomendada evolución a foto con IA conservando cámara 2D; 3D requiere un desarrollo adicional y no fue implementado.
+- Detalle y pendientes: `DASHBOARD_Y_DECISION_PROBADOR_2026-09-17.md`.
+
 ## 2026-09-17 — Stripe y ejecución del asistente
 
 - Recuperación de sesión al regresar de Stripe, consulta del pago desde servidor y botón de verificación para cliente/gestión.

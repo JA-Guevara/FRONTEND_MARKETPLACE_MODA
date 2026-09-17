@@ -50,5 +50,6 @@ export function queryForCommand(text: string, filters: ReportQuery, current: Rep
     status: clearsFilter(text, 'estado') ? undefined : filters.status ?? current.status ?? undefined,
     date_from: clearsFilter(text, 'fecha|fechas|periodo') ? undefined : filters.date_from ?? current.date_from ?? undefined,
     date_to: clearsFilter(text, 'fecha|fechas|periodo') ? undefined : filters.date_to ?? current.date_to ?? undefined,
+    low_stock_lt: clearsFilter(text, 'stock|umbral') ? undefined : filters.low_stock_lt ?? current.low_stock_lt,
   };
 }

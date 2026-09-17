@@ -322,6 +322,22 @@ describe('Probador manual: cámara y recursos', () => {
     expect(component.poseMode()).toBe(false);
     expect(component.poseError()).toContain('ajuste manual sigue disponible');
   });
+  it('no activa una solicitud de postura antigua después de reiniciar la cámara', async () => {
+    const { component, pose } = await setup();
+    camera.mockResolvedValue(stream().value);
+    await component.startCamera();
+    let finish!: (value: boolean) => void;
+    pose.ensure.mockReturnValue(new Promise<boolean>(resolve => { finish = resolve; }));
+    const pending = component.togglePose();
+    component.stopCamera();
+    await component.startCamera();
+    finish(true);
+    await pending;
+    expect(component.cameraState()).toBe('active');
+    expect(component.poseMode()).toBe(false);
+    expect(component.poseBusy()).toBe(false);
+    expect(pose.detectTorso).not.toHaveBeenCalled();
+  });
   it('ofrece comprar o reservar desde el probador resolviendo la variante en la ficha', async () => {
     const { fixture } = await setup();
     const buttons = fixture.nativeElement.querySelectorAll('.fitting-shopping button');

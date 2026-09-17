@@ -1,5 +1,6 @@
 import { Component, effect, inject, signal } from '@angular/core';
-import { CurrencyPipe, DecimalPipe, PercentPipe } from '@angular/common';
+import { CurrencyPipe, DecimalPipe, PercentPipe, DatePipe } from '@angular/common';
+import { IconComponent } from '../../../shared/icon.component';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { DashboardService } from '../infrastructure/dashboard.service';
@@ -14,6 +15,7 @@ import { CommerceService } from '../../ventas-pagos/infrastructure/commerce.serv
 import { Branch } from '../../ventas-pagos/domain/commerce.models';
 import { CatalogService } from '../../usuarios-catalogo/infrastructure/catalog.service';
 import { Entity } from '../../usuarios-catalogo/domain/catalog.models';
+import { queryForCommand } from '../../ventas-pagos/application/assistant-intent';
 
 type Period = '30' | '90' | '365' | 'ytd' | 'all';
 const PERIODS: { key: Period; label: string }[] = [
@@ -26,9 +28,9 @@ const PERIODS: { key: Period; label: string }[] = [
 const TREND_LABEL: Record<string, string> = { up: '↑ En alza', down: '↓ En baja', stable: '→ Estable' };
 const STATUS_LABEL: Record<string, string> = {
   pending_payment: 'Pendiente de pago', paid: 'Pagado', processing: 'En preparación',
-  shipped: 'En camino', delivered: 'Entregado', cancelled: 'Cancelado',
+  shipped: 'En camino', delivered: 'Entregado', cancelled: 'Cancelado', expired: 'Vencido',
 };
-const METHOD_LABEL: Record<string, string> = { stripe: 'Stripe', manual: 'Manual', cash: 'Efectivo' };
+const METHOD_LABEL: Record<string, string> = { stripe: 'Stripe', manual: 'Manual', cash: 'Efectivo', transfer: 'Transferencia' };
 const ALL_REPORTS: ExportReport[] = ['ventas', 'pedidos', 'pagos', 'prendas_vendidas', 'existencias', 'sucursales'];
 /** A qué slide del carrusel saltar cuando la IA interpreta una consulta como
  * referida a esa "vista" (el backend sigue devolviendo el mismo vocabulario
@@ -40,304 +42,11 @@ const VISTA_SLIDE: Record<string, 0 | 1> = {
 @Component({
   selector: 'fs-dashboard',
   imports: [
-    CurrencyPipe, DecimalPipe, PercentPipe, FormsModule,
-    TrendChartComponent, BarChartComponent, PieChartComponent, DataTableComponent,
+    CurrencyPipe, DecimalPipe, PercentPipe, DatePipe, FormsModule,
+    TrendChartComponent, BarChartComponent, PieChartComponent, DataTableComponent, IconComponent,
   ],
-  template: `
-    <section aria-label="Centro de reportes de la tienda" class="dashboard">
-      <div class="heading">
-        <div>
-          <p class="eyebrow">REPORTES DE LA TIENDA</p>
-          <h2>Centro de reportes</h2>
-          <p class="muted">Métricas recalculadas por el servidor sobre el período y los filtros visibles.</p>
-        </div>
-        <div class="heading-actions">
-          <button type="button" class="ghost" (click)="exportOpen.set(!exportOpen())" [class.active]="exportOpen()" [attr.aria-expanded]="exportOpen()">Exportar reportes</button>
-          <button type="button" (click)="load()" [disabled]="loading()">{{ loading() ? 'Actualizando…' : 'Actualizar' }}</button>
-        </div>
-      </div>
-      @if (exportOpen()) {
-        <div class="export-panel" role="region" aria-label="Exportar varios reportes">
-          <div class="export-head">
-            <b>Exportar</b>
-            <span class="muted">Selecciona uno o varios reportes y el formato. Cada archivo lleva los filtros visibles: {{ exportSummary() }}.</span>
-          </div>
-          <div class="export-reports" role="group" aria-label="Reportes a exportar">
-            @for (r of exportOptions; track r.value) {
-              <label class="check">
-                <input type="checkbox" [checked]="selReports().includes(r.value)" (change)="toggleReport(r.value, $event)" aria-label="{{ r.label }}" />
-                <span>{{ r.label }}</span>
-              </label>
-            }
-            <button type="button" class="chip-clear" (click)="selectAll()">Seleccionar todos</button>
-            @if (selReports().length) { <button type="button" class="chip-clear" (click)="selReports.set([])">Limpiar ({{ selReports().length }})</button> }
-          </div>
-          <div class="export-actions">
-            <button type="button" [disabled]="!selReports().length || multiExporting()" (click)="exportMultiple('xlsx')">Excel</button>
-            <button type="button" [disabled]="!selReports().length || multiExporting()" (click)="exportMultiple('pdf')">PDF</button>
-            <button type="button" [disabled]="!selReports().length || multiExporting()" (click)="exportMultiple('csv')">CSV</button>
-            @if (multiExporting()) { <span class="busy">…</span> }
-          </div>
-          @if (multiError()) { <p class="error" role="alert">{{ multiError() }}</p> }
-          @if (multiDone()) { <p class="done" role="status">{{ multiDone() }}</p> }
-        </div>
-      }
-      @if (exportError()) { <p class="error" role="alert">{{ exportError() }}</p> }
-      <div class="filters" role="group" aria-label="Filtros y período del reporte">
-        <div class="period-bar" role="group" aria-label="Período del reporte">
-          @for (p of periods; track p.key) {
-            <button type="button" [class.active]="!customRange() && period() === p.key" (click)="setPeriod(p.key)">{{ p.label }}</button>
-          }
-          @if (customRange()) {
-            <button type="button" class="chip-clear" (click)="clearCustom()">☓ {{ customRange() }}</button>
-          }
-        </div>
-        <select class="field" [ngModel]="filters().branch_id ?? ''" (ngModelChange)="set('branch_id', $event)" aria-label="Filtrar por sucursal">
-          <option value="">Todas las sucursales</option>
-          @for (b of branches(); track b.id) { <option [value]="b.id">{{ b.name }}</option> }
-        </select>
-        <select class="field" [ngModel]="filters().category_id ?? ''" (ngModelChange)="set('category_id', $event)" aria-label="Filtrar por categoría">
-          <option value="">Todas las categorías</option>
-          @for (c of categories(); track c.id) { <option [value]="c.id">{{ c['name'] }}</option> }
-        </select>
-        <select class="field" [ngModel]="filters().status ?? ''" (ngModelChange)="set('status', $event)" aria-label="Filtrar por estado">
-          <option value="">Todos los estados</option>
-          @for (s of statusOptions; track s.key) { <option [value]="s.key">{{ s.label }}</option> }
-        </select>
-        <select class="field" [ngModel]="compareMode()" (ngModelChange)="compareMode.set($event)" aria-label="Comparación">
-          <option value="previous">Vs período anterior</option>
-          <option value="year_ago">Vs año pasado</option>
-          <option value="none">Sin comparación</option>
-        </select>
-      </div>
-      @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
-      @if (loading() && !data()) { <p role="status">Cargando actividad de tu tienda…</p> }
-      @if (data(); as d) {
-        <div class="slide-switch" role="tablist" aria-label="Secciones del reporte">
-          <div class="slide-tabs">
-            <button type="button" role="tab" [attr.aria-selected]="slide() === 0" [class.active]="slide() === 0" (click)="setSlide(0)">
-              <span class="slide-num">1</span> Gráficos y KPIs
-            </button>
-            <button type="button" role="tab" [attr.aria-selected]="slide() === 1" [class.active]="slide() === 1" (click)="setSlide(1)">
-              <span class="slide-num">2</span> Tablas de datos
-            </button>
-          </div>
-          <div class="slide-arrows">
-            <button type="button" class="ghost" (click)="setSlide(0)" [disabled]="slide() === 0" aria-label="Diapositiva anterior">‹</button>
-            <button type="button" class="ghost" (click)="setSlide(1)" [disabled]="slide() === 1" aria-label="Diapositiva siguiente">›</button>
-          </div>
-        </div>
-        <div class="carousel-viewport">
-          <div class="carousel-track" [style.transform]="'translateX(-' + slide() * 100 + '%)'">
-            <div class="carousel-slide" [attr.aria-hidden]="slide() !== 0">
-              <div class="metrics">
-                <article><span>Ingresos cobrados</span><strong>{{ d.period.revenue | currency:d.currency:'code':'1.2-2' }}</strong>
-                  <small>{{ d.period.paid_orders | number }} pedidos pagados</small>
-                  @if (comp(); as c) { <b class="delta" [class.good]="good(c.revenue_delta_pct)" [class.bad]="!good(c.revenue_delta_pct)">{{ delta(c.revenue_delta_pct) }}</b> }
-                </article>
-                <article><span>Pedidos creados</span><strong>{{ d.period.orders | number }}</strong>
-                  <small>{{ d.period.pending_orders | number }} pendientes de pago</small>
-                  @if (comp(); as c) { <b class="delta" [class.good]="good(c.paid_delta_pct)" [class.bad]="!good(c.paid_delta_pct)">{{ delta(c.paid_delta_pct) }}</b> }
-                </article>
-                <article><span>Ticket promedio</span><strong>{{ d.period.ticket_avg | currency:d.currency:'code':'1.2-2' }}</strong><small>Por pedido pagado</small></article>
-                <article><span>Unidades vendidas</span><strong>{{ d.period.units_sold | number }}</strong><small>En el período</small></article>
-                <article><span>Tasa de cancelación</span><strong>{{ d.period.cancellation_rate | percent:'1.0-1' }}</strong><small>Del período</small></article>
-                <article><span>Reservas activas</span><strong>{{ reservationsTotal() | number }}</strong><small>Con horario en el período</small></article>
-              </div>
-              <div class="trend-grid">
-                <article class="report trend-card">
-                  <div class="trend-heading">
-                    <div><h3>Ventas diarias y proyección a 7 días</h3><p class="muted">Serie real + estimación lineal.</p></div>
-                    @if (d.projection.values.length) { <span class="trend-badge">{{ trendLabel(d.projection.trend) }}</span> }
-                  </div>
-                  <fs-trend-chart [actual]="actualTrend()" [projected]="projectedTrend()" ariaLabel="Ventas diarias y proyección" />
-                </article>
-                <article class="report stock-alert">
-                  <h3>Alertas de stock</h3>
-                  <p class="muted">Variantes con menos de {{ lowStockThreshold() }} unidades en alguna sucursal.</p>
-                  <p class="alert-big" [class.alert-ok]="!d.low_stock_variants.length">{{ d.low_stock_variants.length | number }} variantes</p>
-                  @if (d.low_stock_variants.length) {
-                    <button type="button" class="ghost" (click)="slide.set(1); exportOpen.set(true); selReports.set(['existencias'])">Ver detalle y exportar existencias</button>
-                  } @else { <p class="empty">Ninguna variante está bajo el umbral.</p> }
-                </article>
-              </div>
-              @if (comp(); as c) {
-                <div class="compare-grid">
-                  <article class="report compare"><span class="muted">Comparación</span><p>{{ compareNote() }}</p>
-                    <b>{{ delta(c.revenue_delta_pct) }}</b><span>en ingresos</span>
-                    <b>{{ delta(c.paid_delta_pct) }}</b><span>en pedidos pagados</span>
-                  </article>
-                </div>
-              }
-              <h3 class="section-label">Ventas y horarios</h3>
-              <div class="charts-grid">
-                <article class="report"><h3>Por sucursal</h3><p class="muted">Facturación del período seleccionado</p>
-                  <fs-bar-chart [items]="branchBars()" format="currency" [currency]="d.currency" emptyText="Sin ventas por sucursal en este período." ariaLabel="Ingresos por sucursal" />
-                </article>
-                <article class="report"><h3>Horario de mayor venta</h3><p class="muted">Facturación por hora del día</p>
-                  <fs-bar-chart [items]="hourBars()" format="currency" [currency]="d.currency" emptyText="Sin ventas en este período." ariaLabel="Ingresos por hora del día" />
-                </article>
-                <article class="report"><h3>Días de la semana</h3><p class="muted">Qué días vende más la tienda</p>
-                  <fs-bar-chart [items]="weekdayBars()" format="currency" [currency]="d.currency" emptyText="Sin ventas en este período." ariaLabel="Ingresos por día de la semana" />
-                </article>
-                <article class="report"><h3>Comparativa mensual</h3><p class="muted">Últimos 12 meses · {{ d.currency }}</p>
-                  <fs-bar-chart [items]="monthlyBars()" format="currency" [currency]="d.currency" emptyText="Todavía no hay ventas registradas por mes." ariaLabel="Ingresos por mes" />
-                </article>
-              </div>
-              <h3 class="section-label">Composición</h3>
-              <div class="pies-grid">
-                <article class="report"><h3>Por categoría de prenda</h3><p class="muted">Facturación del período</p>
-                  <fs-pie-chart [items]="categoryBars()" format="currency" [currency]="d.currency" emptyText="Sin ventas por categoría en este período." ariaLabel="Ingresos por categoría" />
-                </article>
-                <article class="report"><h3>Métodos de pago</h3><p class="muted">Pedidos del período</p>
-                  <fs-pie-chart [items]="paymentPie(d)" format="number" emptyText="Sin pedidos registrados en el período." ariaLabel="Pedidos por método de pago" />
-                </article>
-                <article class="report"><h3>Estado de pedidos</h3><p class="muted">Pedidos del período filtrado</p>
-                  <fs-pie-chart [items]="statusPie(d)" format="number" emptyText="Sin pedidos registrados." ariaLabel="Pedidos por estado" />
-                </article>
-              </div>
-            </div>
-            <div class="carousel-slide" [attr.aria-hidden]="slide() !== 1">
-              @if (d.low_stock_variants.length) {
-                <div class="alert strip">
-                  <strong>{{ d.low_stock_variants.length | number }} variantes por reponer</strong>
-                  <span>Umbral configurado: menos de {{ lowStockThreshold() }} unidades. Instantánea del momento.</span>
-                </div>
-              }
-              <h3 class="section-label">Ventas y catálogo</h3>
-              <div class="tables-grid">
-                <article class="report"><h3>Ventas por día</h3><p class="muted">Hasta 30 días con ventas · {{ d.currency }}</p>
-                  <fs-data-table [headers]="['Fecha','Total']" [rows]="dailySalesRows(d)" emptyText="Las ventas aparecerán aquí cuando se confirme el primer pago." ariaLabel="Ventas por día" />
-                </article>
-                <article class="report"><h3>Prendas más vendidas</h3><p class="muted">Unidades incluidas en pedidos pagados</p>
-                  <fs-data-table [headers]="['#','Prenda','Unidades']" [rows]="topProductsRows(d)" emptyText="Todavía no hay prendas vendidas para comparar." ariaLabel="Prendas más vendidas" />
-                </article>
-                <article class="report"><h3>Comparativa mensual</h3><p class="muted">Últimos 12 meses · {{ d.currency }}</p>
-                  <fs-data-table [headers]="['Mes','Total']" [rows]="monthlyRows(d)" emptyText="Todavía no hay ventas registradas por mes." ariaLabel="Ventas por mes" />
-                </article>
-                <article class="report"><h3>Por categoría de prenda</h3><p class="muted">Facturación del período</p>
-                  <fs-data-table [headers]="['Categoría','Ingresos']" [rows]="categoryRows(d)" emptyText="Sin ventas por categoría en este período." ariaLabel="Ingresos por categoría" />
-                </article>
-              </div>
-              <h3 class="section-label">Sucursales y horarios</h3>
-              <div class="tables-grid">
-                <article class="report"><h3>Por sucursal</h3><p class="muted">Facturación del período</p>
-                  <fs-data-table [headers]="['Sucursal','Ingresos']" [rows]="branchRows(d)" emptyText="Sin ventas por sucursal en este período." ariaLabel="Ingresos por sucursal" />
-                </article>
-                <article class="report"><h3>Por hora</h3><p class="muted">Facturación por hora del día</p>
-                  <fs-data-table [headers]="['Hora','Ingresos']" [rows]="hourRows(d)" emptyText="Sin ventas en este período." ariaLabel="Ingresos por hora" />
-                </article>
-                <article class="report"><h3>Días de la semana</h3><p class="muted">Qué días vende más la tienda</p>
-                  <fs-data-table [headers]="['Día','Ingresos']" [rows]="weekdayRows(d)" emptyText="Sin ventas en este período." ariaLabel="Ingresos por día de la semana" />
-                </article>
-              </div>
-              <h3 class="section-label">Pedidos, pagos y reservas</h3>
-              <div class="tables-grid">
-                <article class="report"><h3>Estado de pedidos</h3><p class="muted">Pedidos del período filtrado</p>
-                  <fs-data-table [headers]="['Estado','Pedidos']" [rows]="statusRows(d)" emptyText="Sin pedidos registrados." ariaLabel="Pedidos por estado" />
-                </article>
-                <article class="report"><h3>Métodos de pago</h3><p class="muted">Pedidos del período según método</p>
-                  <fs-data-table [headers]="['Método','Pedidos']" [rows]="paymentRows(d)" emptyText="Sin pedidos registrados en el período." ariaLabel="Pedidos por método de pago" />
-                </article>
-                <article class="report"><h3>Reservas por estado</h3><p class="muted">Reservas con horario en el período y sucursales seleccionadas</p>
-                  <fs-data-table [headers]="['Estado','Reservas']" [rows]="reservationRows(d)" emptyText="Sin reservas registradas." ariaLabel="Reservas por estado" />
-                </article>
-              </div>
-              <h3 class="section-label">Existencias</h3>
-              <article class="report">
-                <h3>Variantes con stock bajo</h3>
-                @if (d.low_stock_variants.length) {
-                  <div class="table" role="table" aria-label="Variantes con stock bajo">
-                    <div class="row head" role="row"><span role="columnheader">Prenda</span><span role="columnheader">Sucursal</span><span role="columnheader">Talla</span><span role="columnheader">Color</span><span role="columnheader">Stock</span></div>
-                    @for (v of d.low_stock_variants; track v.variant_id + '|' + v.branch_id) {
-                      <div class="row" role="row"><span role="cell"><b>{{ v.name }}</b><small>{{ v.sku }}</small></span><span role="cell">{{ v.branch }}</span><span role="cell">{{ v.size }}</span><span role="cell">{{ v.color }}</span><span role="cell"><b class="qty-low">{{ v.quantity }}</b></span></div>
-                    }
-                  </div>
-                } @else {
-                  <p class="empty">Ninguna variante está bajo el umbral. Podés exportar el reporte de existencias completo.</p>
-                }
-              </article>
-            </div>
-          </div>
-        </div>
-        <article class="report ai-pad">
-          <div class="ai-head"><div><p class="eyebrow">CENTRO DE IA</p><h3>Asistente de reportes</h3><p class="muted">Interpreta consultas y explica las métricas <b>recalculadas por el servidor</b> sobre el contexto visible.</p></div></div>
-          <div class="ai-grid">
-            <div class="ai-col">
-              <h4>Hacé una pregunta en lenguaje natural</h4>
-              <form (ngSubmit)="interpret()">
-                <input name="q" [(ngModel)]="interpretDraft" maxlength="300" placeholder='Ej: "ventas del último mes por sucursal"' [disabled]="interpreting()" aria-label="Consulta para interpretar" />
-                <button type="submit" [disabled]="interpreting() || !interpretDraft.trim()">{{ interpreting() ? 'Interpretando…' : 'Interpretar y filtrar' }}</button>
-              </form>
-              @if (interpretError()) { <p class="alert error" role="alert">{{ interpretError() }}</p> }
-              @if (interpretResult(); as r) {
-                <p class="insight-text" role="status">{{ r.respuesta }}</p>
-                @if (r.aclaraciones.length) { <ul class="notes">@for (a of r.aclaraciones; track a) { <li>{{ a }}</li> }</ul> }
-                <button type="button" class="ghost" (click)="applyInterpreted()">Aplicar vista y filtros interpretados</button>
-                @if (viewNote()) { <p class="muted">{{ viewNote() }}</p> }
-              }
-              <h4>Recomendaciones</h4>
-              @if (d.ai_ready) {
-                <button type="button" class="ghost" (click)="ask()" [disabled]="thinking()">{{ thinking() ? 'Analizando…' : 'Generar recomendaciones del contexto' }}</button>
-                @if (insight()) { <p class="insight-text" role="status">{{ insight() }}</p> }
-                @if (insightError()) { <p class="alert error" role="alert">{{ insightError() }}</p> }
-              } @else { <p class="empty">La IA explicativa no está configurada; las métricas reales ya están disponibles.</p> }
-            </div>
-            <div class="ai-col">
-              <h4>Explicar una métrica de esta vista</h4>
-              <form (ngSubmit)="explain()">
-                <input name="e" [(ngModel)]="explainDraft" maxlength="500" placeholder="¿Por qué bajan los pedidos pagados este período?" [disabled]="explaining()" aria-label="Pregunta para explicar" />
-                <button type="submit" [disabled]="explaining() || !explainDraft.trim()">{{ explaining() ? 'Analizando…' : 'Explicar' }}</button>
-              </form>
-              @if (explainError()) { <p class="alert error" role="alert">{{ explainError() }}</p> }
-              @if (explanation(); as ex) {
-                @if (ex.available && ex.sections) {
-                  @for (sec of sectionKeys; track sec) {
-                    <div class="explain-sec"><b>{{ sectionLabel(sec) }}</b><p>{{ ex.sections![sec] }}</p></div>
-                  }
-                } @else if (ex.message) { <p class="insight-text" role="status">{{ ex.message }}</p> }
-              }
-            </div>
-          </div>
-        </article>
-      }
-    </section>`,
-  styles: [`
-    :host{display:block;min-width:0}.dashboard{display:grid;gap:1rem;margin:1.5rem 0 2rem;min-width:0}.heading{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}.heading h2{font-size:1.65rem;margin:.25rem 0}.muted{font-size:.85rem;margin:.4rem 0;line-height:1.5}
-    .eyebrow{font-size:.67rem}.heading-actions{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}.heading-actions button.active{background:#24231f;color:#fff;border-color:#24231f}
-    select.field{font-size:.78rem;padding:.38rem .6rem;border-radius:8px;vertical-align:middle}
-    .export-panel{display:grid;gap:.6rem;background:#fff;border:1px solid #e5ded5;border-radius:16px;padding:.9rem 1rem;margin-top:-.2rem}.export-head{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap}.export-head b{font-size:.9rem}.export-head .muted{font-size:.78rem;color:#645d55;margin:0}
-    .export-reports{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center}.check{display:inline-flex;gap:.35rem;align-items:center;font-size:.82rem;background:#fff;border:1px solid #e5ded5;border-radius:20px;padding:.28rem .65rem}.check input{accent-color:#74394E;width:auto}
-    .export-actions{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}.busy{letter-spacing:.2em;color:#645d55;animation:fsbusy 1.2s ease-in-out infinite}@keyframes fsbusy{0%,100%{opacity:.25}50%{opacity:1}}
-    .export-panel .done{color:#217A65;font-size:.82rem;margin:0}.export-panel .error{margin:0}
-    .filters{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
-    .period-bar{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}.period-bar button{font-size:.75rem;padding:.4rem .8rem;border-radius:20px}.period-bar button.active{background:#24231f;color:#fff;border-color:#24231f}
-    .chip-clear{font-size:.75rem;padding:.4rem .8rem;border-radius:20px;background:#f5efe8;border-color:#e5ded5;color:#645d55}
-    .slide-switch{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;border-bottom:1px solid #e5ded5;padding-bottom:.6rem}
-    .slide-tabs{display:flex;gap:.5rem;flex-wrap:wrap}.slide-tabs button{font-size:.82rem;font-weight:600;padding:.5rem 1rem;border-radius:20px;background:#fff;border:1px solid #e5ded5;display:inline-flex;align-items:center;gap:.5rem}
-    .slide-tabs button.active{background:#24231f;color:#fff;border-color:#24231f}.slide-tabs button.active .slide-num{background:#fff;color:#24231f}
-    .slide-num{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#f5efe8;color:#645d55;font-size:.68rem;font-weight:700}
-    .slide-arrows{display:flex;gap:.4rem}.slide-arrows button{width:38px;padding:0;font-size:1.1rem;line-height:1}
-    .carousel-viewport{overflow:hidden}.carousel-track{display:flex;transition:transform .35s ease}.carousel-slide{flex:0 0 100%;min-width:0;display:grid;gap:1rem;align-content:start}
-    .section-label{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#928268;margin:.4rem 0 -.4rem}
-    .metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:.85rem}.metrics article,.report{background:#fff;border:1px solid #e5ded5;border-radius:16px;padding:1.15rem;min-width:0}.metrics article{display:grid;gap:.6rem;align-content:start}.metrics span{font-size:.8rem;color:#645d55}.metrics strong{font-size:clamp(1rem,1.8vw,1.5rem);line-height:1.2;overflow-wrap:anywhere}.metrics small{font-size:.73rem;color:#756c62;line-height:1.4}
-    .delta{display:inline-block;font-size:.75rem;padding:.15rem .45rem;border-radius:12px;justify-self:start}.delta.good{color:#217A65;background:#e3f1ec}.delta.bad{color:#B93845;background:#fbe6e8}
-    .trend-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:1rem;align-items:start}
-    .charts-grid,.pies-grid,.tables-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;align-items:start}.pies-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
-    .report h3{font-size:1.1rem;margin:0 0 .45rem}
-    .trend-card{display:grid;gap:.6rem}.trend-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap}.trend-heading h3{margin:0 0 .3rem}.trend-badge{font-size:.75rem;font-weight:600;background:#f5efe8;padding:.35rem .7rem;border-radius:20px;white-space:nowrap}
-    .alert-big{font-size:2rem;font-weight:700;margin:.3rem 0}.alert-ok{color:#217A65}
-    .alert.strip{display:flex;gap:1rem;align-items:center;flex-wrap:wrap;justify-content:space-between;background:#fbe6e8;border:1px solid #f3b6c0;border-radius:16px;padding:1rem 1.15rem}
-    .rank{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:.65rem;align-items:center;padding:.8rem 0;border-bottom:1px solid #eee8e1;font-size:.83rem}.rank>span{overflow-wrap:anywhere}.rank small{font-weight:400}.position{background:#f5efe8;border-radius:50%;width:26px;height:26px;display:grid;place-items:center}
-    .empty{color:#756c62;font-size:.85rem;line-height:1.6;padding:.75rem 0;margin:0}
-    .compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}.compare{display:grid;gap:.3rem}
-    .table{border:1px solid #eee8e1;border-radius:12px;overflow:hidden;font-size:.8rem}.row{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(0,1.4fr) 60px 100px 64px;gap:.5rem;padding:.5rem .75rem;align-items:center;border-bottom:1px solid #f2eee8}.row.head{background:#f5efe8;font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.03em}.row:last-child{border-bottom:0}.row span{display:grid;gap:.1rem;overflow-wrap:anywhere}.qty-low{color:#B93845}
-    .ai-pad{display:grid;gap:1rem}.ai-head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap}.ai-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;align-items:start}.ai-col h4{font-size:.9rem;margin:.6rem 0 .5rem}.ai-col form{display:flex;gap:.5rem;flex-wrap:wrap}.ai-col input{flex:1 1 220px;min-width:0}
-    .notes{margin:.5rem 0;padding-left:1.2rem;font-size:.82rem;color:#645d55}.insight-text{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.9rem;line-height:1.7;margin:.5rem 0}.explain-sec{border-top:1px dashed #e5ded5;padding:.55rem 0}.explain-sec b{font-size:.78rem;text-transform:uppercase;color:#645d55}.explain-sec p{font-size:.84rem;line-height:1.6;margin:.2rem 0 0}
-    button{min-height:40px;white-space:normal;font-size:.82rem}.button.ghost,button.ghost{background:#fff;border:1px solid #e5ded5;color:#24231f}
-    @media(max-width:1000px){.metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.trend-grid,.ai-grid,.compare-grid,.pies-grid{grid-template-columns:1fr}.charts-grid,.tables-grid{grid-template-columns:1fr}}
-    @media(max-width:480px){.heading{align-items:flex-start;flex-direction:column}.heading h2{font-size:1.4rem}.metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem}.metrics article,.report{padding:.85rem;border-radius:12px}.metrics strong{font-size:1.1rem}.dashboard{gap:.8rem}.row{grid-template-columns:1fr 1fr;grid-auto-rows:auto}.row.head{display:none}.slide-tabs button{flex:1 1 auto;justify-content:center}}
-  `],
+  templateUrl: './dashboard.component.html',
+  styleUrl: './dashboard.component.scss',
 })
 export class DashboardComponent {
   private service = inject(DashboardService);
@@ -349,19 +58,70 @@ export class DashboardComponent {
   filters = signal<ReportQuery>({});
   compareMode = signal<'previous' | 'year_ago' | 'none'>('previous');
   customFrom = signal(''); customTo = signal('');
-  slide = signal<0 | 1>(0);
+  slide = signal<0 | 1 | 2>(0);
+  chartSlide = signal(0);
+  readonly sections = ['Gráficos', 'Tablas', 'Análisis IA'];
+  readonly chartSections = ['Ventas y evolución', 'Distribución y horarios', 'Operación y catálogo'];
+  tableKind = signal('daily');
+  readonly tableOptions = [
+    {key:'daily', label:'Ventas diarias'}, {key:'products', label:'Prendas vendidas'},
+    {key:'monthly', label:'Ventas mensuales'}, {key:'categories', label:'Categorías'},
+    {key:'branches', label:'Sucursales'}, {key:'hours', label:'Horas'}, {key:'weekdays', label:'Días de la semana'},
+    {key:'orders', label:'Estado de pedidos'}, {key:'payments', label:'Métodos de pago'},
+    {key:'reservations', label:'Reservas'}, {key:'stock', label:'Stock bajo'},
+  ];
+  rangeFrom = ''; rangeTo = '';
+  rangeError = signal('');
+  setChart(n: number) { this.chartSlide.set(Math.max(0, Math.min(2, n))); }
+  moveSlide(step: number) { this.setSlide(Math.max(0, Math.min(2, this.slide() + step)) as 0 | 1 | 2); }
+  tabKey(event: KeyboardEvent) {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    this.setSlide(event.key === 'Home' ? 0 : event.key === 'End' ? 2 : ((this.slide() + (event.key === 'ArrowRight' ? 1 : 2)) % 3) as 0 | 1 | 2);
+    (event.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>('[role="tab"]')[this.slide()]?.focus();
+  }
+  applyDates() {
+    if ((!this.rangeFrom && !this.rangeTo) || (this.rangeFrom && this.rangeTo && this.rangeFrom > this.rangeTo)) {
+      this.rangeError.set('Elegí un rango válido; la fecha inicial no puede superar la final.'); return;
+    }
+    this.rangeError.set('');
+    this.customFrom.set(this.rangeFrom ? this.rangeFrom + 'T00:00:00-04:00' : '');
+    this.customTo.set(this.rangeTo ? this.rangeTo + 'T23:59:59.999-04:00' : '');
+    void this.load();
+  }
+  cumulativeTrend(): TrendPoint[] {
+    let total = 0;
+    return this.actualTrend().map(p => ({ label: p.label, value: total += p.value }));
+  }
+  productBars(): BarChartItem[] { return (this.data()?.top_products ?? []).map(p => ({label:p.name, value:p.quantity})); }
+  reservationPie(d: Dashboard): PieSlice[] { return d.reservations_by_status.map(r => ({label:this.label(r.status), value:r.count})); }
+  tableData(d: Dashboard): {headers: string[]; rows: (string | number)[][]} {
+    switch(this.tableKind()) {
+      case 'products': return {headers:['Prenda','Unidades'], rows:d.top_products.map(p=>[p.name,p.quantity])};
+      case 'monthly': return {headers:['Mes','Ingresos ('+d.currency+')','Pedidos'],rows:d.monthly_sales.map(m=>[m.month,Number(m.total),m.orders])};
+      case 'categories': return {headers:['Categoría','Ingresos ('+d.currency+')','Unidades'],rows:d.category_breakdown.map(c=>[c.category,Number(c.total),c.quantity])};
+      case 'branches': return {headers:['Sucursal','Ingresos ('+d.currency+')','Pedidos'],rows:d.branch_performance.map(b=>[b.branch,Number(b.total),b.orders])};
+      case 'hours': return {headers:['Hora','Ingresos ('+d.currency+')','Pedidos'],rows:d.hourly_distribution.map(h=>[h.hour+':00',Number(h.total),h.orders])};
+      case 'weekdays': return {headers:['Día','Ingresos ('+d.currency+')','Pedidos'],rows:d.weekday_distribution.map(w=>[w.weekday,Number(w.total),w.orders])};
+      case 'orders': return {headers:['Estado','Pedidos'],rows:this.statuses(d).map(s=>[s.label,s.count])};
+      case 'payments': return {headers:['Medio','Pedidos'],rows:d.payment_methods.map(m=>[this.label(m.method),m.orders])};
+      case 'reservations': return {headers:['Estado','Reservas'],rows:d.reservations_by_status.map(r=>[this.label(r.status),r.count])};
+      case 'stock': return {headers:['Prenda','SKU','Sucursal','Talla','Color','Stock'],rows:d.low_stock_variants.map(v=>[v.name,v.sku,v.branch,v.size,v.color,v.quantity])};
+      default: return {headers:['Fecha','Ingresos ('+d.currency+')'],rows:d.daily_sales.map(day=>[day.date,Number(day.total)])};
+    }
+  }
   period = signal<Period>('90');
   periods = PERIODS;
   statusOptions = Object.entries(STATUS_LABEL).map(([key, label]) => ({ key, label }));
   branches = signal<Branch[]>([]);
   categories = signal<Entity[]>([]);
   trendLabel = (trend: string) => TREND_LABEL[trend] ?? trend;
-  label = (key: string) => STATUS_LABEL[key] ?? METHOD_LABEL[key] ?? key;
+  label = (key: string) => STATUS_LABEL[key] ?? METHOD_LABEL[key] ?? ({confirmed:'Confirmada', pending:'Pendiente', completed:'Completada', no_show:'No asistió'} as Record<string,string>)[key] ?? key;
   sectionKeys = ['hallazgo', 'cifras', 'interpretacion', 'accion', 'limitaciones'] as const;
   sectionLabel = (k: string) => ({ hallazgo: 'Hallazgo', cifras: 'Cifras', interpretacion: 'Interpretación', accion: 'Acción sugerida', limitaciones: 'Limitaciones' })[k] ?? k;
   exporting = signal(false); exportError = signal('');
   exportReportSel = signal<ExportReport>('ventas');
-  exportOpen = signal(true);
+  exportOpen = signal(false);
   selReports = signal<ExportReport[]>([]);
   multiExporting = signal(false); multiError = signal(''); multiDone = signal('');
   exportOptions = ALL_REPORTS.map((value) => ({ value, label: ({ ventas: 'Ventas', pedidos: 'Pedidos', pagos: 'Pagos', prendas_vendidas: 'Prendas vendidas', existencias: 'Existencias', sucursales: 'Sucursales' })[value] }));
@@ -385,6 +145,7 @@ export class DashboardComponent {
   /** Aplica en la pantalla un query pedido desde el chat (asistente): actualiza
    * los selects y el rango de fechas visibles y recalcula con esos filtros. */
   private applyFilterQuery(q: ReportQuery) {
+    this.setSlide(0);
     this.filters.update((f) => ({
       ...f,
       branch_id: q.branch_id ?? null,
@@ -394,6 +155,7 @@ export class DashboardComponent {
     }));
     this.customFrom.set(q.date_from ?? '');
     this.customTo.set(q.date_to ?? '');
+    if (!q.date_from && !q.date_to) this.period.set('all');
     void this.load();
   }
   private async loadLists() {
@@ -403,10 +165,10 @@ export class DashboardComponent {
     } catch { /* los filtros de catálogo fallan silenciosamente */ }
   }
   customRange() {
-    if (this.customFrom() || this.customTo()) return this.customFrom() || '…inicio' + (this.customTo() ? ' → ' + this.customTo().slice(0, 10) : '');
+    if (this.customFrom() || this.customTo()) return (this.customFrom().slice(0, 10) || 'Inicio') + ' → ' + (this.customTo().slice(0, 10) || 'Hoy');
     return '';
   }
-  setSlide(n: 0 | 1) {
+  setSlide(n: 0 | 1 | 2) {
     this.slide.set(n);
   }
   setPeriod(p: Period) {
@@ -473,7 +235,7 @@ export class DashboardComponent {
     }
   }
   reservationsTotal() { return (this.data()?.reservations_by_status ?? []).reduce((sum, r) => sum + r.count, 0); }
-  lowStockThreshold() { return 5; }
+  lowStockThreshold() { return this.appliedQuery().low_stock_lt ?? 5; }
   statuses(d: Dashboard) {
     return Object.entries(d.by_status ?? {}).map(([key, count]) => ({ key, count, label: STATUS_LABEL[key] ?? key }));
   }
@@ -612,13 +374,17 @@ export class DashboardComponent {
   }
   applyInterpreted() {
     const r = this.interpretResult();
-    if (!r) return;
-    const f = r.filtros;
-    this.filters.update((prev) => ({ ...prev, branch_id: f.branch_id ?? null, category_id: f.category_id ?? null, status: f.status ?? '' }));
-    if (f.date_from) this.customFrom.set(f.date_from);
-    if (f.date_to) this.customTo.set(f.date_to);
+    if (!r || !r.ok) return;
+    const f = queryForCommand(this.interpretDraft, r.filtros, this.appliedQuery());
+    this.filters.update((prev) => ({ ...prev, branch_id: f.branch_id ?? null, category_id: f.category_id ?? null, status: f.status ?? '', low_stock_lt: f.low_stock_lt }));
+    this.customFrom.set(f.date_from ?? '');
+    this.customTo.set(f.date_to ?? '');
+    if (!f.date_from && !f.date_to) this.period.set('all');
     const target = VISTA_SLIDE[r.vista];
     if (target !== undefined) this.setSlide(target);
+    if (r.vista === 'sucursales' || r.vista === 'comparativas') this.setChart(1);
+    if (r.vista === 'productos_inventario') this.tableKind.set('stock');
+    if (r.vista === 'reservas') this.tableKind.set('reservations');
     this.viewNote.set('');
     r.aclaraciones.length
       ? this.viewNote.set('Aclaraciones: ' + r.aclaraciones.join(' '))

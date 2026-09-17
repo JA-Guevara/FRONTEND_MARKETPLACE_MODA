@@ -205,8 +205,9 @@ export class NuevaReservaComponent {
   }
   canConfirm() {
     const items = this.tryOn.items();
-    if (!items.length || !this.branchId || !this.scheduledAt) return false;
-    if (new Date(this.scheduledAt).getTime() <= Date.now()) return false;
+    if (this.busy() || !items.length || !this.branchId || !this.scheduledAt) return false;
+    const timestamp = new Date(this.scheduledAt).getTime();
+    if (!Number.isFinite(timestamp) || timestamp <= Date.now()) return false;
     if (this.queryState() !== 'idle') return false;
     if (this.availability().length !== items.length) return false;
     return this.unavailable.length === 0;

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { PoseTrackingService } from './pose-tracking.service';
 import { LEFT_SHOULDER, RIGHT_SHOULDER } from './pose-projection';
@@ -15,6 +15,65 @@ describe('PoseTrackingService (contrato con PoseLandmarker)', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({ providers: [PoseTrackingService] });
     service = TestBed.inject(PoseTrackingService);
+  });
+
+  afterEach(() => {
+    service.dispose();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  function mockLoader(create = vi.fn().mockResolvedValue({ detectForVideo: vi.fn(), close: vi.fn() })) {
+    const forVisionTasks = vi.fn().mockResolvedValue({});
+    const loader = vi.spyOn(service as any, 'importModule').mockResolvedValue({
+      FilesetResolver: { forVisionTasks }, PoseLandmarker: { createFromOptions: create },
+    });
+    return { loader, forVisionTasks, create };
+  }
+
+  it('carga el módulo ES publicado sin depender de globals y libera el detector real', async () => {
+    const close = vi.fn();
+    const create = vi.fn().mockResolvedValue({ detectForVideo: vi.fn(), close });
+    const { loader } = mockLoader(create);
+    const first = service.ensure();
+    expect(service.ensure()).toBe(first);
+    expect(await first).toBe(true);
+    expect(loader).toHaveBeenCalledWith(expect.stringContaining('/vision_bundle.mjs'));
+    service.dispose();
+    expect(close).toHaveBeenCalledOnce();
+    expect(service.ready()).toBe(false);
+  });
+
+  it('reintenta por CPU si la GPU falla', async () => {
+    const create = vi.fn().mockRejectedValueOnce(new Error('WebGL')).mockResolvedValue({ detectForVideo: vi.fn(), close: vi.fn() });
+    mockLoader(create);
+    expect(await service.ensure()).toBe(true);
+    expect(create.mock.calls[1][1].baseOptions.delegate).toBe('CPU');
+  });
+
+  it('descarta y cierra un detector cuya creación termina después de salir', async () => {
+    let finish!: (value: unknown) => void;
+    const close = vi.fn();
+    const create = vi.fn().mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    mockLoader(create);
+    const pending = service.ensure();
+    await Promise.resolve();
+    await Promise.resolve();
+    service.dispose();
+    finish({ detectForVideo: vi.fn(), close });
+    expect(await pending).toBe(false);
+    expect(close).toHaveBeenCalledOnce();
+    expect(service.ready()).toBe(false);
+  });
+
+  it('una descarga detenida termina y permite volver a intentar', async () => {
+    vi.useFakeTimers();
+    const { loader } = mockLoader();
+    loader.mockReturnValueOnce(new Promise(() => {}));
+    const pending = service.ensure();
+    await vi.advanceTimersByTimeAsync(20001);
+    expect(await pending).toBe(false);
+    expect(await service.ensure()).toBe(true);
   });
 
   it('lee la pose del resultado real: `landmarks` (no `poseLandmarks`)', () => {

@@ -563,6 +563,7 @@ export class AssistantWidgetComponent implements OnDestroy {
       const current = continuation && this.lastExport ? this.lastExport.query : this.assistantContext.report();
       const interpreted = await firstValueFrom(this.dashboard.interpret(text, current));
       if (version !== this.conversationVersion) return;
+      if (!interpreted.ok) throw new Error(interpreted.aclaraciones.join(' ') || 'Necesito aclarar los filtros antes de exportar.');
       const format: 'xlsx' | 'pdf' | 'csv' = /\bpdf\b/.test(normalized) ? 'pdf' : /\bcsv\b/.test(normalized) ? 'csv' : 'xlsx';
       let reports = requestedReports(text);
       if (!reports.length && continuation && this.lastExport) reports = this.lastExport.reports;
@@ -659,10 +660,12 @@ export class AssistantWidgetComponent implements OnDestroy {
    * métricas con el contexto visible y la IA arma hallazgo/cifras/interpretación/
    * acción/limitaciones. */
   private async requestExplain(text: string) {
+    const version = this.conversationVersion;
     this.busy.set(true);
     this.setBot('processing');
     try {
       const result = await firstValueFrom(this.dashboard.explain(text, this.assistantContext.report()));
+      if (version !== this.conversationVersion) return;
       let reply: string;
       if (result.available && result.sections) {
         const s = result.sections;
@@ -694,11 +697,14 @@ export class AssistantWidgetComponent implements OnDestroy {
    * pedido como cualquier otro reporte, pero el filtro resuelto se APLICA en la
    * pantalla del dashboard (no se queda solo en el chat). */
   private async requestApply(text: string) {
+    const version = this.conversationVersion;
     this.busy.set(true);
     this.setBot('processing');
     try {
       const current = this.assistantContext.report();
       const interpreted = await firstValueFrom(this.dashboard.interpret(text, current));
+      if (version !== this.conversationVersion) return;
+      if (!interpreted.ok) throw new Error(interpreted.aclaraciones.join(' ') || 'Necesito aclarar los filtros antes de aplicarlos.');
       const q = queryForCommand(text, interpreted.filtros, current);
       const mentionsBranchButNotGrouping =
         /sucursal|local|tienda\s+de/i.test(text) && !/por\s+sucursal/i.test(text);

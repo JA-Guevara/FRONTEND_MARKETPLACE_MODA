@@ -44,6 +44,52 @@ describe('Centro de reportes', () => {
     await fixture.whenStable(); fixture.detectChanges();
     expect((load.mock.calls[2][0] as { date_from?: string }).date_from).toBeUndefined();
   });
+  it('mantiene un único panel activo al recorrer gráficos, tablas e IA', async () => {
+    const insights=vi.fn();
+    TestBed.configureTestingModule({imports:[DashboardComponent],providers:[{provide:DashboardService,useValue:{load:()=>of(empty),insights}}]});
+    const fixture=TestBed.createComponent(DashboardComponent);
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('[role="tabpanel"]').length).toBe(1);
+    fixture.componentInstance.setSlide(1); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.metrics')).toBeNull();
+    expect(fixture.nativeElement.querySelector('fs-data-table')).not.toBeNull();
+    fixture.componentInstance.setSlide(2); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('fs-data-table')).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Esta sección no entrena modelos');
+    expect(insights).not.toHaveBeenCalled();
+  });
+  it('el carrusel de gráficos cambia el grupo sin perder el período ni recargar datos', async () => {
+    const load=vi.fn().mockReturnValue(of(empty));
+    TestBed.configureTestingModule({imports:[DashboardComponent],providers:[{provide:DashboardService,useValue:{load}}]});
+    const fixture=TestBed.createComponent(DashboardComponent);
+    await fixture.whenStable(); fixture.detectChanges();
+    const query=fixture.componentInstance.appliedQuery();
+    fixture.componentInstance.setChart(2); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('fs-pie-chart').length).toBe(4);
+    expect(fixture.nativeElement.querySelector('fs-trend-chart')).toBeNull();
+    expect(fixture.componentInstance.appliedQuery()).toEqual(query);
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+  it('rechaza un rango invertido y envía límites completos de los días de Bolivia', async () => {
+    const load=vi.fn().mockReturnValue(of(empty));
+    TestBed.configureTestingModule({imports:[DashboardComponent],providers:[{provide:DashboardService,useValue:{load}}]});
+    const fixture=TestBed.createComponent(DashboardComponent);
+    await fixture.whenStable();
+    const c=fixture.componentInstance;
+    c.rangeFrom='2026-09-17'; c.rangeTo='2026-09-01'; c.applyDates();
+    expect(c.rangeError()).toBeTruthy(); expect(load).toHaveBeenCalledTimes(1);
+    c.rangeTo='2026-09-18'; c.applyDates();
+    expect(load).toHaveBeenLastCalledWith(expect.objectContaining({date_from:'2026-09-17T00:00:00-04:00',date_to:'2026-09-18T23:59:59.999-04:00'}));
+  });
+  it('permite cambiar las pestañas con teclado y conserva el foco', async () => {
+    TestBed.configureTestingModule({imports:[DashboardComponent],providers:[{provide:DashboardService,useValue:{load:()=>of(empty)}}]});
+    const fixture=TestBed.createComponent(DashboardComponent); await fixture.whenStable(); fixture.detectChanges();
+    const tabs=fixture.nativeElement.querySelectorAll('[role="tab"]');
+    tabs[0].focus(); tabs[0].dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true})); fixture.detectChanges();
+    expect(fixture.componentInstance.slide()).toBe(2);
+    expect(document.activeElement).toBe(tabs[2]);
+    expect(tabs[2].getAttribute('aria-selected')).toBe('true');
+  });
   it('presenta error recuperable sin sustituirlo por métricas ficticias', async () => {
     TestBed.configureTestingModule({ imports: [DashboardComponent], providers: [{ provide: DashboardService, useValue: { load: () => throwError(() => new Error('Servidor no disponible')) } }] });
     const fixture = TestBed.createComponent(DashboardComponent);
@@ -56,6 +102,7 @@ describe('Centro de reportes', () => {
     TestBed.configureTestingModule({ imports: [DashboardComponent], providers: [{ provide: DashboardService, useValue: { load: () => of(empty), insights: vi.fn(), exportMultiple: vi.fn() } }] });
     const fixture = TestBed.createComponent(DashboardComponent);
     await fixture.whenStable(); fixture.detectChanges();
+    fixture.componentInstance.exportOpen.set(true);
     fixture.componentInstance.selReports.set([]);
     fixture.detectChanges();
     const excel = Array.from(fixture.nativeElement.querySelectorAll('button') as HTMLButtonElement[]).find((b) => b.textContent?.trim() === 'Excel');

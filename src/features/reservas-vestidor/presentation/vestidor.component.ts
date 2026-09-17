@@ -28,7 +28,7 @@ import {
 type CameraState = 'off' | 'requesting' | 'active' | 'error';
 type PoseState = 'off' | 'busy' | 'searching' | 'tracking' | 'lost';
 
-/** Superposición manual 2D: no detecta postura ni determina la talla. */
+/** Superposición 2D manual o guiada por postura; no determina la talla. */
 @Component({
   selector: 'fs-vestidor',
   imports: [RouterLink, IconComponent],
@@ -41,7 +41,7 @@ type PoseState = 'off' | 'busy' | 'searching' | 'tracking' | 'lost';
       >← Volver a la prenda</a
     >
     <header>
-      <p class="eyebrow">PROBADOR VIRTUAL · AJUSTE MANUAL</p>
+      <p class="eyebrow">PROBADOR VIRTUAL · CÁMARA Y POSTURA</p>
       <h1>{{ productName() || 'Probador virtual' }}</h1>
       <p>
         Ubicá la imagen de la prenda sobre tu cámara. Esta vista es orientativa y no determina tu
@@ -221,14 +221,13 @@ type PoseState = 'off' | 'busy' | 'searching' | 'tracking' | 'lost';
             </div>
           }
           <p class="fitting-note">
-            La cámara no se graba ni se envía al servidor. El movimiento de la prenda se ajusta
-            manualmente.
+            La cámara no se graba ni se envía al servidor. Elegí ajuste manual o seguimiento de postura.
           </p>
           <p class="fitting-note">
             {{
               poseMode()
                 ? 'El seguimiento procesa el video en tu navegador (MediaPipe): ajusta posición, tamaño e inclinación a medida que te movés. No se promete talla exacta, tela ni comportamiento 3D. Podés arrastrar/ajustar en cualquier momento.'
-                : 'Modo manual: mové, girás y escalás la prenda vos. Podés activar el seguimiento para que la prenda siga tu torso.'
+                : 'Modo manual: mové y ajustá el tamaño de la prenda. Podés activar el seguimiento para que la prenda siga tu torso.'
             }}
           </p>
           @if (auditNotice()) {
@@ -386,6 +385,7 @@ export class VestidorComponent implements OnInit, OnDestroy {
       await video.play();
       if (this.destroyed || version !== this.cameraVersion) return;
       this.cameraState.set('active');
+      this.observeStage();
       void this.recordSession(this.loadVersion);
     } catch (e) {
       if (this.destroyed || version !== this.cameraVersion) return;
@@ -447,12 +447,13 @@ export class VestidorComponent implements OnInit, OnDestroy {
       this.poseError.set('Activá la cámara antes de usar el seguimiento de postura.');
       return;
     }
+    const generation = ++this.poseVersion;
     this.poseBusy.set(true);
     this.poseError.set('');
     this.poseState.set('busy');
     try {
       const ok = await this.poseService.ensure();
-      if (this.destroyed || this.cameraState() !== 'active') return;
+      if (this.destroyed || generation !== this.poseVersion || this.cameraState() !== 'active') return;
       if (!ok) {
         this.poseMode.set(false);
         this.poseState.set('off');
@@ -471,15 +472,17 @@ export class VestidorComponent implements OnInit, OnDestroy {
       this.poseState.set('searching');
       void this.runPoseLoop();
     } catch (e) {
+      if (this.destroyed || generation !== this.poseVersion) return;
       this.poseMode.set(false);
       this.poseState.set('off');
       this.poseError.set(errorMessage(e));
     } finally {
-      this.poseBusy.set(false);
+      if (generation === this.poseVersion) this.poseBusy.set(false);
     }
   }
   private stopPose(cameraEnded = false) {
     ++this.poseVersion;
+    this.poseBusy.set(false);
     this.poseMode.set(false);
     this.poseTracking.set(false);
     this.poseInitialized = false;
@@ -497,7 +500,7 @@ export class VestidorComponent implements OnInit, OnDestroy {
    * reacciona a la pérdida de detección. No se lanzan detecciones superpuestas:
    * cada iteración espera su intervalo y el versionado corta al salir. */
   private async runPoseLoop() {
-    const version = ++this.poseVersion;
+    const version = this.poseVersion;
     while (!this.destroyed && this.poseMode() && this.cameraState() === 'active') {
       if (this.poseVersion !== version) return;
       const video = this.videoRef?.nativeElement;

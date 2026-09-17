@@ -1,5 +1,7 @@
 # Estado y punto de reanudación
 
+Actualización 17/09 — Dashboard reorganizado en gráficos con carrusel, tablas explorables y análisis IA. Once gráficos, once tablas, rango de fechas, panel activo sin altura sobrante y navegación accesible. 170 pruebas frontend y build aprobados. Alternativas del probador aclaradas; no se implementó generación 3D. Ver [dashboard y decisión de probador](DASHBOARD_Y_DECISION_PROBADOR_2026-09-17.md). Sin despliegue.
+
 Actualización 17/09 — Retorno de Stripe con recuperación de sesión y consulta autenticada del pago; verificación manual para pedidos pendientes. Asistente con ejecución de exportaciones múltiples, PDF, enlaces descargables y aplicación/limpieza de filtros. **161 pruebas frontend, 84 backend y build aprobados**. Cambios locales, sin despliegue ni comprobación del pago real reportado. Ver [detalle y pasos de servidor](STRIPE_Y_ASISTENTE_2026-09-17.md). Las notas siguientes conservan sus fechas históricas.
 
 Actualización 16/09 (revisión del probador + Etapas 2–6): herramientas tipadas del asistente

@@ -7,7 +7,7 @@ import type { Landmark } from './pose-projection';
  * navegador/red no lo permite, el vestidor sigue funcionando con el ajuste
  * manual: el seguimiento es una mejora opcional que nunca interrumpe la cámara. */
 const VISION_CDN =
-  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.js';
+  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs';
 const WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm';
 const POSE_MODEL_URL =
   'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
@@ -22,6 +22,11 @@ export interface PoseLandmarkerResult {
   worldLandmarks?: unknown[];
 }
 
+interface PoseDetector {
+  detectForVideo(video: HTMLVideoElement, ts: number): PoseLandmarkerResult;
+  close(): void;
+}
+
 interface MediaPipeGlobal {
   FilesetResolver?: {
     forVisionTasks(wasmUrl: string): Promise<unknown>;
@@ -33,8 +38,8 @@ interface MediaPipeGlobal {
 
 @Injectable({ providedIn: 'root' })
 export class PoseTrackingService {
-  private landmarker: { detectForVideo(video: HTMLVideoElement, ts: number): PoseLandmarkerResult } | null =
-    null;
+  private landmarker: PoseDetector | null = null;
+  private generation = 0;
   private init: Promise<boolean> | null = null;
   private lastRun = 0;
 
@@ -47,43 +52,61 @@ export class PoseTrackingService {
    * sigue disponible. Un fallo de descarga se puede reintentar con otra llamada. */
   ensure(): Promise<boolean> {
     if (this.landmarker) return Promise.resolve(true);
-    if (!this.init) this.init = this.load();
+    if (!this.init) this.init = this.load(++this.generation);
     return this.init;
   }
 
-  private async load(): Promise<boolean> {
+  private importModule(url: string): Promise<MediaPipeGlobal> {
+    // El paquete 0.10.14 publica un módulo ES .mjs; no publica vision_bundle.js
+    // ni expone FilesetResolver/PoseLandmarker como variables de window.
+    return import(/* @vite-ignore */ url);
+  }
+
+  private async initialize(generation: number): Promise<boolean> {
+    const api = await this.importModule(VISION_CDN);
+    if (generation !== this.generation) return false;
+    if (!api.FilesetResolver || !api.PoseLandmarker) return false;
+    const fileset = await api.FilesetResolver.forVisionTasks(WASM_URL);
+    if (generation !== this.generation) return false;
+    const detector = await this.createLandmarker(fileset, api);
+    if (generation !== this.generation) {
+      detector.close();
+      return false;
+    }
+    // Conservar el objeto real: el wrapper anterior descartaba close() y
+    // dejaba recursos de WASM/GPU abiertos al abandonar el probador.
+    this.landmarker = detector;
+    return true;
+  }
+
+  private async load(generation: number): Promise<boolean> {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
-      const win = window as unknown as Record<string, unknown>;
-      const hasApi =
-        typeof win['FilesetResolver'] === 'function' && typeof win['PoseLandmarker'] === 'function';
-      if (!hasApi) {
-        await this.loadScript(VISION_CDN);
-      }
-      const g = window as unknown as MediaPipeGlobal;
-      if (!g.FilesetResolver || !g.PoseLandmarker) {
-        return false;
-      }
-      const fileset = await g.FilesetResolver.forVisionTasks(WASM_URL);
-      const poseLandmarker = await this.createLandmarker(fileset);
-      this.landmarker = {
-        detectForVideo: (video, ts) =>
-          poseLandmarker.detectForVideo(video, ts) as PoseLandmarkerResult,
-      };
-      return true;
+      const result = await Promise.race([
+        this.initialize(generation),
+        new Promise<boolean>((_, reject) => {
+          timeout = setTimeout(() => reject(new Error('Tiempo de carga agotado.')), 20000);
+        }),
+      ]);
+      if (!result && generation === this.generation) this.init = null;
+      return result;
     } catch {
-      this.landmarker = null;
+      if (generation === this.generation) {
+        ++this.generation; // descartar/liberar cualquier detector tardío
+        this.landmarker = null;
+        this.init = null;
+      }
       return false;
     } finally {
-      // Un carga fallida se puede reintentar manualmente desde el vestidor.
-      if (!this.landmarker) this.init = null;
+      if (timeout !== undefined) clearTimeout(timeout);
     }
   }
 
   private async createLandmarker(
     fileset: unknown,
-  ): Promise<{ detectForVideo(video: HTMLVideoElement, ts: number): PoseLandmarkerResult }> {
-    const win = window as unknown as MediaPipeGlobal;
-    const creator = win.PoseLandmarker!;
+    api: MediaPipeGlobal,
+  ): Promise<PoseDetector> {
+    const creator = api.PoseLandmarker!;
     const options = {
       baseOptions: {
         modelAssetPath: POSE_MODEL_URL,
@@ -98,35 +121,13 @@ export class PoseTrackingService {
       minTrackingConfidence: 0.5,
     };
     try {
-      return (await creator.createFromOptions(fileset, options)) as {
-        detectForVideo(video: HTMLVideoElement, ts: number): PoseLandmarkerResult;
-      };
+      return (await creator.createFromOptions(fileset, options)) as PoseDetector;
     } catch {
       return (await creator.createFromOptions(fileset, {
         ...options,
         baseOptions: { ...options.baseOptions, delegate: 'CPU' as const },
-      })) as {
-        detectForVideo(video: HTMLVideoElement, ts: number): PoseLandmarkerResult;
-      };
+      })) as PoseDetector;
     }
-  }
-
-  private loadScript(src: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const id = 'mediapipe-tasks-vision';
-      // Un <script> que ya falló se descarta y se recrea: si se reutilizara con
-      // el mismo src, su load no volvería a dispararse y la espera colgaría.
-      const previous = document.getElementById(id);
-      if (previous) previous.remove();
-      const script = document.createElement('script');
-      script.id = id;
-      script.src = src;
-      script.async = true;
-      script.onload = () => resolve();
-      script.onerror = () =>
-        reject(new Error('No se pudo descargar MediaPipe (sin conexión o CDN bloqueado).'));
-      document.head.appendChild(script);
-    });
   }
 
   /** Detecta la pose en el fotograma actual. Devuelve los landmarks de la pose
@@ -146,6 +147,8 @@ export class PoseTrackingService {
   }
 
   dispose() {
+    ++this.generation;
+    this.lastRun = 0;
     try {
       (this.landmarker as { close?: () => void } | null)?.close?.();
     } catch {
