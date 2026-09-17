@@ -67,13 +67,16 @@ import { resources } from '../shared/resources';
             <a routerLink="/admin/bitacora" routerLinkActive="active">Bitácora<span>↗</span></a>
           </nav>
         }
-        @if (session.can('commerce.read') || session.can('stock.read') || session.can('reservations.read')) {
+        @if (session.can('commerce.read') || session.can('commerce.write') || session.can('stock.read') || session.can('reservations.read')) {
           <h3>Ventas e inventario</h3>
           <nav aria-label="Ventas e inventario">
             @if (session.can('commerce.read')) {
               <a routerLink="/admin/pedidos" routerLinkActive="active"
                 >Pedidos y pagos<span>↗</span></a
               >
+            }
+            @if (session.can('commerce.write')) {
+              <a routerLink="/admin/caja" routerLinkActive="active">Caja<span>↗</span></a>
             }
             @if (session.can('stock.read')) {
               <a routerLink="/admin/stock" routerLinkActive="active">Existencias<span>↗</span></a>

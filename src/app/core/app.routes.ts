@@ -175,6 +175,14 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'caja',
+        title: 'Caja | FashionStore',
+        canActivate: [authGuard],
+        data: { permission: 'commerce.write' },
+        loadComponent: () =>
+          import('../../features/ventas-pagos/presentation/pos-page.component').then((m) => m.PosPageComponent),
+      },
+      {
         path: '',
         title: 'Administración | FashionStore',
         loadComponent: () =>
