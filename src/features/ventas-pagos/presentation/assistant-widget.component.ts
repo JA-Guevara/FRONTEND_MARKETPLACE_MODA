@@ -1,4 +1,4 @@
-import { Component, DestroyRef, ElementRef, OnDestroy, ViewChild, inject, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, OnDestroy, ViewChild, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NavigationEnd, Router } from '@angular/router';
 import { filter, firstValueFrom } from 'rxjs';
@@ -12,41 +12,8 @@ import { IconComponent } from '../../../shared/icon.component';
 import { BotAvatarComponent, BotState } from '../../../shared/bot-avatar.component';
 import { AssistantContextService } from '../../../shared/assistant-context.service';
 import { errorMessage } from '../../../shared/errors';
+import { assistantIntent, clearsFilter, commandText, queryForCommand, requestedReports } from '../application/assistant-intent';
 
-/** Pedidos de alta de prenda ("registrame una campera...", "creá un producto
- * nuevo..."): se detectan por palabras clave, nunca por IA, para decidir de
- * forma predecible si se muestra el borrador editable en vez de la respuesta
- * de texto normal. */
-const PRODUCT_INTENT = /\b(registra|registrar|registrame|crea|crear|creame|agrega|agregar|agregame|da(?:me)? de alta|alta de)\b.*\b(prenda|producto|camisa|remera|pantalon|campera|chaqueta|vestido|falda|short|buzo|casaca|polera)\b/i;
-/** Palabras que indican que el pedido es sobre un reporte del dashboard
- * (ventas, pedidos, existencias, etc.), para distinguir "exportame el reporte
- * de ventas" o "explicame por qué bajaron los pedidos" de una pregunta
- * general de la tienda. */
-const REPORT_NOUNS = 'reporte|dashboard|ventas|ingresos|pedidos|pagos|existencias|stock|sucursales|prendas vendidas|ticket|reservas|tendencia';
-/** Referencias al contexto visible del dashboard: "exportá esto", "explicame
- * eso mismo". Sin un sustantivo de reporte, estas frases le dicen al asistente
- * que trabaje con los filtros que la pantalla ya está mostrando. */
-const CONTEXT_TERMS = 'esto|eso|eso mismo|lo que estoy viendo|lo que veo|en pantalla|el contexto actual|este contexto|este dashboard';
-/** Fin de palabra tolerante a acentos: "exportá" termina en "á", que JS no
- * considera palabra, así que \b no existe ahí. El lookahead impide que la
- * conjugación sea parte de una palabra más larga ("exportarx"). */
-const UI_WORD_END = '(?![a-z0-9_])';
-const EXPORT_INTENT = new RegExp(
-  `\\b(export[aá](me)?|exportar|descarga(me)?|descargar|b[aá]jame|mand[aá]me|envi[aá]me|pasame)${UI_WORD_END}(?:[^.!?]){0,60}?\\b(${REPORT_NOUNS}|${CONTEXT_TERMS})\\b`,
-  'i',
-);
-const EXPLAIN_INTENT = new RegExp(
-  `\\b(explic[aá](me)?|explicar|analiza(me)?|analizame|interpreta(me)?|por ?qu[eé])${UI_WORD_END}(?:[^.!?]){0,60}?\\b(${REPORT_NOUNS}|${CONTEXT_TERMS})\\b`,
-  'i',
-);
-/** Pedidos de ver un reporte con un filtro en la pantalla: "mostrame ventas de
- * la sucursal norte", "filtrá el dashboard por la categoría camisas". Se
- * interpretan igual que los demás y el filtro resuelto se APLICA en el
- * dashboard (Etapa 3), además de responder por chat. */
-const APPLY_INTENT = new RegExp(
-  `\\b(mostr[ae](me)?|muestr[ae](me)?|filtr[ae](me)?|aplic[aá]\\s+(el\\s+|este\\s+|los\\s+)?filtros?)\\b(?:[^.!?]){0,80}?\\b(${REPORT_NOUNS}|${CONTEXT_TERMS})\\b`,
-  'i',
-);
 const EXPORT_REPORT_LABEL: Record<ExportReport, string> = {
   ventas: 'ventas', pedidos: 'pedidos', pagos: 'pagos',
   prendas_vendidas: 'prendas vendidas', existencias: 'existencias', sucursales: 'sucursales',
@@ -85,7 +52,9 @@ const MODULE_LABELS: { prefix: string; label: string }[] = [
   { prefix: '/admin/pedidos', label: 'Pedidos y pagos (gestión)' },
   { prefix: '/admin/stock', label: 'Existencias (gestión)' },
   { prefix: '/admin/bitacora', label: 'Bitácora' },
-  { prefix: '/admin', label: 'Dashboard de reportes' },
+  { prefix: '/admin/dashboard', label: 'Dashboard de reportes' },
+  { prefix: '/admin/products', label: 'Prendas (gestión)' },
+  { prefix: '/admin', label: 'Administración' },
   { prefix: '/reservar', label: 'Nueva reserva' },
   { prefix: '/mi-cuenta/reservas', label: 'Mis reservas' },
   { prefix: '/mi-cuenta/pedidos', label: 'Mis pedidos' },
@@ -216,6 +185,9 @@ const SUGGESTIONS = [
           @for (m of history(); track $index) {
             <p [class]="'ai-msg ai-msg--' + m.from">{{ m.text }}</p>
           }
+          @for (file of downloads(); track file.url) {
+            <a class="button" [href]="file.url" [download]="file.name">Descargar {{ file.name }}</a>
+          }
           @if (productDraft(); as d) {
             <form class="ai-draft" (ngSubmit)="confirmDraft()">
               <p class="ai-draft__title">Prenda a registrar — revisá antes de crear</p>
@@ -304,6 +276,8 @@ export class AssistantWidgetComponent implements OnDestroy {
   error = signal('');
   listening = signal(false);
   history = signal<ChatEntry[]>([]);
+  downloads = signal<{ url: string; name: string }[]>([]);
+  private lastExport: { reports: ExportReport[]; query: ReportQuery } | null = null;
   showNew = signal(false);
   /** Borrador de prenda pendiente de revisión (null = no hay ninguno abierto). */
   productDraft = signal<ProductDraftInput | null>(null);
@@ -311,6 +285,8 @@ export class AssistantWidgetComponent implements OnDestroy {
   draftBusy = signal(false);
   currentModule = signal(this.resolveModule(this.router.url));
   private lastUserText = '';
+  private conversationVersion = 0;
+  private sessionUserId = this.session.user()?.id ?? null;
   /** A qué handler reintentar: los pedidos de reporte y el borrador de prenda
    * usan flujos distintos al chat general, y "Reintentar" debe repetir el
    * mismo y no caer en el chat general. */
@@ -321,6 +297,13 @@ export class AssistantWidgetComponent implements OnDestroy {
   readonly voiceSupported: boolean;
 
   constructor() {
+    effect(() => {
+      const id = this.session.user()?.id ?? null;
+      if (id !== this.sessionUserId) {
+        this.sessionUserId = id;
+        untracked(() => this.close());
+      }
+    });
     this.router.events
       .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
       .subscribe((e) => this.currentModule.set(this.resolveModule(e.urlAfterRedirects)));
@@ -356,11 +339,13 @@ export class AssistantWidgetComponent implements OnDestroy {
     this.open.set(false);
   }
   close() {
+    this.conversationVersion++;
     this.stopVoice();
     this.open.set(false);
     this.history.set([]);
     this.error.set('');
     this.productDraft.set(null);
+    this.clearDownloads();
   }
   toggleVoice() {
     if (!this.recognition) return;
@@ -452,16 +437,22 @@ export class AssistantWidgetComponent implements OnDestroy {
     this.lastUserText = text;
     this.history.update((h) => [...h, { from: 'user', text }]);
     this.scrollToBottom();
-    if (PRODUCT_INTENT.test(text) && this.session.can('catalog.write')) {
+    const intent = assistantIntent(text);
+    const required = intent === 'draft' ? 'catalog.write' : intent !== 'chat' ? 'dashboard.read' : null;
+    if (required && !this.session.can(required)) {
+      this.history.update(h => [...h, { from: 'assistant', text: 'Tu cuenta no tiene permiso para realizar esa operación. Iniciá sesión con una cuenta autorizada.' }]);
+      return;
+    }
+    if (intent === 'draft') {
       this.lastIntent = 'draft';
       await this.requestProductDraft(text);
-    } else if (EXPORT_INTENT.test(text) && this.session.can('dashboard.read')) {
+    } else if (intent === 'export') {
       this.lastIntent = 'export';
       await this.requestExport(text);
-    } else if (EXPLAIN_INTENT.test(text) && this.session.can('dashboard.read')) {
+    } else if (intent === 'explain') {
       this.lastIntent = 'explain';
       await this.requestExplain(text);
-    } else if (APPLY_INTENT.test(text) && this.session.can('dashboard.read')) {
+    } else if (intent === 'apply') {
       this.lastIntent = 'apply';
       await this.requestApply(text);
     } else {
@@ -563,13 +554,19 @@ export class AssistantWidgetComponent implements OnDestroy {
    * combina con el contexto visible (el filtro que el dashboard está
    * mostrando ahora), para no pedir de nuevo lo que ya está en pantalla. */
   private async requestExport(text: string) {
+    const version = this.conversationVersion;
     this.busy.set(true);
     this.setBot('processing');
     try {
-      const current = this.assistantContext.report();
+      const normalized = commandText(text);
+      const continuation = /\b(ahora|mismo|mismos|eso|esto)\b/.test(normalized);
+      const current = continuation && this.lastExport ? this.lastExport.query : this.assistantContext.report();
       const interpreted = await firstValueFrom(this.dashboard.interpret(text, current));
-      const format: 'xlsx' | 'csv' = /\bcsv\b/i.test(text) ? 'csv' : 'xlsx';
-      const report = exportReportType(text, interpreted);
+      if (version !== this.conversationVersion) return;
+      const format: 'xlsx' | 'pdf' | 'csv' = /\bpdf\b/.test(normalized) ? 'pdf' : /\bcsv\b/.test(normalized) ? 'csv' : 'xlsx';
+      let reports = requestedReports(text);
+      if (!reports.length && continuation && this.lastExport) reports = this.lastExport.reports;
+      const report = reports[0] ?? exportReportType(normalized, interpreted);
       if (!report) {
         this.history.update((h) => [
           ...h,
@@ -581,23 +578,18 @@ export class AssistantWidgetComponent implements OnDestroy {
         this.setBot('idle');
         return;
       }
+      if (!reports.length) reports = [report];
       // El intérprete gana por campo; lo que dejó sin resolver cae al contexto
       // visible del dashboard ("exportá esto" = exactamente lo que se ve).
-      const q: ReportQuery = {
-        branch_id: interpreted.filtros.branch_id ?? current.branch_id ?? null,
-        category_id: interpreted.filtros.category_id ?? current.category_id ?? null,
-        status: interpreted.filtros.status ?? current.status ?? undefined,
-        date_from: interpreted.filtros.date_from ?? current.date_from ?? undefined,
-        date_to: interpreted.filtros.date_to ?? current.date_to ?? undefined,
-      };
+      const q = queryForCommand(text, interpreted.filtros, current);
       // No exportar "todo" silenciosamente si el usuario mencionó un filtro
       // que no se pudo resolver y el contexto visible tampoco lo aporta.
       // No exportar "todo" silenciosamente si el usuario mencionó una sucursal
       // puntual que no se pudo resolver y el contexto visible tampoco la aporta.
       // "por sucursal" es una agrupación, no una sucursal concreta: no aplica.
       const mentionsBranchButNotGrouping =
-        /sucursal|local|tienda\s+de/i.test(text) && !/por\s+sucursal/i.test(text);
-      if (report !== 'sucursales' && mentionsBranchButNotGrouping && !q.branch_id) {
+        /\bsucursal\b|\blocal\b|tienda\s+de/i.test(normalized) && !/por\s+sucursal/i.test(normalized);
+      if (report !== 'sucursales' && mentionsBranchButNotGrouping && !q.branch_id && !clearsFilter(text, 'sucursal')) {
         this.history.update((h) => [
           ...h,
           {
@@ -608,7 +600,7 @@ export class AssistantWidgetComponent implements OnDestroy {
         this.setBot('idle');
         return;
       }
-      if (/categor[íi]a|rubro|departamento/i.test(text) && !q.category_id) {
+      if (/categor[íi]a|rubro|departamento/i.test(text) && !q.category_id && !clearsFilter(text, 'categoria')) {
         this.history.update((h) => [
           ...h,
           {
@@ -627,16 +619,19 @@ export class AssistantWidgetComponent implements OnDestroy {
           ? crypto.randomUUID()
           : Math.random().toString(36).slice(2);
       const response = await firstValueFrom(
-        this.dashboard.executeTool(requestId, 'export_report', [report], format, q),
+        this.dashboard.executeTool(requestId, 'export_report', reports, format, q),
       );
       const blob = response.body;
+      if (version !== this.conversationVersion) return;
       if (!blob) throw new Error('El servidor no devolvió el archivo.');
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `fashionstore_${report}.${format}`;
+      const extension = format === 'csv' && reports.length > 1 ? 'zip' : format;
+      anchor.download = `fashionstore_${reports.join('_')}.${extension}`;
+      this.downloads.update(files => [...files, { url, name: anchor.download }]);
       anchor.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      this.lastExport = { reports, query: q };
       const replayed = response.headers.get('X-Idempotent-Replay') === 'true';
       const aclaraciones = interpreted.aclaraciones.length ? ' ' + interpreted.aclaraciones.join(' ') : '';
       this.history.update((h) => [
@@ -644,9 +639,9 @@ export class AssistantWidgetComponent implements OnDestroy {
         {
           from: 'assistant',
           text:
-            (replayed ? 'Enviaste la misma solicitud dos veces: ' : 'Descargando el reporte de ') +
-            `${EXPORT_REPORT_LABEL[report]} en ${format.toUpperCase()}.${aclaraciones}` +
-            (replayed ? ' No lo generé de nuevo para no duplicar nada.' : ''),
+            (replayed ? 'Enviaste la misma solicitud dos veces: ' : 'Archivo generado: ') +
+            `${reports.map(r => EXPORT_REPORT_LABEL[r]).join(', ')} en ${extension.toUpperCase()}. Usé los filtros indicados o el alcance actual del reporte. Podés descargarlo con el botón del chat.${aclaraciones}` +
+            (replayed ? ' El servidor reconoció el reintento sin duplicar su registro en la bitácora.' : ''),
         },
       ]);
       this.setBot('success');
@@ -704,16 +699,10 @@ export class AssistantWidgetComponent implements OnDestroy {
     try {
       const current = this.assistantContext.report();
       const interpreted = await firstValueFrom(this.dashboard.interpret(text, current));
-      const q: ReportQuery = {
-        branch_id: interpreted.filtros.branch_id ?? current.branch_id ?? null,
-        category_id: interpreted.filtros.category_id ?? current.category_id ?? null,
-        status: interpreted.filtros.status ?? current.status ?? undefined,
-        date_from: interpreted.filtros.date_from ?? current.date_from ?? undefined,
-        date_to: interpreted.filtros.date_to ?? current.date_to ?? undefined,
-      };
+      const q = queryForCommand(text, interpreted.filtros, current);
       const mentionsBranchButNotGrouping =
         /sucursal|local|tienda\s+de/i.test(text) && !/por\s+sucursal/i.test(text);
-      if (mentionsBranchButNotGrouping && !q.branch_id) {
+      if (mentionsBranchButNotGrouping && !q.branch_id && !clearsFilter(text, 'sucursal')) {
         this.history.update((h) => [
           ...h,
           {
@@ -724,7 +713,7 @@ export class AssistantWidgetComponent implements OnDestroy {
         this.setBot('idle');
         return;
       }
-      if (/categor[íi]a|rubro|departamento/i.test(text) && !q.category_id) {
+      if (/categor[íi]a|rubro|departamento/i.test(text) && !q.category_id && !clearsFilter(text, 'categoria')) {
         this.history.update((h) => [
           ...h,
           {
@@ -740,26 +729,15 @@ export class AssistantWidgetComponent implements OnDestroy {
       if (q.category_id) parts.push('categoría');
       if (q.status) parts.push('estado');
       if (q.date_from || q.date_to) parts.push('período');
-      if (!parts.length) {
-        this.history.update((h) => [
-          ...h,
-          {
-            from: 'assistant',
-            text: 'No encontré un filtro claro para aplicar. Decime, por ejemplo, "mostrame las ventas de la sucursal norte" o "filtrá por la categoría camisas".',
-          },
-        ]);
-        this.setBot('idle');
-        return;
-      }
       this.assistantContext.applyToScreen(q, 'widget');
-      const alreadyThere = this.router.url.split('?')[0] === '/admin';
-      if (!alreadyThere) await this.router.navigate(['/admin']);
+      const alreadyThere = this.router.url.split('?')[0] === '/admin/dashboard';
+      if (!alreadyThere && !await this.router.navigate(['/admin/dashboard'])) throw new Error('No se pudo abrir el dashboard.');
       const aclaraciones = interpreted.aclaraciones.length ? ' ' + interpreted.aclaraciones.join(' ') : '';
       this.history.update((h) => [
         ...h,
         {
           from: 'assistant',
-          text: `Apliqué el filtro de ${parts.join(' y ')} en el dashboard y lo ${alreadyThere ? 'actualicé' : 'abrí'}.${aclaraciones}`,
+          text: `Envié al dashboard ${parts.length ? 'los filtros de ' + parts.join(' y ') : 'la consulta con el alcance actual'} y lo ${alreadyThere ? 'actualicé' : 'abrí'}.${aclaraciones}`,
         },
       ]);
       this.setBot('success');
@@ -796,7 +774,14 @@ export class AssistantWidgetComponent implements OnDestroy {
     }
   }
   ngOnDestroy() {
+    this.conversationVersion++;
+    this.clearDownloads();
     this.stopVoice();
     if (this.botTimer) clearTimeout(this.botTimer);
+  }
+  private clearDownloads() {
+    this.downloads().forEach(file => URL.revokeObjectURL(file.url));
+    this.downloads.set([]);
+    this.lastExport = null;
   }
 }

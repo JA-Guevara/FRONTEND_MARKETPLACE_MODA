@@ -1,7 +1,8 @@
 import { TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
 import { HttpHeaders } from '@angular/common/http';
 import { NavigationEnd, Router } from '@angular/router';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import { AssistantWidgetComponent } from './assistant-widget.component';
 import { CommerceService } from '../infrastructure/commerce.service';
 import { SessionService } from '../../auth/application/session.service';
@@ -10,6 +11,7 @@ import { DashboardService } from '../../ia-reportes/infrastructure/dashboard.ser
 import { AssistantContextService } from '../../../shared/assistant-context.service';
 
 function setup(options: { permissions?: string[] } = {}) {
+  const user = signal<{ id: string } | null>(null);
   const deferreds: { res: (v: { available: boolean; reply: string }) => void; rej: (e: Error) => void }[] = [];
   const write = vi.fn().mockImplementation(
     () =>
@@ -32,7 +34,7 @@ function setup(options: { permissions?: string[] } = {}) {
     imports: [AssistantWidgetComponent],
     providers: [
       { provide: CommerceService, useValue: { write } },
-      { provide: SessionService, useValue: { user: () => null, can: (p: string) => (options.permissions ?? []).includes(p) } },
+      { provide: SessionService, useValue: { user, can: (p: string) => (options.permissions ?? []).includes(p) } },
       { provide: CatalogService, useValue: catalog },
       { provide: DashboardService, useValue: dashboard },
       { provide: Router, useValue: { url: '/', navigate: vi.fn().mockResolvedValue(true), events: of(new NavigationEnd(1, '/', '/')) } },
@@ -41,7 +43,7 @@ function setup(options: { permissions?: string[] } = {}) {
   const fixture = TestBed.createComponent(AssistantWidgetComponent);
   fixture.detectChanges();
   const ctx = TestBed.inject(AssistantContextService);
-  return { fixture, write, catalog, dashboard, deferreds, ctx };
+  return { fixture, write, catalog, dashboard, deferreds, ctx, user };
 }
 
 describe('Asistente: indicador de espera con tres puntos', () => {
@@ -169,11 +171,13 @@ describe('Asistente: indicador de espera con tres puntos', () => {
 describe('Asistente: contexto compartido de reportes', () => {
   /** No se dispara el descargo real del navegador en el test. */
   function fakeDownload() {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     const create = URL.createObjectURL;
     const revoke = URL.revokeObjectURL;
     URL.createObjectURL = vi.fn(() => 'blob:mock');
     URL.revokeObjectURL = vi.fn();
     return () => {
+      click.mockRestore();
       URL.createObjectURL = create;
       URL.revokeObjectURL = revoke;
     };
@@ -193,6 +197,103 @@ describe('Asistente: contexto compartido de reportes', () => {
       headers: new HttpHeaders({ 'X-Idempotent-Replay': String(replay) }),
     });
   }
+
+  it('ejecuta el pedido real con errores de escritura y deja un enlace descargable', async () => {
+    const { fixture, dashboard, write } = setup({ permissions: ['dashboard.read'] });
+    fixture.componentInstance.toggle();
+    dashboard.interpret.mockReturnValue(allNullInterpret());
+    dashboard.executeTool.mockReturnValue(toolResponse());
+    const restore = fakeDownload();
+    try {
+      await fixture.componentInstance.send('ESPORTAME RPEORTE EN EXCEL DE VENTAS');
+      fixture.detectChanges();
+      expect(write).not.toHaveBeenCalled();
+      expect(dashboard.executeTool).toHaveBeenCalledWith(expect.any(String), 'export_report', ['ventas'], 'xlsx', expect.any(Object));
+      expect(fixture.nativeElement.querySelector('a[download]')?.getAttribute('download')).toBe('fashionstore_ventas.xlsx');
+      fixture.destroy();
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock');
+    } finally { restore(); }
+  });
+
+  it('exporta varios reportes y conserva su selección y filtros al pedir ahora PDF', async () => {
+    const { fixture, dashboard, ctx } = setup({ permissions: ['dashboard.read'] });
+    ctx.setReport({ branch_id: 'b-centro', date_from: '2026-09-01' });
+    dashboard.interpret.mockReturnValue(allNullInterpret());
+    dashboard.executeTool.mockReturnValue(toolResponse());
+    const restore = fakeDownload();
+    try {
+      await fixture.componentInstance.send('exportame ventas y pedidos en Excel');
+      ctx.setReport({ branch_id: null });
+      await fixture.componentInstance.send('ahora en PDF');
+      expect(dashboard.executeTool).toHaveBeenLastCalledWith(expect.any(String), 'export_report', ['ventas', 'pedidos'], 'pdf', expect.objectContaining({ branch_id: 'b-centro', date_from: '2026-09-01' }));
+      expect(fixture.componentInstance.downloads().at(-1)?.name).toBe('fashionstore_ventas_pedidos.pdf');
+      fixture.destroy();
+    } finally { restore(); }
+  });
+
+  it('entrega los seis reportes CSV como ZIP', async () => {
+    const { fixture, dashboard } = setup({ permissions: ['dashboard.read'] });
+    dashboard.interpret.mockReturnValue(allNullInterpret());
+    dashboard.executeTool.mockReturnValue(toolResponse());
+    const restore = fakeDownload();
+    try {
+      await fixture.componentInstance.send('exportame todos los reportes en CSV');
+      expect(dashboard.executeTool.mock.calls[0][2]).toHaveLength(6);
+      expect(fixture.componentInstance.downloads()[0].name).toMatch(/\.zip$/);
+      fixture.destroy();
+    } finally { restore(); }
+  });
+
+  it('quita filtros del dashboard sin volver a heredarlos del contexto', async () => {
+    const { fixture, dashboard, ctx } = setup({ permissions: ['dashboard.read'] });
+    ctx.setReport({ branch_id: 'b-centro', category_id: 'cat-1', date_from: '2026-09-01', status: 'paid' });
+    dashboard.interpret.mockReturnValue(allNullInterpret());
+    await fixture.componentInstance.send('limpia todos los filtros');
+    expect(ctx.applyRequest()?.query).toEqual({ branch_id: null, category_id: null, date_from: undefined, date_to: undefined, status: undefined });
+  });
+
+  it('un cliente sin permisos no ejecuta reportes administrativos ni deriva la orden al chat', async () => {
+    const { fixture, dashboard, write } = setup();
+    await fixture.componentInstance.send('exportame ventas en Excel');
+    expect(dashboard.interpret).not.toHaveBeenCalled();
+    expect(dashboard.executeTool).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it('descarta una descarga tardía si se cerró la conversación', async () => {
+    const { fixture, dashboard } = setup({ permissions: ['dashboard.read'] });
+    dashboard.interpret.mockReturnValue(allNullInterpret());
+    const response = new Subject<any>();
+    dashboard.executeTool.mockReturnValue(response);
+    const restore = fakeDownload();
+    try {
+      const pending = fixture.componentInstance.send('exportame ventas');
+      await Promise.resolve();
+      fixture.componentInstance.close();
+      response.next({ body: new Blob(['x']), headers: new HttpHeaders() });
+      response.complete();
+      await pending;
+      expect(URL.createObjectURL).not.toHaveBeenCalled();
+      expect(fixture.componentInstance.downloads()).toEqual([]);
+    } finally { restore(); }
+  });
+
+  it('elimina los archivos de la conversación cuando cambia el usuario', async () => {
+    const { fixture, dashboard, user } = setup({ permissions: ['dashboard.read'] });
+    user.set({ id: 'admin' });
+    fixture.detectChanges();
+    dashboard.interpret.mockReturnValue(allNullInterpret());
+    dashboard.executeTool.mockReturnValue(toolResponse());
+    const restore = fakeDownload();
+    try {
+      await fixture.componentInstance.send('exportame ventas');
+      user.set(null);
+      fixture.detectChanges();
+      expect(fixture.componentInstance.downloads()).toEqual([]);
+      expect(fixture.componentInstance.history()).toEqual([]);
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock');
+    } finally { restore(); }
+  });
 
   it('"exportá esto" usa los filtros visibles del dashboard y exporta eso, no todo', async () => {
     const { fixture, dashboard, ctx } = setup({ permissions: ['dashboard.read'] });
@@ -219,7 +320,7 @@ describe('Asistente: contexto compartido de reportes', () => {
         date_from: '2026-08-01', date_to: '2026-09-01',
       },
     );
-    expect(fixture.nativeElement.textContent).toContain('Descargando el reporte de ventas');
+    expect(fixture.nativeElement.textContent).toContain('Archivo generado: ventas');
   });
 
   it('"ventas de la sucursal norte" resuelta exporta ventas (no sucursales) filtradas por esa sucursal', async () => {
@@ -247,7 +348,7 @@ describe('Asistente: contexto compartido de reportes', () => {
         date_from: undefined, date_to: undefined,
       },
     );
-    expect(fixture.nativeElement.textContent).toContain('reporte de ventas');
+    expect(fixture.nativeElement.textContent).toContain('Archivo generado: ventas');
   });
 
   it('rehúsa descargar todo si mencionó una sucursal que no pudo resolver y no hay contexto', async () => {
@@ -283,7 +384,8 @@ describe('Asistente: contexto compartido de reportes', () => {
     const applied = ctx.applyRequest();
     expect(applied).not.toBeNull();
     expect(applied!.query.branch_id).toBe('b-norte');
-    expect(fixture.nativeElement.textContent).toContain('Apliqué el filtro de sucursal');
+    expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/admin/dashboard']);
+    expect(fixture.nativeElement.textContent).toContain('los filtros de sucursal');
   });
 
   it('"explicame esto" usa el contexto y la respuesta incluye las limitaciones del análisis', async () => {

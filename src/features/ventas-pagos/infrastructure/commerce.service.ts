@@ -31,10 +31,17 @@ export class CommerceService {
     return this.write('PUT', '/cart/items/' + variant, { quantity });
   }
   async checkout(id: string) {
-    const data = await this.write<{ url: string }>('POST', '/orders/' + id + '/checkout');
+    const data = await this.write<{ url: string | null; status?: string }>('POST', '/orders/' + id + '/checkout');
+    if (!data.url && data.status && ['paid', 'processing', 'shipped', 'delivered'].includes(data.status)) return false;
+    if (!data.url) throw new Error('No se recibió un enlace de pago válido.');
     const url = new URL(data.url);
     if (url.protocol !== 'https:' || url.hostname !== 'checkout.stripe.com')
       throw new Error('El enlace de pago recibido no es válido.');
     window.location.assign(url.href);
+    return true;
+  }
+
+  verifyPayment(id: string, admin = false) {
+    return this.write<Order>('POST', (admin ? '/admin/orders/' : '/orders/') + id + '/payment-status');
   }
 }

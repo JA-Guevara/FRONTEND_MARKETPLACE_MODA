@@ -1,5 +1,12 @@
 # Historial de avance
 
+## 2026-09-17 — Stripe y ejecución del asistente
+
+- Recuperación de sesión al regresar de Stripe, consulta del pago desde servidor y botón de verificación para cliente/gestión.
+- Exportación por orden escrita, varios reportes Excel/PDF/CSV, archivo accesible en chat y navegación correcta al aplicar filtros.
+- 161 pruebas frontend y build aprobados; backend 84 pruebas unitarias. Sin despliegue; pendiente compra completa y revisión del pedido reportado.
+- Evidencia, límites y pasos en `STRIPE_Y_ASISTENTE_2026-09-17.md`.
+
 ## 2026-09-15 — Estabilización del probador manual web
 
 - Corregido ciclo de vida de cámara/video, permisos, cancelación tardía, cierre, desconexión y cambio de producto/cámara.

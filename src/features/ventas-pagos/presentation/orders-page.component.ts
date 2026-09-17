@@ -95,7 +95,10 @@ import { errorMessage } from '../../../shared/errors';
               }
             </ol>
           </details>
-          @if (!admin && o.status === 'pending_payment') {
+          @if (o.status === 'pending_payment' && o.payment_method === 'stripe' && (!admin || session.can('commerce.write'))) {
+            <button [disabled]="busy()" (click)="verifyPayment(o.id)">Verificar pago con Stripe</button>
+          }
+          @if (!admin && o.status === 'pending_payment' && o.payment_status !== 'paid') {
             <div class="commerce-actions">
               @if (o.payment_method === 'stripe') {
                 <button class="primary" [disabled]="busy()" (click)="pay(o)">
@@ -235,7 +238,40 @@ export class OrdersPageComponent {
   tracking = '';
   note = '';
   constructor() {
-    void this.load();
+    void this.initialize();
+  }
+  private async initialize() {
+    await this.load();
+    if (this.admin) return;
+    const returned = this.route.snapshot.queryParamMap.get('payment');
+    if (returned === 'success') {
+      if (this.selected) await this.verifyPayment(this.selected);
+      else {
+        // Sesiones antiguas de Stripe no incluyen pedido en success_url.
+        const pending = this.orders().filter(o => o.payment_method === 'stripe' && o.status === 'pending_payment');
+        for (const order of pending.slice(0, 5)) await this.verifyPayment(order.id);
+      }
+    } else if (returned === 'cancelled') {
+      this.message.set('Volviste del pago. Tu pedido sigue pendiente hasta que Stripe confirme el cobro.');
+    }
+  }
+  async verifyPayment(id: string) {
+    if (this.busy()) return;
+    this.busy.set(true);
+    this.error.set('');
+    this.message.set('Consultando la confirmación de Stripe…');
+    try {
+      const updated = await this.api.verifyPayment(id, this.admin);
+      this.orders.update(orders => orders.some(o => o.id === id)
+        ? orders.map(o => o.id === id ? updated : o) : [updated, ...orders]);
+      this.message.set(updated.payment_status === 'paid'
+        ? 'Pago confirmado por Stripe. Tu pedido está pagado.'
+        : updated.status === 'expired' ? 'La sesión de pago expiró. Las existencias fueron liberadas.'
+        : 'Stripe todavía no confirma el pago. Si ya pagaste, volvé a verificar en unos momentos.');
+    } catch (e) {
+      this.message.set('');
+      this.error.set(errorMessage(e));
+    } finally { this.busy.set(false); }
   }
   async load() {
     this.busy.set(true);
@@ -271,10 +307,15 @@ export class OrdersPageComponent {
     this.tracking = o.tracking_number || '';
   }
   async pay(o: Order) {
+    if (this.busy()) return;
     this.busy.set(true);
     this.error.set('');
     try {
-      await this.api.checkout(o.id);
+      const redirected = await this.api.checkout(o.id);
+      if (!redirected) {
+        this.message.set('Stripe confirmó que este pedido ya está pagado.');
+        await this.load();
+      }
     } catch (e) {
       this.error.set(errorMessage(e));
     } finally {
