@@ -27,13 +27,14 @@ const BASE: object = {
   images: [],
 };
 
-/** El probador web funciona con una imagen frontal preparada: el mismo criterio
- * (activo + image_overlay) que usan el catálogo y el vestidor. */
+/** Toda prenda publicada se puede probar: la prenda se dibuja sobre el cuerpo.
+ * El recurso preparado, cuando existe, solo mejora la vista con la foto real. */
 const CON_PROBADOR = {
   ...BASE,
   ar_assets: [{ is_active: true, asset_type: 'image_overlay', asset_url: '/camisa.webp' }],
 };
-const SIN_PROBADOR = { ...BASE, ar_assets: [] };
+const SIN_PREPARAR = { ...BASE, ar_assets: [] };
+const SIN_VARIANTES = { ...BASE, variants: [], ar_assets: [] };
 
 describe('Acceso al probador virtual desde la ficha', () => {
   async function render(setup: {
@@ -41,7 +42,7 @@ describe('Acceso al probador virtual desde la ficha', () => {
     canRead?: boolean;
     variante?: string | null;
   } = {}) {
-    const product = setup.product ?? SIN_PROBADOR;
+    const product = setup.product ?? SIN_PREPARAR;
     const catalog = {
       product: vi.fn().mockReturnValue(of(product)),
     } as unknown as CatalogService;
@@ -85,17 +86,18 @@ const block = fixture.nativeElement.querySelector('.fitting-access');
     expect(block.textContent).not.toContain('no tiene probador');
     expect(fixture.componentInstance.variant()?.id).toBe('v1');
   });
-  it('sin recurso preparado avisa y solo los administradores ven "Configurar probador"', async () => {
-    const admin = await render({ canRead: true });
+  it('ofrece el probador aunque nadie haya preparado un recurso', async () => {
+    // Este era el motivo por el que el probador figuraba como no disponible:
+    // ninguna prenda del catálogo tenía una imagen cargada a mano.
+    const fixture = await render({ product: SIN_PREPARAR, canRead: false });
+    const block = fixture.nativeElement.querySelector('.fitting-access');
+    expect(block.textContent).toContain('Probarme esta prenda');
+    expect(block.textContent).not.toContain('no tiene probador disponible');
+  });
+  it('solo lo oculta si la prenda no tiene variantes que probarse', async () => {
+    const admin = await render({ product: SIN_VARIANTES, canRead: true });
     const block = admin.nativeElement.querySelector('.fitting-access');
     expect(block.textContent).toContain('no tiene probador disponible');
     expect(block.querySelector('a[href="/admin/products/p1"]')).toBeTruthy();
-    expect(block.textContent).not.toContain('Probarme esta prenda');
-  });
-  it('un cliente sin permiso no ve la opción de configuración', async () => {
-    const guest = await render({ canRead: false });
-    const block = guest.nativeElement.querySelector('.fitting-access');
-    expect(block.textContent).toContain('no tiene probador disponible');
-    expect(block.querySelector('a[href="/admin/products/p1"]')).toBeFalsy();
   });
 });

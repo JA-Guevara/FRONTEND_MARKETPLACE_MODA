@@ -120,6 +120,47 @@ npm run test:contract
 - Los errores conservan el formulario abierto y el borrador. Las acciones destructivas requieren confirmación dentro de la interfaz. Los diálogos permiten usar Tab y Escape.
 - El borrado y los estados respetan las reglas del backend: no eliminar maestros en uso, no activar cajas de sucursales inactivas, no duplicar SKU ni talla/color.
 
+## Seguimiento del pedido
+
+«Mis pedidos» muestra una línea de tiempo con las etapas por las que pasa la compra, en vez de una
+lista de eventos en texto: **Pedido realizado → Pago confirmado → En preparación → En camino →
+Entregado**. Cada etapa cumplida lleva su fecha, la actual queda resaltada y la barra se llena hasta
+donde llegó el pedido.
+
+- La lógica vive en `src/features/ventas-pagos/domain/order-progress.ts`, separada de la vista: a
+  partir de `status`, `payment_status` y el historial `tracking` decide qué etapa está cumplida,
+  cuál es la actual y con qué fecha. Se puede verificar sin navegador.
+- Un pedido **cancelado o vencido** no muestra etapas futuras como pendientes: se conserva lo que
+  alcanzó a ocurrir y se cierra con la cancelación.
+- Cuando hay transportista o número de guía, se muestran junto a la línea; «Ver detalle del
+  recorrido» despliega los eventos, del más reciente al más antiguo.
+- En pantallas de hasta 620px la línea pasa de horizontal a vertical: cinco etapas no entran de lado
+  en un teléfono.
+
+Pruebas en `order-progress.spec.ts`.
+
+## Probador virtual: la prenda se dibuja sobre el cuerpo
+
+El probador no superpone la fotografía del catálogo: dibuja la prenda a partir de los puntos del
+cuerpo (`src/shared/garment-renderer.ts`). Es la diferencia entre "recortar una foto" y "vestir a la
+persona", y resuelve tres cosas de una vez:
+
+- **No hay fondo que quitar.** Recortar una foto depende de que el fondo sea liso; dibujar la prenda
+  no depende de ninguna imagen, así que nunca aparece el rectángulo blanco.
+- **Toda prenda publicada se puede probar.** Antes `hasVestidor` exigía un recurso `image_overlay`
+  cargado a mano y ninguna prenda del catálogo lo tenía: por eso el probador figuraba como no
+  disponible. Ahora alcanza con que la prenda tenga variantes.
+- **Sigue el movimiento.** Cada vértice se recalcula en cada cuadro desde los hombros, codos,
+  muñecas, cadera, rodillas y tobillos, de modo que la prenda acompaña el cuerpo sin anclajes fijos.
+
+La forma sale del nombre y la categoría (`formaDePrenda`): remera, musculosa, manga larga, camisa,
+chaqueta, pantalón, short, falda o vestido. El color sale de la variante elegida. Cuando la cámara no
+ve la cadera o las piernas —lo habitual sentado frente al escritorio— `estimarOcultos` los deduce de
+los hombros, que son el único punto imprescindible.
+
+Si la prenda tiene un recurso preparado (foto recortada con sus anclajes), se usa esa foto porque
+muestra el producto real; si no, se dibuja. Las dos vías son automáticas.
+
 ## Probador virtual: la prenda se ubica sola
 
 La vista no tiene controles para acomodar la prenda. El recurso preparado en el backend trae el

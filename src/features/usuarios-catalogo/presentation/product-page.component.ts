@@ -168,7 +168,7 @@ export class ProductPageComponent {
   tryOnQuantity = MIN_ITEM_QUANTITY;
   /// La ficha decide con el mismo criterio que el catálogo y el probador.
   hasArAsset() {
-    return hasVestidor(this.product() ?? { ar_assets: [] });
+    return hasVestidor(this.product() ?? { variants: [] });
   }
   selectVariant(v: Entity) {
     this.variant.set(v);

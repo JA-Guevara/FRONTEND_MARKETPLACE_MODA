@@ -4,11 +4,12 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CommerceService } from '../infrastructure/commerce.service';
 import { Order, commerceLabel } from '../domain/commerce.models';
+import { OrderTrackerComponent } from './order-tracker.component';
 import { SessionService } from '../../auth/application/session.service';
 import { errorMessage } from '../../../shared/errors';
 @Component({
   selector: 'fs-orders-page',
-  imports: [FormsModule, RouterLink, DatePipe, DecimalPipe, UpperCasePipe],
+  imports: [FormsModule, RouterLink, DatePipe, DecimalPipe, UpperCasePipe, OrderTrackerComponent],
   styleUrl: './commerce.scss',
   template: ` <section class="commerce-page">
     <p class="eyebrow">{{ admin ? 'GESTIÓN COMERCIAL' : 'MI CUENTA' }}</p>
@@ -56,6 +57,7 @@ import { errorMessage } from '../../../shared/errors';
           <p>
             Pago: <strong>{{ label(o.payment_status) }}</strong> · {{ label(o.payment_method) }}
           </p>
+          <fs-order-tracker [pedido]="o" />
           <details class="order-details" [open]="selected === o.id">
             <summary>Ver prendas, entrega y seguimiento</summary>
             @for (i of o.items; track i.variant_id) {
@@ -84,16 +86,6 @@ import { errorMessage } from '../../../shared/errors';
               <dt>Referencia de pago</dt>
               <dd>{{ o.payment_reference || 'Sin confirmación' }}</dd>
             </dl>
-            <h3>Historial del pedido</h3>
-            <ol class="timeline">
-              @for (t of o.tracking; track $index) {
-                <li>
-                  <strong>{{ label(t.status) }}</strong
-                  ><small>{{ t.date | date: 'dd/MM/yyyy HH:mm' }}</small>
-                  <p>{{ t.note }}</p>
-                </li>
-              }
-            </ol>
           </details>
           @if (o.status === 'pending_payment' && o.payment_method === 'stripe' && (!admin || session.can('commerce.write'))) {
             <button [disabled]="busy()" (click)="verifyPayment(o.id)">Verificar pago con Stripe</button>

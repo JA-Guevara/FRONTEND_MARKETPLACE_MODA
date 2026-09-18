@@ -28,6 +28,13 @@ import {
   evaluarPostura,
   suavizarAjuste,
 } from '../../../shared/garment-fit';
+import {
+  FormaPrenda,
+  Punto,
+  dibujarPrenda,
+  estimarOcultos,
+  formaDePrenda,
+} from '../../../shared/garment-renderer';
 
 type CameraState = 'off' | 'requesting' | 'active' | 'error';
 
@@ -73,7 +80,7 @@ interface TryOnResource {
       </button>
     }
 
-    @if (!loading() && assetUrl()) {
+    @if (!loading() && productName() && !error()) {
       <div class="fitting-stage" #stage [class.camera-on]="cameraState() === 'active'">
         <video
           #video
@@ -85,7 +92,16 @@ interface TryOnResource {
           aria-label="Vista de tu cámara"
         ></video>
 
-        @if (cameraState() === 'active' && !imageFailed()) {
+        <!-- Prenda dibujada sobre el cuerpo: no depende de ninguna fotografía,
+             así que nunca aparece un fondo recortado a medias. -->
+        <canvas
+          #lienzo
+          class="fitting-canvas"
+          [class.mirrored]="facing() === 'user'"
+          [hidden]="cameraState() !== 'active' || usaFoto()"
+        ></canvas>
+
+        @if (cameraState() === 'active' && usaFoto() && !imageFailed()) {
           <img
             class="fitting-overlay"
             [src]="assetUrl()"
@@ -182,6 +198,7 @@ export class VestidorComponent implements OnInit, OnDestroy {
   private destroyRef = inject(DestroyRef);
   @ViewChild('video') videoRef?: ElementRef<HTMLVideoElement>;
   @ViewChild('stage') stageRef?: ElementRef<HTMLDivElement>;
+  @ViewChild('lienzo') lienzoRef?: ElementRef<HTMLCanvasElement>;
 
   slug = '';
   varianteId: string | null = null;
@@ -195,6 +212,11 @@ export class VestidorComponent implements OnInit, OnDestroy {
   imageFailed = signal(false);
   auditNotice = signal('');
   tuning = signal(false);
+  /** Con recurso preparado se usa la foto recortada (se ve el producto real);
+   * sin él se dibuja la prenda, que siempre está disponible. */
+  usaFoto = signal(false);
+  forma = signal<FormaPrenda>('remera');
+  colorPrenda = signal('#7a7a7a');
 
   /** Ajuste calculado a partir del cuerpo; null mientras no se ubica. */
   private fit = signal<GarmentFit | null>(null);
@@ -258,19 +280,29 @@ export class VestidorComponent implements OnInit, OnDestroy {
       this.productId = product.id;
       // El recurso depende del color: se toma el de la variante elegida.
       const variante = (product.variants || []).find((v) => v.id === this.varianteId);
-      this.colorId = (variante?.['color'] as { id?: string } | undefined)?.id || null;
+      const color = variante?.['color'] as { id?: string; hex_code?: string } | undefined;
+      this.colorId = color?.id || null;
+      if (color?.hex_code) this.colorPrenda.set(color.hex_code);
+
+      // La prenda se puede probar siempre: el dibujo se arma con el tipo y el
+      // color. El recurso preparado, si existe, mejora la vista con la foto real.
+      const categoria = (product.category as { name?: string } | undefined)?.name;
+      this.forma.set(formaDePrenda(`${product.name} ${categoria || ''}`));
+      this.region = 'upper_body';
 
       const recurso = await this.fetchResource();
       if (this.destroyed || version !== this.loadVersion) return;
-      const url = new URL(recurso.asset_url, window.location.origin);
-      if (!['https:', 'http:'].includes(url.protocol))
-        throw new Error('El recurso del probador no tiene una dirección válida.');
-      this.assetUrl.set(url.href);
-      this.region = esRegion(recurso.body_region) ? recurso.body_region : 'upper_body';
-      this.anchors = recurso.anchor_points || null;
-      // Se precarga para conocer su tamaño antes de encender la cámara: el
-      // encaje necesita las dimensiones reales para calcular la escala.
-      await this.preloadImage(url.href, version);
+      if (recurso?.asset_url) {
+        const url = new URL(recurso.asset_url, window.location.origin);
+        if (['https:', 'http:'].includes(url.protocol)) {
+          this.assetUrl.set(url.href);
+          this.region = esRegion(recurso.body_region) ? recurso.body_region : this.region;
+          this.anchors = recurso.anchor_points || null;
+          if (recurso.garment_type) this.forma.set(formaDePrenda(recurso.garment_type, this.region));
+          await this.preloadImage(url.href, version);
+          this.usaFoto.set(!this.imageFailed());
+        }
+      }
     } catch (e) {
       if (!this.destroyed && version === this.loadVersion) this.error.set(errorMessage(e));
     } finally {
@@ -278,15 +310,24 @@ export class VestidorComponent implements OnInit, OnDestroy {
     }
   }
 
-  /** Pide el recurso preparado; deja el registro en bitácora del lado del servidor. */
-  private async fetchResource(): Promise<TryOnResource> {
+  /**
+   * Pide el recurso preparado y deja el registro en bitácora. Que no exista no
+   * impide probarse la prenda: en ese caso se dibuja, que es el camino normal
+   * para el catálogo sin preparar.
+   */
+  private async fetchResource(): Promise<TryOnResource | null> {
     const cuerpo: Record<string, string> = { product_id: this.productId };
     if (this.colorId) cuerpo['color_id'] = this.colorId;
-    const respuesta = await firstValueFrom(
-      this.api.write<TryOnResource>('POST', '/vestidor/sessions', cuerpo),
-    );
-    this.recorded = true;
-    return respuesta.data;
+    try {
+      const respuesta = await firstValueFrom(
+        this.api.write<TryOnResource>('POST', '/vestidor/sessions', cuerpo),
+      );
+      this.recorded = true;
+      return respuesta.data;
+    } catch {
+      this.auditNotice.set('');
+      return null;
+    }
   }
 
   /** Carga la imagen en memoria para tener sus dimensiones y detectar un
@@ -386,6 +427,7 @@ export class VestidorComponent implements OnInit, OnDestroy {
     this.cameraState.set('off');
     this.cameraError.set('');
     this.fit.set(null);
+    this.limpiarLienzo();
     this.poseLast = 0;
     this.guidance.set({
       code: 'sin-camara',
@@ -444,17 +486,71 @@ export class VestidorComponent implements OnInit, OnDestroy {
       const ahora = Date.now();
 
       if (landmarks) {
-        const objetivo = calcularAjuste(landmarks, this.region, this.anchors, this.imageSize, box);
-        if (objetivo) {
-          this.fit.set(suavizarAjuste(this.fit(), objetivo));
+        if (this.usaFoto()) {
+          const objetivo = calcularAjuste(landmarks, this.region, this.anchors, this.imageSize, box);
+          if (objetivo) {
+            this.fit.set(suavizarAjuste(this.fit(), objetivo));
+            this.poseLast = ahora;
+          }
+        } else if (this.pintar(landmarks, box, guia.ok)) {
           this.poseLast = ahora;
         }
       }
       // Si hace rato que no se ve a nadie, la prenda no se queda flotando.
-      if (this.poseLast && ahora - this.poseLast > POSE_LOST_MS) this.fit.set(null);
+      if (this.poseLast && ahora - this.poseLast > POSE_LOST_MS) {
+        this.fit.set(null);
+        this.limpiarLienzo();
+      }
       this.guidance.set(guia);
       await new Promise((resolve) => setTimeout(resolve, 120));
     }
+  }
+
+  /** Dibuja la prenda sobre el lienzo, alineada con el video. */
+  private pintar(landmarks: { x: number; y: number; visibility?: number }[], box: VideoBox, postura: boolean) {
+    const lienzo = this.lienzoRef?.nativeElement;
+    const ctx = lienzo?.getContext('2d');
+    if (!lienzo || !ctx) return false;
+    // El lienzo comparte tamaño con el escenario para que las coordenadas
+    // coincidan con lo que se ve del video.
+    if (lienzo.width !== Math.round(box.containerW) || lienzo.height !== Math.round(box.containerH)) {
+      lienzo.width = Math.round(box.containerW);
+      lienzo.height = Math.round(box.containerH);
+    }
+    ctx.clearRect(0, 0, lienzo.width, lienzo.height);
+    if (!postura) return false;
+
+    // El lienzo va espejado por CSS igual que el video, así que se dibuja en las
+    // coordenadas del video sin invertir.
+    const cover = Math.max(box.containerW / box.videoW, box.containerH / box.videoH);
+    const dx = (box.containerW - box.videoW * cover) / 2;
+    const dy = (box.containerH - box.videoH * cover) / 2;
+    const puntos: Punto[] = landmarks.map((p) => ({
+      x: dx + p.x * box.videoW * cover,
+      y: dy + p.y * box.videoH * cover,
+    }));
+    const visible = (i: number) => (landmarks[i]?.visibility ?? 0) >= 0.5;
+    const completos = estimarOcultos(puntos, visible);
+    const escala = this.tuneScale();
+    if (escala !== 1) {
+      // El ajuste fino agranda o achica respecto del centro del cuerpo.
+      const centro = completos[11] && completos[12]
+        ? { x: (completos[11].x + completos[12].x) / 2, y: (completos[11].y + completos[12].y) / 2 }
+        : { x: lienzo.width / 2, y: lienzo.height / 2 };
+      for (const punto of completos) {
+        if (!punto) continue;
+        punto.x = centro.x + (punto.x - centro.x) * escala;
+        punto.y = centro.y + (punto.y - centro.y) * escala + this.tuneY();
+      }
+    } else if (this.tuneY()) {
+      for (const punto of completos) if (punto) punto.y += this.tuneY();
+    }
+    return dibujarPrenda(ctx, completos, { forma: this.forma(), color: this.colorPrenda() });
+  }
+
+  private limpiarLienzo() {
+    const lienzo = this.lienzoRef?.nativeElement;
+    lienzo?.getContext('2d')?.clearRect(0, 0, lienzo.width, lienzo.height);
   }
 
   adjustScale(delta: number) {

@@ -82,7 +82,12 @@ describe('Probador virtual: ubicación automática', () => {
     const route = new BehaviorSubject(convertToParamMap({ slug: 'polera' }));
     const catalog = {
       product: vi.fn().mockReturnValue(
-        of({ id: 'p1', name: 'Polera esencial', variants: [{ id: 'v1', color: { id: 'c1' } }] }),
+        of({
+          id: 'p1',
+          name: 'Polera esencial',
+          category: { name: 'Poleras' },
+          variants: [{ id: 'v1', color: { id: 'c1', hex_code: '#8E2B33' } }],
+        }),
       ),
     };
     const api = {
@@ -149,10 +154,29 @@ describe('Probador virtual: ubicación automática', () => {
     expect(fixture.nativeElement.querySelector('input[type="range"]')).toBeNull();
   });
 
-  it('avisa si la prenda no tiene recurso preparado', async () => {
+  it('sin recurso preparado igual se puede probar: se dibuja la prenda', async () => {
     const { component, fixture } = await setup({ falla: true });
-    expect(component.error()).not.toBe('');
-    expect(fixture.nativeElement.querySelector('.fitting-stage')).toBeNull();
+    // No es un error: el dibujo no necesita ninguna imagen preparada.
+    expect(component.error()).toBe('');
+    expect(component.usaFoto()).toBe(false);
+    expect(fixture.nativeElement.querySelector('.fitting-stage')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('canvas')).not.toBeNull();
+  });
+
+  it('con recurso preparado muestra la foto real de la prenda', async () => {
+    const { component } = await setup();
+    expect(component.usaFoto()).toBe(true);
+    expect(component.assetUrl()).toContain('/prenda-recortada.webp');
+  });
+
+  it('elige la forma a dibujar desde el nombre de la prenda', async () => {
+    const { component } = await setup({ falla: true });
+    expect(component.forma()).toBe('remera'); // "Polera esencial"
+  });
+
+  it('usa el color de la variante elegida', async () => {
+    const { component } = await setup({ falla: true });
+    expect(component.colorPrenda()).toBe('#8E2B33');
   });
 
   it('no muestra controles de ajuste mientras el encaje es automático', async () => {
@@ -163,6 +187,18 @@ describe('Probador virtual: ubicación automática', () => {
     harness.component.tuning.set(true);
     harness.fixture.detectChanges();
     expect(harness.fixture.nativeElement.querySelector('.fitting-tuning')).not.toBeNull();
+  });
+
+  it('dibuja la prenda sobre el cuerpo cuando no hay foto preparada', async () => {
+    const harness = await setup({ falla: true });
+    const pintar = vi.spyOn(
+      harness.component as unknown as { pintar: (...args: unknown[]) => boolean },
+      'pintar',
+    );
+    harness.pose.detectTorso.mockReturnValue(cuerpo());
+    await conCamara(harness);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(pintar).toHaveBeenCalled();
   });
 
   it('ubica la prenda sola cuando ve el cuerpo, sin intervención', async () => {
