@@ -6,7 +6,7 @@ import { SessionService } from '../../auth/application/session.service';
 import { Order } from '../domain/commerce.models';
 
 const pending: Order = {
-  id: 'order-1', number: 'FS-TEST', customer_email: 'buyer@example.test', status: 'pending_payment',
+  id: 'order-1', number: 'FS-TEST', customer_email: 'buyer@example.test', branch_id: 'b1', status: 'pending_payment',
   payment_status: 'pending', payment_method: 'stripe', payment_reference: null,
   total: '169.00', currency: 'BOB', address: { recipient: 'Buyer', phone: '123', line1: 'Street', city: 'City', country: 'BO' },
   items: [], tracking: [], carrier: null, tracking_number: null, created_at: '2026-09-16T17:53:00Z',
@@ -14,7 +14,7 @@ const pending: Order = {
 const paid = { ...pending, status: 'paid', payment_status: 'paid', payment_reference: 'pi_verified' };
 
 async function setup(query: Record<string, string> = {}, admin = false, result: Order = paid) {
-  const api = { orders: vi.fn().mockResolvedValue([pending]), verifyPayment: vi.fn().mockResolvedValue(result), checkout: vi.fn().mockResolvedValue(false) };
+  const api = { orders: vi.fn().mockResolvedValue([pending]), verifyPayment: vi.fn().mockResolvedValue(result), checkout: vi.fn().mockResolvedValue(false), branches: vi.fn().mockResolvedValue([{ id: 'b1', name: 'Sucursal Centro', address: 'Av. 1' }]) };
   TestBed.configureTestingModule({ imports: [OrdersPageComponent], providers: [provideRouter([]),
     { provide: ActivatedRoute, useValue: { snapshot: { data: { admin }, queryParamMap: convertToParamMap(query) } } },
     { provide: CommerceService, useValue: api }, { provide: SessionService, useValue: { can: () => true } },
@@ -62,5 +62,65 @@ describe('Retorno de Stripe en pedidos', () => {
     fixture.detectChanges();
     expect(api.checkout).toHaveBeenCalledTimes(1);
     expect(fixture.nativeElement.textContent).not.toContain('Pagar con Stripe');
+  });
+});
+
+describe('Bandeja de pedidos de gestión', () => {
+  it('manda los filtros al servidor y no los aplica en la vista del cliente', async () => {
+    const { fixture, api } = await setup({}, true);
+    const pos = fixture.componentInstance;
+    pos.estado = 'paid';
+    pos.canal = 'pos';
+    pos.sucursal = 'b1';
+    pos.consulta = '  FS-8A3C21 ';
+    pos.buscar();
+    await fixture.whenStable();
+
+    const [admin, offset, filtros] = api.orders.mock.calls.at(-1)!;
+    expect(admin).toBe(true);
+    expect(offset).toBe(0);
+    expect(filtros).toEqual({
+      status: 'paid',
+      channel: 'pos',
+      branch_id: 'b1',
+      q: 'FS-8A3C21',
+    });
+  });
+
+  it('un filtro nuevo vuelve a la primera página', async () => {
+    const { fixture } = await setup({}, true);
+    const pos = fixture.componentInstance;
+    pos.page(1);
+    expect(pos.offset).toBe(50);
+    pos.estado = 'shipped';
+    pos.buscar();
+    expect(pos.offset).toBe(0);
+  });
+
+  it('marca el canal de caja y la devolución sin resolver', async () => {
+    const { fixture, api } = await setup({}, true);
+    api.orders.mockResolvedValue([
+      { ...paid, sales_channel: 'pos', has_open_return: true },
+    ]);
+    await fixture.componentInstance.load();
+    fixture.detectChanges();
+
+    const texto = fixture.nativeElement.textContent;
+    expect(texto).toContain('Caja');
+    expect(texto).toContain('Devolución abierta');
+  });
+
+  it('el cliente no ve la barra de filtros de gestión', async () => {
+    const { fixture } = await setup();
+    expect(fixture.nativeElement.querySelector('.orders-filters')).toBeNull();
+  });
+
+  it('limpiar deja los filtros vacíos', async () => {
+    const { fixture } = await setup({}, true);
+    const pos = fixture.componentInstance;
+    pos.estado = 'paid';
+    pos.consulta = 'FS-1';
+    pos.limpiarFiltros();
+    expect(pos.hayFiltros()).toBe(false);
   });
 });

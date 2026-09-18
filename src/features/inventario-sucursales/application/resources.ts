@@ -90,6 +90,8 @@ export const organizationResources: Resource[] = [
       ...section('Ubicación y contacto', [
         { key: 'address', label: 'Dirección', required: true, minLength: 5, maxLength: 255 },
         { key: 'phone', label: 'Teléfono', maxLength: 30 },
+        // Casilla que recibe los avisos de reserva de esta sucursal (RF11).
+        { key: 'notification_email', label: 'Correo para avisos de reserva', type: 'email', maxLength: 320 },
         { key: 'latitude', label: 'Latitud', type: 'number', min: -90, max: 90 },
         { key: 'longitude', label: 'Longitud', type: 'number', min: -180, max: 180 },
       ]),

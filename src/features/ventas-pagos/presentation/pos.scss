@@ -1,0 +1,249 @@
+/* Punto de venta: la pantalla que usa el cajero con el cliente enfrente.
+ *
+ * Vive aparte de `commerce.scss` porque la usan dos componentes —cobro y
+ * devoluciones— y, con encapsulación emulada, los estilos del padre no alcanzan
+ * el DOM interno de un hijo.
+ *
+ * El criterio de esta vista es distinto al del resto del panel: importa la
+ * velocidad, no la densidad de información. Los blancos son grandes, los
+ * botones se tocan sin apuntar y el total se lee de lejos.
+ */
+
+/* Utilidades que estos componentes necesitan por su cuenta. */
+.muted {
+  color: #736c65;
+}
+.pos-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* --- Encabezado: sucursal, caja y pestañas ------------------------------ */
+.pos-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--white);
+}
+.pos-bar label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  min-width: 190px;
+  flex: 1 1 190px;
+}
+.pos-tabs {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.pos-tabs button {
+  padding: 9px 16px;
+  font-size: 13px;
+  border-radius: 999px;
+}
+.pos-tabs button.is-active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* --- Dos columnas: catálogo y venta ------------------------------------- */
+.pos-layout {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 16px;
+  align-items: start;
+}
+.pos-panel {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--white);
+}
+/* La venta acompaña el scroll: el cajero siempre ve el total y el botón. */
+.pos-ticket {
+  position: sticky;
+  top: 16px;
+  display: grid;
+  gap: 12px;
+}
+.pos-search input {
+  font-size: 16px;
+  padding: 12px 14px;
+}
+
+/* --- Listado de prendas ------------------------------------------------- */
+.pos-stock {
+  max-height: 46vh;
+  overflow: auto;
+  margin-top: 12px;
+}
+.pos-stock table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.pos-stock th {
+  position: sticky;
+  top: 0;
+  background: var(--white);
+  text-align: left;
+  padding: 8px 6px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+.pos-stock td {
+  padding: 10px 6px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.pos-stock small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+}
+.pos-stock tr.is-agotado td {
+  opacity: 0.45;
+}
+
+/* --- Líneas de la venta ------------------------------------------------- */
+.pos-line {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.pos-line small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+}
+.pos-qty {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pos-qty button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+}
+.pos-qty input {
+  width: 46px;
+  text-align: center;
+  padding: 5px 2px;
+}
+
+/* --- Totales ------------------------------------------------------------ */
+.pos-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-top: 10px;
+  border-top: 2px solid var(--ink);
+  font-size: 14px;
+}
+.pos-total strong {
+  font-size: 26px;
+  color: var(--accent);
+}
+/* El vuelto es lo que el cajero cuenta en la mano: tiene que gritar. */
+.pos-vuelto {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--paper);
+  font-size: 14px;
+}
+.pos-vuelto strong {
+  font-size: 20px;
+}
+.pos-vuelto.is-insuficiente {
+  background: #fbeaea;
+  color: #8f2d2d;
+}
+
+/* --- Resultado de la operación ------------------------------------------ */
+.pos-recibo {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 12px;
+  background: var(--white);
+}
+.pos-recibo h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.pos-recibo dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 14px;
+  margin: 0;
+  font-size: 13px;
+}
+.pos-recibo dt {
+  color: var(--muted);
+}
+.pos-recibo dd {
+  margin: 0;
+  text-align: right;
+}
+
+@media (max-width: 900px) {
+  /* En una tablet de mostrador la venta va debajo del listado, no al costado. */
+  .pos-layout {
+    grid-template-columns: 1fr;
+  }
+  .pos-ticket {
+    position: static;
+  }
+  .pos-tabs {
+    margin-left: 0;
+    width: 100%;
+  }
+  .pos-tabs button {
+    flex: 1;
+  }
+}
+
+/* Medios de cobro: botones grandes, no un desplegable. En el mostrador se
+ * elige de un toque y se ve cuál quedó activo sin abrir nada. */
+.pos-medios {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.pos-medios button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 8px;
+  font-size: 13px;
+}
+.pos-medios button.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}

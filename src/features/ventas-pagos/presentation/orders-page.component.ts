@@ -3,13 +3,14 @@ import { DatePipe, DecimalPipe, UpperCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CommerceService } from '../infrastructure/commerce.service';
-import { Order, commerceLabel } from '../domain/commerce.models';
+import { Branch, Order, commerceLabel } from '../domain/commerce.models';
 import { OrderTrackerComponent } from './order-tracker.component';
+import { OrderReturnsComponent } from './order-returns.component';
 import { SessionService } from '../../auth/application/session.service';
 import { errorMessage } from '../../../shared/errors';
 @Component({
   selector: 'fs-orders-page',
-  imports: [FormsModule, RouterLink, DatePipe, DecimalPipe, UpperCasePipe, OrderTrackerComponent],
+  imports: [FormsModule, RouterLink, DatePipe, DecimalPipe, UpperCasePipe, OrderTrackerComponent, OrderReturnsComponent],
   styleUrl: './commerce.scss',
   template: ` <section class="commerce-page">
     <p class="eyebrow">{{ admin ? 'GESTIÓN COMERCIAL' : 'MI CUENTA' }}</p>
@@ -36,6 +37,50 @@ import { errorMessage } from '../../../shared/errors';
     @if (busy()) {
       <p role="status">Actualizando…</p>
     }
+    @if (admin) {
+      <!-- Sin filtros hay que pasar páginas a mano para encontrar un pedido. -->
+      <form class="orders-filters" (ngSubmit)="$event.preventDefault(); buscar()">
+        <label>
+          Estado
+          <select name="estado" [(ngModel)]="estado" (ngModelChange)="buscar()">
+            <option value="">Todos</option>
+            <option value="pending_payment">Pendiente de pago</option>
+            <option value="paid">Pagado</option>
+            <option value="processing">En preparación</option>
+            <option value="shipped">En camino</option>
+            <option value="delivered">Entregado</option>
+            <option value="cancelled">Cancelado</option>
+            <option value="expired">Vencido</option>
+          </select>
+        </label>
+        <label>
+          Canal
+          <select name="canal" [(ngModel)]="canal" (ngModelChange)="buscar()">
+            <option value="">Todos</option>
+            <option value="web">Web</option>
+            <option value="pos">Caja</option>
+          </select>
+        </label>
+        <label>
+          Sucursal
+          <select name="sucursal" [(ngModel)]="sucursal" (ngModelChange)="buscar()">
+            <option value="">Todas</option>
+            @for (b of branches(); track b.id) {
+              <option [value]="b.id">{{ b.name }}</option>
+            }
+          </select>
+        </label>
+        <label class="orders-search">
+          Buscar
+          <input name="q" [(ngModel)]="consulta" type="search" placeholder="N.º de pedido o correo" />
+        </label>
+        <button type="submit" [disabled]="busy()">Buscar</button>
+        @if (hayFiltros()) {
+          <button type="button" (click)="limpiarFiltros()" [disabled]="busy()">Limpiar</button>
+        }
+      </form>
+    }
+
     <div class="orders-grid">
       @for (o of orders(); track o.id) {
         <article class="order-card">
@@ -49,6 +94,12 @@ import { errorMessage } from '../../../shared/errors';
             </div>
             <div>
               <span class="commerce-status">{{ label(o.status) }}</span>
+              @if (admin && o.sales_channel === 'pos') {
+                <span class="order-flag">Caja</span>
+              }
+              @if (admin && o.has_open_return) {
+                <a class="order-flag is-aviso" routerLink="/admin/devoluciones">Devolución abierta</a>
+              }
               <p>
                 <strong>{{ o.currency | uppercase }} {{ o.total | number: '1.2-2' }}</strong>
               </p>
@@ -87,6 +138,9 @@ import { errorMessage } from '../../../shared/errors';
               <dd>{{ o.payment_reference || 'Sin confirmación' }}</dd>
             </dl>
           </details>
+          @if (!admin && o.status === 'delivered') {
+            <fs-order-returns [pedido]="o" />
+          }
           @if (o.status === 'pending_payment' && o.payment_method === 'stripe' && (!admin || session.can('commerce.write'))) {
             <button [disabled]="busy()" (click)="verifyPayment(o.id)">Verificar pago con Stripe</button>
           }
@@ -216,6 +270,7 @@ export class OrdersPageComponent {
   admin = this.route.snapshot.data['admin'] === true;
   selected = this.route.snapshot.queryParamMap.get('pedido');
   orders = signal<Order[]>([]);
+  branches = signal<Branch[]>([]);
   busy = signal(false);
   error = signal('');
   message = signal('');
@@ -223,6 +278,11 @@ export class OrdersPageComponent {
   cancelCandidate = signal('');
   label = commerceLabel;
   offset = 0;
+  // Filtros de la bandeja de gestión.
+  estado = '';
+  canal = '';
+  sucursal = '';
+  consulta = '';
   mode = '';
   method = 'cash';
   reference = '';
@@ -232,9 +292,40 @@ export class OrdersPageComponent {
   constructor() {
     void this.initialize();
   }
+  hayFiltros() {
+    return !!(this.estado || this.canal || this.sucursal || this.consulta.trim());
+  }
+  /** Filtros vigentes; los vacíos no viajan. */
+  private filtros() {
+    return {
+      status: this.estado,
+      channel: this.canal,
+      branch_id: this.sucursal,
+      q: this.consulta.trim(),
+    };
+  }
+  buscar() {
+    // Un filtro nuevo empieza por la primera página: si no, se mira una página
+    // que ya no corresponde al resultado.
+    this.offset = 0;
+    void this.load();
+  }
+  limpiarFiltros() {
+    this.estado = this.canal = this.sucursal = this.consulta = '';
+    this.buscar();
+  }
+
   private async initialize() {
     await this.load();
-    if (this.admin) return;
+    if (this.admin) {
+      try {
+        this.branches.set(await this.api.branches());
+      } catch {
+        // Sin la lista, el filtro de sucursal queda vacío: el resto sigue sirviendo.
+      }
+      // El retorno de Stripe es cosa del cliente: la gestión no vuelve de un pago.
+      return;
+    }
     const returned = this.route.snapshot.queryParamMap.get('payment');
     if (returned === 'success') {
       if (this.selected) await this.verifyPayment(this.selected);
@@ -269,7 +360,7 @@ export class OrdersPageComponent {
     this.busy.set(true);
     this.error.set('');
     try {
-      this.orders.set(await this.api.orders(this.admin, this.offset));
+      this.orders.set(await this.api.orders(this.admin, this.offset, this.filtros()));
     } catch (e) {
       this.error.set(errorMessage(e));
     } finally {

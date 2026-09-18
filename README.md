@@ -139,6 +139,30 @@ donde llegó el pedido.
 
 Pruebas en `order-progress.spec.ts`.
 
+Los estilos del seguimiento y de las devoluciones viven en `order-tracking.scss`, no en
+`commerce.scss`: con encapsulación emulada, los estilos de un componente **no** alcanzan el DOM
+interno de sus hijos, y tanto `fs-order-tracker` como `fs-order-returns` son componentes hijos de
+«Mis pedidos».
+
+## Devoluciones (CU19)
+
+En «Mis pedidos», un pedido **entregado** muestra «Devolver prendas». El panel se carga recién
+cuando se abre, para que la página siga abriendo con una sola consulta.
+
+- Solo aparecen las prendas con unidades pendientes de devolver, y la cantidad se limita a lo que el
+  servidor informa como disponible; el servidor vuelve a validarlo igual.
+- El motivo es obligatorio: es lo que administración lee para resolver.
+- Cada solicitud viaja con un `client_request_id`, así un reenvío del formulario no abre dos
+  devoluciones.
+- Las devoluciones ya registradas se listan con su estado, el importe a reintegrar y la respuesta de
+  la tienda.
+
+En administración, `/admin/devoluciones` lista las solicitudes y permite aprobar, rechazar (con
+motivo obligatorio) o registrar que las prendas llegaron. Recién ese último paso devuelve las
+unidades al stock.
+
+Pruebas en `order-returns.component.spec.ts`.
+
 ## Probador virtual: la prenda se dibuja sobre el cuerpo
 
 El probador no superpone la fotografía del catálogo: dibuja la prenda a partir de los puntos del
@@ -327,7 +351,13 @@ de unos 2800px de tabla a 522px con desplazamiento interno.
 
 `npm run build` genera `dist/browser`. El servidor web debe servir `index.html` para rutas del frontend y reenviar `/api/v1` al backend. La compilación reemplaza el archivo de ambiente por `environment.prod.ts`. El proxy de Angular solo funciona durante desarrollo; no forma parte de la compilación publicada.
 
+## Documentación del proyecto
+
+- `docs/PROJECT_GUIDE.md`: arquitectura, rutas, sesión, decisiones de interfaz y pruebas.
+- `docs/PRUEBAS_CICLO_1.md`: detalle de las pruebas del ciclo I.
+- `../backend_marketplace_moda/docs/API_CONTRACT.md`: contrato de los endpoints que consume esta aplicación.
+- `../backend_marketplace_moda/docs/TRAZABILIDAD_RF.md`: estado de cada RF en los tres proyectos.
+
 ## Fuente documental
 
 Se revisaron la guía, el contrato, los esquemas y las rutas del backend actualizado. El documento Word externo indicado por el usuario permanecía bloqueado por otra aplicación durante la implementación; falta contrastar directamente esa copia cuando esté disponible. No se modificó el documento.
-# FRONTEND_MARKETPLACE_MODA

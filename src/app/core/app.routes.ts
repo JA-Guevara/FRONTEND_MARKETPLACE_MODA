@@ -216,6 +216,16 @@ export const routes: Routes = [
         data: { permission: 'reservations.read' },
       },
       {
+        path: 'devoluciones',
+        title: 'Devoluciones | FashionStore',
+        loadComponent: () =>
+          import('../../features/ventas-pagos/presentation/admin-returns.component').then(
+            (m) => m.AdminReturnsComponent,
+          ),
+        canActivate: [authGuard],
+        data: { permission: 'commerce.read' },
+      },
+      {
         path: 'bitacora',
         title: 'Bitácora | FashionStore',
         loadComponent: () =>

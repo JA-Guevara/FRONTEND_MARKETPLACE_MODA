@@ -7,6 +7,7 @@ function pedido(cambios: Partial<Order> = {}): Order {
     id: 'o1',
     number: 'FS-001',
     customer_email: 'cliente@example.com',
+    branch_id: 'b1',
     status: 'pending_payment',
     payment_status: 'pending',
     payment_method: 'manual',

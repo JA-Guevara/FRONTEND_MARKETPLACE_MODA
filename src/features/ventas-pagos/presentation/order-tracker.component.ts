@@ -13,6 +13,7 @@ import { etapasDelPedido, progresoPedido, resumenPedido } from '../domain/order-
  */
 @Component({
   selector: 'fs-order-tracker',
+  styleUrl: './order-tracking.scss',
   imports: [DatePipe, IconComponent],
   template: `<div class="tracker">
     <p class="tracker-summary">
