@@ -1,5 +1,6 @@
 import { Component, Input, Output, EventEmitter, OnChanges, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { MapPickerComponent } from './map-picker.component';
 import { firstValueFrom } from 'rxjs';
 import { Field, Option } from './form-schema';
 import { Entity } from './models';
@@ -10,7 +11,7 @@ import { passwordError } from '../features/auth/domain/password';
 
 @Component({
   selector: 'fs-entity-form',
-  imports: [ReactiveFormsModule, IconComponent],
+  imports: [ReactiveFormsModule, IconComponent, MapPickerComponent],
   template: ` @if (lookupError()) {
       <div class="alert error" role="alert">
         {{ lookupError() }}
@@ -96,6 +97,14 @@ import { passwordError } from '../features/auth/domain/password';
                       <span class="muted">No hay opciones disponibles.</span>
                     }
                   </div>
+                }
+                @case ('map') {
+                  <!-- No es un dato propio: llena latitud y longitud. -->
+                  <fs-map-picker
+                    [grupo]="form"
+                    [latKey]="field.latKey || 'latitude'"
+                    [lngKey]="field.lngKey || 'longitude'"
+                  />
                 }
                 @case ('hours') {
                   <div [formGroupName]="field.key" [id]="'f-' + field.key" class="hours">
@@ -290,6 +299,9 @@ export class EntityFormComponent implements OnChanges {
             }),
           ),
         );
+      } else if (f.type === 'map') {
+        // El mapa escribe sobre latitud y longitud: no tiene valor propio.
+        continue;
       } else {
         const validators = [];
         if (f.required) validators.push(Validators.required);
@@ -365,6 +377,8 @@ export class EntityFormComponent implements OnChanges {
     const raw = this.form.getRawValue();
     const data: Record<string, unknown> = {};
     for (const f of this.visibleFields) {
+      // El mapa no aporta un campo: ya escribió latitud y longitud.
+      if (f.type === 'map') continue;
       let value = raw[f.key];
       if (typeof value === 'string' && f.type !== 'password') value = value.trim();
       if (f.type === 'hours') {

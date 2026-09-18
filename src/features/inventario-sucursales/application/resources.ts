@@ -92,6 +92,9 @@ export const organizationResources: Resource[] = [
         { key: 'phone', label: 'Teléfono', maxLength: 30 },
         // Casilla que recibe los avisos de reserva de esta sucursal (RF11).
         { key: 'notification_email', label: 'Correo para avisos de reserva', type: 'email', maxLength: 320 },
+        // El mapa completa los dos campos de abajo; quien prefiera tipearlos,
+        // puede, y el mapa sigue lo que se escriba.
+        { key: 'ubicacion', label: 'Ubicación en el mapa', type: 'map' },
         { key: 'latitude', label: 'Latitud', type: 'number', min: -90, max: 90 },
         { key: 'longitude', label: 'Longitud', type: 'number', min: -180, max: 180 },
       ]),

@@ -2054,3 +2054,85 @@ td .button { min-height: 30px; padding: 5px 9px; font-size: 11.5px; }
 .admin-card-featured:hover {
   background: #e9d7dc;
 }
+
+/* --- Selector de ubicación en el mapa (formulario de sucursal) ------------
+ * Leaflet crea su DOM por JavaScript, fuera de la plantilla del componente, así
+ * que estas reglas van en la hoja global: con encapsulación por componente no
+ * alcanzarían los elementos que dibuja el mapa.
+ */
+.map-picker {
+  display: grid;
+  gap: 10px;
+}
+.map-search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.map-search input {
+  flex: 1 1 220px;
+}
+.map-results {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 160px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.map-results button {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 9px 12px;
+  font-size: 13px;
+}
+.map-results button:hover {
+  background: var(--paper);
+}
+.map-canvas {
+  height: 320px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  /* Leaflet mide el contenedor al montarse: sin alto explícito no dibuja nada. */
+  overflow: hidden;
+  z-index: 0;
+}
+.map-pie,
+.map-ayuda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.map-pie span {
+  font-variant-numeric: tabular-nums;
+}
+.map-aviso {
+  margin: 0;
+  font-size: 13px;
+  color: #8f2d2d;
+}
+/* Marcador propio: una gota dibujada con CSS, sin imágenes que empaquetar. */
+.map-marker span {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: var(--accent);
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.35);
+}
+
+@media (max-width: 620px) {
+  .map-canvas {
+    height: 240px;
+  }
+}

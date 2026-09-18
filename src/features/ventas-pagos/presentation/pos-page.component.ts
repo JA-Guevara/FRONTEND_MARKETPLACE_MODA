@@ -116,7 +116,8 @@ interface Linea {
               Buscar o escanear
               <input
                 name="buscar"
-                [(ngModel)]="search"
+                [ngModel]="search()"
+                (ngModelChange)="search.set($event)"
                 type="search"
                 placeholder="Nombre, talla, color o SKU — Enter agrega"
                 autocomplete="off"
@@ -126,6 +127,10 @@ interface Linea {
           </form>
           <p class="muted">
             Con un lector de código de barras alcanza con escanear: el SKU exacto se agrega solo.
+            @if (ocultas() > 0) {
+              <br />Mostrando {{ visibles().length }} de {{ coincidencias().length }}; afiná la
+              búsqueda para ver el resto.
+            }
           </p>
 
           <div class="pos-stock">
@@ -134,7 +139,7 @@ interface Linea {
                 <tr><th>Prenda</th><th>Disponible</th><th></th></tr>
               </thead>
               <tbody>
-                @for (item of filtradas(); track item.variant_id) {
+                @for (item of visibles(); track item.variant_id) {
                   <tr [class.is-agotado]="disponibleReal(item) <= 0">
                     <td>
                       <strong>{{ item.name }}</strong>
@@ -169,7 +174,13 @@ interface Linea {
               <div class="pos-line">
                 <div>
                   <strong>{{ linea.item.name }}</strong>
-                  <small>{{ linea.item.size }} · {{ linea.item.color }} · {{ linea.item.unit_price }} {{ moneda }}</small>
+                  <small>{{ linea.item.size }} · {{ linea.item.color }}</small>
+                  <!-- El importe de la línea, no el unitario suelto: con más de
+                       una unidad el precio unitario se leía como si fuera el total. -->
+                  <small class="pos-importe">
+                    {{ linea.cantidad }} × {{ linea.item.unit_price }} =
+                    <strong>{{ importeLinea(linea) | number: '1.2-2' }} {{ moneda }}</strong>
+                  </small>
                 </div>
                 <div class="pos-qty">
                   <button type="button" (click)="cambiar(linea.item, -1)" aria-label="Quitar una unidad">−</button>
@@ -215,9 +226,17 @@ interface Linea {
             @if (paymentMethod === 'cash') {
               <label>
                 Paga con
-                <input type="number" name="recibido" [(ngModel)]="recibido" min="0" step="0.5" placeholder="0.00" />
+                <input
+                  type="number"
+                  name="recibido"
+                  [ngModel]="recibido()"
+                  (ngModelChange)="recibido.set($event === null || $event === '' ? null : +$event)"
+                  min="0"
+                  step="0.5"
+                  placeholder="0.00"
+                />
               </label>
-              @if (recibido) {
+              @if (recibido() !== null) {
                 <div class="pos-vuelto" [class.is-insuficiente]="vuelto() < 0">
                   <span>{{ vuelto() < 0 ? 'Falta' : 'Vuelto' }}</span>
                   <strong>{{ (vuelto() < 0 ? -vuelto() : vuelto()) | number: '1.2-2' }} {{ moneda }}</strong>
@@ -276,13 +295,21 @@ export class PosPageComponent {
 
   branch = '';
   cashPoint = '';
-  search = '';
+  search = signal('');
   customerName = '';
   customerEmail = '';
   paymentMethod: MedioDePago = 'cash';
   readonly MEDIOS = MEDIOS_DE_PAGO;
   reference = '';
-  recibido: number | null = null;
+  /**
+   * Efectivo que entrega el cliente.
+   *
+   * Es una **señal** a propósito: `vuelto` es un `computed()` y solo recalcula
+   * cuando cambia una señal que leyó. Como campo común, el vuelto se quedaba
+   * congelado en el primer dígito tecleado —escribir 200 daba el vuelto de 2—
+   * y el cajero devolvía de menos.
+   */
+  recibido = signal<number | null>(null);
   received = false;
   readonly moneda = 'BOB';
 
@@ -290,7 +317,7 @@ export class PosPageComponent {
     this.lineas().reduce((suma, l) => suma + Number(l.item.unit_price) * l.cantidad, 0),
   );
   unidades = computed(() => this.lineas().reduce((suma, l) => suma + l.cantidad, 0));
-  vuelto = computed(() => Number(this.recibido || 0) - this.total());
+  vuelto = computed(() => Number(this.recibido() || 0) - this.total());
 
   constructor() {
     void this.inicializar();
@@ -307,7 +334,7 @@ export class PosPageComponent {
   /** Solo el efectivo da vuelto; los demás se cobran por el importe exacto. */
   elegirMedio(valor: MedioDePago) {
     this.paymentMethod = valor;
-    if (valor !== 'cash') this.recibido = null;
+    if (valor !== 'cash') this.recibido.set(null);
     this.reference = '';
   }
   private medio() {
@@ -320,12 +347,27 @@ export class PosPageComponent {
     return this.medio().ejemplo;
   }
 
-  filtradas() {
-    const q = this.search.trim().toLowerCase();
+  /** Cuántas filas se dibujan como máximo: con 240 variantes la tabla es inusable. */
+  private static readonly TOPE = 40;
+
+  /** Todo lo que coincide con la búsqueda, sin recortar. */
+  coincidencias = computed(() => {
+    const q = this.search().trim().toLowerCase();
     if (!q) return this.items();
     return this.items().filter((i) =>
       [i.name, i.sku, i.size, i.color].join(' ').toLowerCase().includes(q),
     );
+  });
+  /** Lo que se dibuja: primero lo que tiene stock, y hasta el tope. */
+  visibles = computed(() => {
+    const filas = [...this.coincidencias()].sort(
+      (a, b) => (this.disponibleReal(b) > 0 ? 1 : 0) - (this.disponibleReal(a) > 0 ? 1 : 0),
+    );
+    return filas.slice(0, PosPageComponent.TOPE);
+  });
+  ocultas = computed(() => Math.max(0, this.coincidencias().length - PosPageComponent.TOPE));
+  importeLinea(linea: Linea) {
+    return Number(linea.item.unit_price) * linea.cantidad;
   }
 
   /** Lo que queda en góndola descontando lo que ya está en esta venta. */
@@ -335,10 +377,11 @@ export class PosPageComponent {
 
   /** Enter en el buscador: con un SKU exacto agrega sin tocar el mouse. */
   agregarPorCodigo() {
-    const q = this.search.trim().toLowerCase();
+    const q = this.search().trim().toLowerCase();
     if (!q) return;
     const exacta = this.items().find((i) => i.sku.toLowerCase() === q);
-    const candidatas = this.filtradas();
+    // Se busca sobre TODAS las coincidencias, no sobre las 40 dibujadas.
+    const candidatas = this.coincidencias();
     const elegida = exacta || (candidatas.length === 1 ? candidatas[0] : null);
     if (!elegida) return;
     if (this.disponibleReal(elegida) <= 0) {
@@ -346,7 +389,7 @@ export class PosPageComponent {
       return;
     }
     this.cambiar(elegida, 1);
-    this.search = '';
+    this.search.set('');
     this.error.set('');
   }
 
@@ -396,9 +439,9 @@ export class PosPageComponent {
     this.reference = '';
     this.customerName = '';
     this.customerEmail = '';
-    this.recibido = null;
+    this.recibido.set(null);
     this.received = false;
-    this.search = '';
+    this.search.set('');
     void this.cargarSucursal();
   }
 
@@ -407,7 +450,12 @@ export class PosPageComponent {
     if (this.customerName.trim().length < 2) return 'Escribí el nombre del cliente.';
     if (this.reference.trim().length < 3) return 'Indicá la referencia del cobro.';
     if (!this.received) return 'Confirmá que ya recibiste el pago.';
-    if (this.paymentMethod === 'cash' && this.recibido !== null && this.vuelto() < 0)
+    // El servidor valida el correo y rechaza la venta entera con un 422: más
+    // vale decirlo acá que perder el cobro ya tecleado.
+    const correo = this.customerEmail.trim();
+    if (correo && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo))
+      return 'El correo del cliente no es válido. Corregilo o dejalo vacío.';
+    if (this.paymentMethod === 'cash' && this.recibido() !== null && this.vuelto() < 0)
       return 'El efectivo recibido no alcanza para cubrir el total.';
     return '';
   }
@@ -420,7 +468,7 @@ export class PosPageComponent {
     }
     this.busy.set(true);
     this.error.set('');
-    const vuelto = this.paymentMethod === 'cash' && this.recibido !== null ? this.vuelto() : null;
+    const vuelto = this.paymentMethod === 'cash' && this.recibido() !== null ? this.vuelto() : null;
     try {
       const venta = await this.api.posSale({
         client_request_id: crypto.randomUUID(),

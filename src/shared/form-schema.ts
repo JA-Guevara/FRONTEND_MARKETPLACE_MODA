@@ -22,7 +22,9 @@ export interface Field {
     | 'checkbox'
     | 'select'
     | 'multi'
-    | 'hours';
+    | 'hours'
+    /** Selector de ubicación: escribe sobre los campos de latitud y longitud. */
+    | 'map';
   required?: boolean;
   minLength?: number;
   maxLength?: number;
@@ -30,6 +32,9 @@ export interface Field {
   max?: number;
   pattern?: string;
   options?: Option[];
+  /** Solo para `map`: campos donde guarda las coordenadas. */
+  latKey?: string;
+  lngKey?: string;
   lookup?: string;
   lookupLabel?: string;
   createOnly?: boolean;

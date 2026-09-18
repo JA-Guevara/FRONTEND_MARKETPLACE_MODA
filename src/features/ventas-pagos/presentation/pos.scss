@@ -247,3 +247,12 @@
   border-color: var(--accent);
   color: #fff;
 }
+
+/* El importe de la línea, debajo de talla y color. */
+.pos-importe {
+  margin-top: 2px;
+  color: var(--ink);
+}
+.pos-importe strong {
+  color: var(--accent);
+}
