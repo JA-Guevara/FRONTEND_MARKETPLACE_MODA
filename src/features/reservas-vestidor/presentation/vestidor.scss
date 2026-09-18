@@ -1,178 +1,185 @@
-:host {
-  display: block;
-  min-width: 0;
-}
+/* Probador virtual: la cámara es la pantalla, no un panel con controles.
+   La prenda se ubica sola; lo único permanente es la indicación de cómo
+   pararse y los pocos botones de la barra inferior. */
+
 .fitting-page {
-  width: min(1080px, 100%);
-  margin: auto;
-  padding: clamp(12px, 3vw, 28px);
-}
-header {
-  margin: 20px 0;
-}
-h1 {
-  font-size: clamp(1.5rem, 3vw, 2rem);
-  margin: 6px 0;
-  overflow-wrap: anywhere;
-}
-h2 {
-  font-size: 1.15rem;
-  margin: 0;
-}
-p {
-  line-height: 1.55;
-}
-.fitting-layout {
+  width: min(560px, calc(100% - 24px));
+  margin: 0 auto;
+  padding: 16px 0 40px;
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 1fr);
-  gap: 24px;
-  align-items: start;
+  gap: 12px;
 }
+
+.fitting-back {
+  font-size: 13px;
+  text-decoration: none;
+  color: var(--muted);
+  justify-self: start;
+}
+
+/* Escenario: vertical, como una cámara de teléfono. */
 .fitting-stage {
   position: relative;
-  width: min(100%, 51dvh);
   aspect-ratio: 3 / 4;
-  margin: auto;
-  overflow: hidden;
+  max-height: 72vh;
+  margin: 0 auto;
+  width: 100%;
   border-radius: 16px;
-  background: #252229;
-  isolation: isolate;
+  overflow: hidden;
+  background: #1d1f22;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-video {
+
+.fitting-stage video {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
-video.mirrored {
+.fitting-stage video.mirrored {
   transform: scaleX(-1);
 }
-.fitting-guide {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  text-align: center;
-  color: #fff;
-}
-.fitting-guide fs-icon {
-  font-size: 2rem;
-}
+
+/* La prenda se dibuja centrada; el encaje automático la mueve desde ahí. */
 .fitting-overlay {
-  visibility: hidden;
   position: absolute;
-  left: 50%;
   top: 50%;
-  width: 60%;
+  left: 50%;
   max-width: none;
-  max-height: none;
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
+  width: auto;
+  height: auto;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 0.25s ease,
+    transform 0.12s linear;
+  will-change: transform;
 }
 .fitting-overlay.ready {
-  visibility: visible;
+  opacity: 1;
 }
-.fitting-overlay:active {
-  cursor: grabbing;
+
+/* Pantalla inicial: nombre de la prenda y un solo botón. */
+.fitting-hint {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+  color: #f2efe8;
 }
-.fitting-settings {
-  min-width: 0;
-  background: #fff;
-  border: 1px solid #e5dee2;
-  border-radius: 16px;
-  padding: 20px;
+.fitting-hint fs-icon {
+  font-size: 34px;
+  opacity: 0.8;
 }
-.fitting-actions {
+.fitting-hint p {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+.fitting-hint .alert {
+  font-size: 12px;
+}
+
+/* Indicación en vivo mientras la cámara está encendida. */
+.fitting-hint-live {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 16px;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  border-radius: 999px;
+  background: #16181bd9;
+  color: #f4f1ea;
+  font-size: 13px;
+  font-weight: 600;
+  backdrop-filter: blur(4px);
+  text-align: center;
+}
+
+/* Barra inferior: lo mínimo indispensable. */
+.fitting-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.fitting-name {
+  margin: 0;
+  font-weight: 650;
+  font-size: 15px;
+}
+.fitting-buttons {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 16px 0;
 }
-.fitting-shopping {
-  display: grid;
-  gap: 8px;
-  margin: 16px 0;
-  padding: 12px;
-  border: 1px solid var(--border, #e2d9d3);
-  border-radius: 8px;
-  background: #faf7f4;
+.fitting-buttons button,
+.fitting-buttons .button {
+  font-size: 12px;
+  padding: 8px 12px;
 }
-.fitting-shopping p {
-  margin: 0;
-  font-size: 0.95rem;
+.fitting-buttons button.active {
+  border-color: var(--ink);
+  background: #f0ede7;
 }
-.fitting-actions button.active {
-  background: #74394e;
-  border-color: #74394e;
-  color: #fff;
-}
-.fitting-overlay.pose-faded {
-  opacity: 0.25;
-  transition: opacity 0.25s ease;
-}
-.pose-status {
-  margin: 0 0 12px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: #eef2e6;
-  color: #3d523b;
-  font-size: 0.95rem;
-}
-.pose-status.lost {
-  background: #f6e7c9;
-  color: #7a5a17;
-}
-button {
-  min-height: 44px;
-  white-space: normal;
+
+/* Ajuste fino: aparece solo si la persona lo pide. */
+.fitting-tuning {
+  display: flex;
+  align-items: center;
   justify-content: center;
-}
-fieldset {
-  min-width: 0;
-  padding: 12px;
-  border: 1px solid #e5dee2;
-  border-radius: 12px;
-}
-legend {
-  padding: 0 6px;
-  font-weight: 600;
-}
-label {
-  display: grid;
-  gap: 6px;
-}
-input[type='range'] {
-  width: 100%;
-  min-width: 0;
-  min-height: 44px;
-  padding: 0;
-  accent-color: #74394e;
-}
-.fitting-directions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  flex-wrap: wrap;
   gap: 8px;
-  margin: 12px 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--white);
 }
+.fitting-tuning span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.fitting-tuning button {
+  min-width: 44px;
+  font-size: 13px;
+  padding: 7px 10px;
+}
+
 .fitting-note {
-  font-size: 0.85rem;
-  color: #625b63;
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
 }
-@media (max-width: 720px) {
-  .fitting-layout {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
+
+@media (max-width: 480px) {
+  .fitting-page {
+    width: calc(100% - 16px);
   }
   .fitting-stage {
-    width: min(100%, 420px, 51dvh);
+    max-height: 66vh;
   }
-  .fitting-settings {
-    padding: 16px;
+  .fitting-bar {
+    justify-content: center;
   }
-  .fitting-actions > button {
-    flex: 1 1 150px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fitting-overlay {
+    transition: none;
   }
 }

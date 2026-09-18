@@ -7,9 +7,15 @@ import { SessionService } from '../../auth/application/session.service';
 import { ApiService } from '../../../app/core/shared/api.service';
 import { PoseTrackingService } from '../../../shared/pose-tracking.service';
 
-describe('Probador manual: cámara y recursos', () => {
+/**
+ * El probador ubica la prenda solo: no hay controles que mover. Estas pruebas
+ * verifican el camino automático (recurso preparado → cuerpo → encaje) y las
+ * indicaciones que reemplazan a los controles.
+ */
+describe('Probador virtual: ubicación automática', () => {
   const originalMedia = Object.getOwnPropertyDescriptor(navigator, 'mediaDevices');
   let camera: ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
     camera = vi.fn();
     Object.defineProperty(navigator, 'mediaDevices', {
@@ -18,331 +24,256 @@ describe('Probador manual: cámara y recursos', () => {
     });
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+    // La precarga del recurso resuelve sola, con dimensiones conocidas.
+    vi.spyOn(window, 'Image').mockImplementation(function (this: HTMLImageElement) {
+      const falsa = {
+        naturalWidth: 400,
+        naturalHeight: 600,
+        set src(_: string) {
+          setTimeout(() => falsa.onload?.(), 0);
+        },
+        onload: null as (() => void) | null,
+        onerror: null as (() => void) | null,
+      };
+      return falsa as unknown as HTMLImageElement;
+    } as unknown as typeof Image);
   });
+
   afterEach(() => {
     TestBed.resetTestingModule();
     vi.restoreAllMocks();
     if (originalMedia) Object.defineProperty(navigator, 'mediaDevices', originalMedia);
     else Reflect.deleteProperty(navigator, 'mediaDevices');
   });
+
   function stream() {
     const track = Object.assign(new EventTarget(), {
       stop: vi.fn(),
       getSettings: () => ({ facingMode: 'user' }),
     });
-    const value = {
-      getTracks: () => [track],
-      getVideoTracks: () => [track],
-    } as unknown as MediaStream;
-    return { track, value };
+    return {
+      track,
+      value: { getTracks: () => [track], getVideoTracks: () => [track] } as unknown as MediaStream,
+    };
   }
-  /** Pose real de MediaPipe: landmarks con hombros (11, 12) y caderas (23, 24),
-   * formando el torso centrado en (x, y). */
-  function torsoLandmarks(x: number, y: number) {
+
+  /** Cuerpo de pie y centrado, como lo entrega MediaPipe. */
+  function cuerpo(x = 0.5, y = 0.35, visibility = 0.99) {
     const l: { x: number; y: number; visibility: number }[] = [];
-    l[11] = { x: x - 0.1, y, visibility: 0.99 };
-    l[12] = { x: x + 0.1, y, visibility: 0.99 };
-    l[23] = { x: x - 0.12, y: y + 0.3, visibility: 0.95 };
-    l[24] = { x: x + 0.12, y: y + 0.3, visibility: 0.95 };
+    l[11] = { x: x - 0.1, y, visibility };
+    l[12] = { x: x + 0.1, y, visibility };
+    l[23] = { x: x - 0.12, y: y + 0.3, visibility };
+    l[24] = { x: x + 0.12, y: y + 0.3, visibility };
     return l;
   }
-  async function setup(hasAsset = true, authenticated = false) {
+
+  const recursoPreparado = {
+    asset_url: '/prenda-recortada.webp',
+    body_region: 'upper_body',
+    anchor_points: {
+      shoulder_left: [0.1, 0.12],
+      shoulder_right: [0.9, 0.12],
+      hem_left: [0.15, 0.95],
+      hem_right: [0.85, 0.95],
+    },
+  };
+
+  async function setup(options: { recurso?: unknown; falla?: boolean; poseOk?: boolean } = {}) {
     const route = new BehaviorSubject(convertToParamMap({ slug: 'polera' }));
     const catalog = {
-      product: vi
-        .fn()
-        .mockReturnValue(
-          of({
-            id: 'p1',
-            name: 'Polera',
-            ar_assets: hasAsset
-              ? [{ is_active: true, asset_type: 'image_overlay', asset_url: '/polera.webp' }]
-              : [],
-          }),
-        ),
+      product: vi.fn().mockReturnValue(
+        of({ id: 'p1', name: 'Polera esencial', variants: [{ id: 'v1', color: { id: 'c1' } }] }),
+      ),
     };
-    const api = { write: vi.fn().mockReturnValue(of({ data: {} })) };
-    const pose = { ensure: vi.fn().mockResolvedValue(true), detectTorso: vi.fn(), ready: vi.fn(), dispose: vi.fn() };
+    const api = {
+      write: options.falla
+        ? vi.fn().mockReturnValue(throwError(() => new Error('sin recurso')))
+        : vi.fn().mockReturnValue(of({ data: options.recurso ?? recursoPreparado })),
+    };
+    const pose = {
+      ensure: vi.fn().mockResolvedValue(options.poseOk ?? true),
+      detectTorso: vi.fn().mockReturnValue(null),
+      ready: vi.fn(),
+      dispose: vi.fn(),
+    };
     TestBed.configureTestingModule({
       imports: [VestidorComponent],
       providers: [
         provideRouter([]),
-        { provide: ActivatedRoute, useValue: { paramMap: route } },
+        {
+          provide: ActivatedRoute,
+          // La variante llega por query param: de ahí sale el color del recurso.
+          useValue: {
+            paramMap: route,
+            snapshot: { queryParamMap: convertToParamMap({ variante: 'v1' }) },
+          },
+        },
         { provide: CatalogService, useValue: catalog },
         { provide: ApiService, useValue: api },
         { provide: PoseTrackingService, useValue: pose },
-        {
-          provide: SessionService,
-          useValue: { user: () => (authenticated ? { id: 'u1' } : null) },
-        },
+        { provide: SessionService, useValue: { user: () => ({ id: 'u1' }) } },
       ],
     });
     const fixture = TestBed.createComponent(VestidorComponent);
     fixture.detectChanges();
     await fixture.whenStable();
+    // La precarga de la imagen resuelve en un tick posterior: sin esta espera
+    // el componente seguiría mostrando "cargando".
+    await new Promise((r) => setTimeout(r, 5));
     fixture.detectChanges();
-    if (hasAsset) {
-      fixture.nativeElement.querySelector('img').dispatchEvent(new Event('load'));
-      fixture.detectChanges();
-    }
-    return { fixture, component: fixture.componentInstance, api, route, catalog, pose };
+    return { fixture, component: fixture.componentInstance, api, pose, route, catalog };
   }
-  it('crea el video antes del permiso y no activa la cámara automáticamente', async () => {
-    const { fixture, component, api } = await setup();
-    expect(fixture.nativeElement.querySelector('video')).toBeTruthy();
-    expect(component.cameraState()).toBe('off');
-    expect(camera).not.toHaveBeenCalled();
-    expect(api.write).not.toHaveBeenCalled();
-  });
-  it('conecta el stream al video y libera los tracks al cerrar', async () => {
-    const { fixture, component, api } = await setup(true, true);
-    const media = stream();
-    camera.mockResolvedValue(media.value);
-    await component.startCamera();
-    expect(component.cameraState()).toBe('active');
-    expect(fixture.nativeElement.querySelector('video').srcObject).toBe(media.value);
-    expect(api.write).toHaveBeenCalledWith('POST', '/vestidor/sessions', { product_id: 'p1' });
-    component.stopCamera();
-    expect(media.track.stop).toHaveBeenCalledOnce();
-    expect(fixture.nativeElement.querySelector('video').srcObject).toBeNull();
-  });
-  it('rechaza aperturas duplicadas y detiene un permiso que llega después de cancelar', async () => {
-    const { component } = await setup();
-    const media = stream();
-    let resolve!: (value: MediaStream) => void;
-    camera.mockReturnValue(new Promise<MediaStream>((r) => (resolve = r)));
-    const pending = component.startCamera();
-    await component.startCamera();
-    expect(camera).toHaveBeenCalledOnce();
-    component.stopCamera();
-    resolve(media.value);
-    await pending;
-    expect(media.track.stop).toHaveBeenCalledOnce();
-    expect(component.cameraState()).toBe('off');
-  });
-  it('detiene el stream si el usuario sale mientras el permiso está pendiente', async () => {
-    const { fixture, component } = await setup();
-    const media = stream();
-    let resolve!: (value: MediaStream) => void;
-    camera.mockReturnValue(new Promise<MediaStream>((r) => (resolve = r)));
-    const pending = component.startCamera();
-    fixture.destroy();
-    resolve(media.value);
-    await pending;
-    expect(media.track.stop).toHaveBeenCalledOnce();
-  });
-  it('informa permiso rechazado y permite reintentar', async () => {
-    const { component } = await setup();
-    camera.mockRejectedValueOnce(new DOMException('denied', 'NotAllowedError'));
-    await component.startCamera();
-    expect(component.cameraError()).toContain('Permití');
-    camera.mockResolvedValue(stream().value);
-    await component.startCamera();
-    expect(component.cameraState()).toBe('active');
-    expect(component.cameraError()).toBe('');
-  });
-  it('libera la cámara si el video no puede reproducirse', async () => {
-    const { component } = await setup();
-    const media = stream();
-    camera.mockResolvedValue(media.value);
-    vi.mocked(HTMLMediaElement.prototype.play).mockRejectedValueOnce(new Error('play failed'));
-    await component.startCamera();
-    expect(media.track.stop).toHaveBeenCalledOnce();
-    expect(component.cameraState()).toBe('error');
-  });
-  it('no ofrece cámara ni controles para una prenda sin recurso', async () => {
-    const { fixture, component } = await setup(false);
-    expect(component.error()).toContain('imagen preparada');
-    expect(fixture.nativeElement.querySelector('video')).toBeNull();
-    await component.startCamera();
-    expect(camera).not.toHaveBeenCalled();
-  });
-  it('una imagen rota impide continuar y apaga la cámara', async () => {
-    const { component } = await setup();
-    const media = stream();
-    camera.mockResolvedValue(media.value);
-    await component.startCamera();
-    component.onImageError();
-    expect(media.track.stop).toHaveBeenCalledOnce();
-    expect(component.imageReady()).toBe(false);
-    await component.startCamera();
-    expect(camera).toHaveBeenCalledOnce();
-  });
-  it('cierra el stream anterior al cambiar de cámara', async () => {
-    const { component } = await setup();
-    const first = stream();
-    camera.mockResolvedValueOnce(first.value).mockResolvedValueOnce(stream().value);
-    await component.startCamera();
-    await component.switchCamera();
-    expect(first.track.stop).toHaveBeenCalledOnce();
-    expect(camera).toHaveBeenLastCalledWith({
-      video: { facingMode: { ideal: 'environment' } },
-      audio: false,
+
+  async function conCamara(harness: Awaited<ReturnType<typeof setup>>) {
+    const { value } = stream();
+    camera.mockResolvedValue(value);
+    await harness.component.startCamera();
+    harness.fixture.detectChanges();
+    return value;
+  }
+
+  it('pide el recurso preparado del color elegido, no la foto del producto', async () => {
+    const { api, component } = await setup();
+    expect(api.write).toHaveBeenCalledWith('POST', '/vestidor/sessions', {
+      product_id: 'p1',
+      color_id: 'c1',
     });
+    expect(component.assetUrl()).toContain('/prenda-recortada.webp');
   });
-  it('informa desconexión del dispositivo', async () => {
-    const { component } = await setup();
-    const media = stream();
-    camera.mockResolvedValue(media.value);
-    await component.startCamera();
-    media.track.dispatchEvent(new Event('ended'));
-    expect(component.cameraState()).toBe('error');
-    expect(component.cameraError()).toContain('desconectó');
-  });
-  it('el fallo de bitácora no bloquea la cámara y se comunica', async () => {
-    const { component, api } = await setup(true, true);
-    api.write.mockReturnValue(throwError(() => new Error('offline')));
-    camera.mockResolvedValue(stream().value);
-    await component.startCamera();
-    await Promise.resolve();
-    expect(component.cameraState()).toBe('active');
-    expect(component.auditNotice()).toContain('no pudimos registrar');
-  });
-  it('cambiar de producto apaga la cámara y restablece la posición', async () => {
-    const { component, route, fixture } = await setup();
-    const media = stream();
-    camera.mockResolvedValue(media.value);
-    await component.startCamera();
-    component.nudge(12, 12);
-    route.next(convertToParamMap({ slug: 'camisa' }));
-    await fixture.whenStable();
-    expect(media.track.stop).toHaveBeenCalledOnce();
-    expect(component.slug).toBe('camisa');
-    expect(component.offsetX()).toBe(0);
-    expect(component.cameraState()).toBe('off');
-  });
-  it('avisa cuando el navegador no ofrece getUserMedia', async () => {
-    const { component } = await setup();
-    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: undefined });
-    await component.startCamera();
-    expect(component.cameraState()).toBe('error');
-    expect(component.cameraError()).toContain('HTTPS');
-  });
-  it('apaga una cámara activa al ocultar la pestaña', async () => {
-    const { component } = await setup();
-    const media = stream();
-    camera.mockResolvedValue(media.value);
-    await component.startCamera();
-    vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
-    component.onVisibilityChange();
-    expect(media.track.stop).toHaveBeenCalledOnce();
-    expect(component.cameraState()).toBe('off');
-  });
-  it('permite ajustar con controles y restablecer sin arrastrar', async () => {
-    const { component } = await setup();
-    component.nudge(12, -12);
-    component.setScale({ target: { value: '99' } } as unknown as Event);
-    expect(component.offsetX()).toBe(12);
-    expect(component.offsetY()).toBe(-12);
-    expect(component.scale()).toBe(3);
-    component.reset();
-    expect(component.offsetX()).toBe(0);
-    expect(component.offsetY()).toBe(0);
-    expect(component.scale()).toBe(1);
-  });
-  it('re-acota la prenda si el escenario cambia de tamaño (probador estable)', async () => {
-    const { component } = await setup();
-    const stage = (component as any).stageRef.nativeElement;
-    const rect = (w: number, h: number) =>
-      ({ width: w, height: h, top: 0, left: 0, right: w, bottom: h, x: 0, y: 0 }) as DOMRect;
-    vi.spyOn(stage, 'getBoundingClientRect').mockReturnValue(rect(300, 400));
-    component.nudge(500, 600);
-    // Núcleo del ajuste: el movimiento no se sale de la zona de la prenda.
-    expect(component.offsetX()).toBe(135);
-    expect(component.offsetY()).toBe(180);
-    // Rotación / ventana más chica mientras la cámara está activa: la prenda
-    // sigue dentro aunque el usuario no la haya tocado.
-    vi.spyOn(stage, 'getBoundingClientRect').mockReturnValue(rect(120, 160));
-    (component as any).ensureClamped();
-    expect(component.offsetX()).toBe(54);
-    expect(component.offsetY()).toBe(72);
-  });
-  it('no activa el seguimiento de postura sin cámara y avisa', async () => {
-    const { component, pose } = await setup();
-    await component.togglePose();
-    expect(component.poseMode()).toBe(false);
-    expect(component.poseError()).toContain('Activá la cámara');
-    expect(pose.ensure).not.toHaveBeenCalled();
-  });
-  it('con cámara activa, seguir la postura mueve la prenda y se puede apagar', async () => {
-    const { component, pose } = await setup();
-    const media = stream();
-    camera.mockResolvedValue(media.value);
-    await component.startCamera();
-    pose.detectTorso.mockReturnValue(torsoLandmarks(0.65, 0.6));
-    await component.togglePose();
-    expect(component.poseMode()).toBe(true);
-    expect(pose.ensure).toHaveBeenCalled();
-    expect(component.poseState()).toBe('tracking');
-    expect(component.poseTracking()).toBe(true);
-    // Cámara frontal (espejada): el torso a la derecha del video queda a la izquierda del centro.
-    expect(component.offsetX()).toBeLessThan(0);
-    // El pecho está por debajo del centro del escenario.
-    expect(component.offsetY()).toBeGreaterThan(0);
-    component.togglePose();
-    expect(component.poseMode()).toBe(false);
-    expect(component.poseState()).toBe('off');
-  });
-  it('mientras no detecta a nadie muestra "buscando" y no declara seguimiento activo', async () => {
-    const { component, pose } = await setup();
-    const media = stream();
-    camera.mockResolvedValue(media.value);
-    await component.startCamera();
-    pose.detectTorso.mockReturnValue(undefined);
-    await component.togglePose();
-    expect(component.poseState()).toBe('searching');
-    expect(component.poseTracking()).toBe(false);
-  });
-  it('al perder a la persona atenúa la prenda y se reanuda al volver al encuadre', async () => {
-    const { component, pose } = await setup();
-    const media = stream();
-    camera.mockResolvedValue(media.value);
-    await component.startCamera();
-    pose.detectTorso
-      .mockReturnValueOnce(torsoLandmarks(0.5, 0.6))
-      .mockReturnValue(undefined);
-    await component.togglePose();
-    expect(component.poseState()).toBe('tracking');
-    await new Promise((resolve) => setTimeout(resolve, 1400));
-    expect(component.poseState()).toBe('lost');
-    expect(component.poseFaded()).toBe(true);
-    // Vuelve al encuadre: retoma el seguimiento y restaura la prenda.
-    pose.detectTorso.mockReturnValue(torsoLandmarks(0.5, 0.6));
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    expect(component.poseState()).toBe('tracking');
-    expect(component.poseFaded()).toBe(false);
-  });
-  it('si el modelo de postura no se puede cargar, queda el ajuste manual', async () => {
-    const { component, pose } = await setup();
-    const media = stream();
-    camera.mockResolvedValue(media.value);
-    await component.startCamera();
-    pose.ensure.mockResolvedValue(false);
-    await component.togglePose();
-    expect(component.poseMode()).toBe(false);
-    expect(component.poseError()).toContain('ajuste manual sigue disponible');
-  });
-  it('no activa una solicitud de postura antigua después de reiniciar la cámara', async () => {
-    const { component, pose } = await setup();
-    camera.mockResolvedValue(stream().value);
-    await component.startCamera();
-    let finish!: (value: boolean) => void;
-    pose.ensure.mockReturnValue(new Promise<boolean>(resolve => { finish = resolve; }));
-    const pending = component.togglePose();
-    component.stopCamera();
-    await component.startCamera();
-    finish(true);
-    await pending;
-    expect(component.cameraState()).toBe('active');
-    expect(component.poseMode()).toBe(false);
-    expect(component.poseBusy()).toBe(false);
-    expect(pose.detectTorso).not.toHaveBeenCalled();
-  });
-  it('ofrece comprar o reservar desde el probador resolviendo la variante en la ficha', async () => {
+
+  it('empieza con la cámara apagada y un solo botón para probarse', async () => {
     const { fixture } = await setup();
-    const buttons = fixture.nativeElement.querySelectorAll('.fitting-shopping button');
-    expect(buttons.length).toBe(2);
-    expect(buttons[0]?.textContent).toContain('Elegir talla y comprar');
-    expect(buttons[1]?.textContent).toContain('Elegir talla y reservar');
+    const botones = Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLElement[];
+    expect(botones.map((b) => b.textContent?.trim())).toContain('Probármela');
+    // Nada de deslizadores ni flechas antes de empezar.
+    expect(fixture.nativeElement.querySelector('input[type="range"]')).toBeNull();
+  });
+
+  it('avisa si la prenda no tiene recurso preparado', async () => {
+    const { component, fixture } = await setup({ falla: true });
+    expect(component.error()).not.toBe('');
+    expect(fixture.nativeElement.querySelector('.fitting-stage')).toBeNull();
+  });
+
+  it('no muestra controles de ajuste mientras el encaje es automático', async () => {
+    const harness = await setup();
+    await conCamara(harness);
+    expect(harness.fixture.nativeElement.querySelector('.fitting-tuning')).toBeNull();
+    // El ajuste fino existe, pero hay que pedirlo.
+    harness.component.tuning.set(true);
+    harness.fixture.detectChanges();
+    expect(harness.fixture.nativeElement.querySelector('.fitting-tuning')).not.toBeNull();
+  });
+
+  it('ubica la prenda sola cuando ve el cuerpo, sin intervención', async () => {
+    const harness = await setup();
+    harness.pose.detectTorso.mockReturnValue(cuerpo());
+    await conCamara(harness);
+    await new Promise((r) => setTimeout(r, 200));
+    harness.fixture.detectChanges();
+
+    expect(harness.component.guidance().ok).toBe(true);
+    expect(harness.component.placed()).toBe(true);
+    // La transformación deja de ser la de reposo: hay escala y posición reales.
+    expect(harness.component.transform()).toContain('rotate');
+    expect(harness.component.transform()).not.toBe('translate(-50%, -50%) scale(0.9)');
+  });
+
+  it('le dice a la persona cómo pararse en lugar de ofrecerle controles', async () => {
+    const harness = await setup();
+    harness.pose.detectTorso.mockReturnValue(null);
+    await conCamara(harness);
+    await new Promise((r) => setTimeout(r, 200));
+    harness.fixture.detectChanges();
+
+    expect(harness.component.guidance().code).toBe('sin-persona');
+    const aviso = harness.fixture.nativeElement.querySelector('.fitting-hint-live');
+    expect(aviso?.textContent).toContain('frente a la cámara');
+  });
+
+  it('pide acercarse cuando la persona se ve demasiado chica', async () => {
+    const harness = await setup();
+    // Hombros muy juntos: la persona está lejos.
+    harness.pose.detectTorso.mockReturnValue(cuerpo(0.5, 0.35).map((p, i) =>
+      i === 11 ? { ...p, x: 0.48 } : i === 12 ? { ...p, x: 0.52 } : p,
+    ));
+    await conCamara(harness);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(harness.component.guidance().code).toBe('lejos');
+  });
+
+  it('oculta la prenda si pierde de vista a la persona', async () => {
+    const harness = await setup();
+    harness.pose.detectTorso.mockReturnValue(cuerpo());
+    await conCamara(harness);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(harness.component.placed()).toBe(true);
+
+    harness.pose.detectTorso.mockReturnValue(null);
+    await new Promise((r) => setTimeout(r, 1500));
+    harness.fixture.detectChanges();
+    expect(harness.component.placed()).toBe(false);
+  });
+
+  it('si el detector no carga, deja la prenda centrada y ofrece el ajuste manual', async () => {
+    const harness = await setup({ poseOk: false });
+    await conCamara(harness);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(harness.component.guidance().message).toContain('Ajustar');
+    expect(harness.component.transform()).toContain('scale');
+  });
+
+  it('el ajuste manual corrige sobre el automático y se puede volver atrás', async () => {
+    const harness = await setup();
+    harness.pose.detectTorso.mockReturnValue(cuerpo());
+    await conCamara(harness);
+    await new Promise((r) => setTimeout(r, 200));
+
+    const automatico = harness.component.transform();
+    harness.component.adjustScale(0.12);
+    harness.component.adjustOffset(0, 20);
+    expect(harness.component.transform()).not.toBe(automatico);
+
+    harness.component.clearTuning();
+    expect(harness.component.transform()).toBe(automatico);
+  });
+
+  it('libera la cámara al terminar y al ocultar la pestaña', async () => {
+    const harness = await setup();
+    const { value, track } = stream();
+    camera.mockResolvedValue(value);
+    await harness.component.startCamera();
+    harness.component.stopCamera();
+    expect(track.stop).toHaveBeenCalled();
+    expect(harness.component.cameraState()).toBe('off');
+
+    camera.mockResolvedValue(stream().value);
+    await harness.component.startCamera();
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    harness.component.onVisibilityChange();
+    expect(harness.component.cameraState()).toBe('off');
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+  });
+
+  it('explica el permiso rechazado sin dejar la cámara colgada', async () => {
+    const harness = await setup();
+    camera.mockRejectedValue(Object.assign(new Error('no'), { name: 'NotAllowedError' }));
+    await harness.component.startCamera();
+    expect(harness.component.cameraState()).toBe('error');
+    expect(harness.component.cameraError()).toContain('Permití');
+  });
+
+  it('avisa cuando el navegador no ofrece cámara', async () => {
+    Reflect.deleteProperty(navigator, 'mediaDevices');
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: {} });
+    const harness = await setup();
+    await harness.component.startCamera();
+    expect(harness.component.cameraError()).toContain('no está disponible');
+  });
+
+  it('lleva a elegir talla conservando la variante', async () => {
+    const { fixture } = await setup();
+    const enlace = fixture.nativeElement.querySelector('.fitting-buttons a');
+    expect(enlace?.textContent?.trim()).toBe('Elegir talla');
   });
 });

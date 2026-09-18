@@ -120,6 +120,31 @@ npm run test:contract
 - Los errores conservan el formulario abierto y el borrador. Las acciones destructivas requieren confirmación dentro de la interfaz. Los diálogos permiten usar Tab y Escape.
 - El borrado y los estados respetan las reglas del backend: no eliminar maestros en uso, no activar cajas de sucursales inactivas, no duplicar SKU ni talla/color.
 
+## Probador virtual: la prenda se ubica sola
+
+La vista no tiene controles para acomodar la prenda. El recurso preparado en el backend trae el
+recorte sin fondo, la región del cuerpo que cubre y sus puntos de anclaje; la detección de pose
+aporta el cuerpo. Con eso, `src/shared/garment-fit.ts` calcula posición, escala e inclinación.
+
+- **Emparejamiento.** Cada región usa su línea corporal: hombros para prendas superiores y de cuerpo
+  entero, cadera para inferiores, tobillos para calzado. La línea del anclaje de la imagen se
+  superpone a esa línea corporal, con una holgura porque la prenda es más ancha que el esqueleto.
+- **Indicaciones en vez de controles.** Si la persona no está bien encuadrada se le dice qué hacer
+  («Acercate un poco», «Ponete derecho y de frente», «Acomodate para que se vean los hombros»), y la
+  prenda no se dibuja hasta que la postura sirve.
+- **Cámara espejada.** Los puntos se ordenan por posición en pantalla antes de medir el ángulo: la
+  cámara frontal invierte izquierda y derecha, y sin eso la rotación salía de 180° y la prenda
+  aparecía cabeza abajo.
+- **Ajuste manual.** Queda como respaldo detrás del botón «Ajustar» (tamaño y altura), nunca como la
+  forma normal de usar el probador, y «Automático» lo descarta.
+- **Sin persona a la vista** durante más de un segundo, la prenda se oculta en lugar de quedar
+  flotando.
+- El seguimiento corre en el dispositivo (MediaPipe). No hay llamadas a IA generativa durante el
+  uso: el modelo pesado solo interviene al preparar la prenda.
+
+Pruebas en `src/shared/garment-fit.spec.ts` (geometría e indicaciones) y
+`src/features/reservas-vestidor/presentation/vestidor.component.spec.ts` (vista y cámara).
+
 ## Agendar visita para probarse prendas
 
 - **Zona horaria.** El input `datetime-local` trabaja en hora local, pero `toISOString()` devuelve
