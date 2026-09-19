@@ -54,6 +54,22 @@ import { lookup } from '../application/resources';
               de las fotos comerciales. El vestidor web solo superpone imágenes 2D; los formatos 3D se guardan
               pero no se muestran.
             </p>
+            <!-- Sin esto, la preparación automática existía en el servidor y no
+                 la podía disparar nadie: el probador caía siempre al dibujo. -->
+            <div class="prepare-tryon">
+              <p>
+                <strong>Preparar con la foto del catálogo.</strong>
+                Recorta el fondo de la foto principal y calcula dónde apoya la prenda sobre el
+                cuerpo. Si la prenda es del mismo color que su fondo el recorte falla y queda
+                anotado acá; el probador sigue funcionando con el dibujo.
+              </p>
+              <button type="button" (click)="prepararProbador()" [disabled]="preparando()">
+                {{ preparando() ? 'Preparando…' : 'Preparar desde la foto' }}
+              </button>
+              @if (prepararMensaje()) {
+                <p class="alert" role="status">{{ prepararMensaje() }}</p>
+              }
+            </div>
           }
           @if (section === 'images') {
           <div class="image-gallery" aria-label="Galería de la prenda">
@@ -247,6 +263,8 @@ export class ProductEditorComponent {
   formError = signal('');
   busy = signal(false);
   editing = signal(false);
+  preparando = signal(false);
+  prepararMensaje = signal('');
   section = 'variants';
   current: Entity | null = null;
   pending: Entity | null = null;
@@ -363,6 +381,40 @@ export class ProductEditorComponent {
       throw new Error('Solo un proveedor puede ser principal. Editá primero el proveedor actual.');
     return { suppliers: list };
   }
+  /**
+   * Dispara la preparación automática del recurso del probador.
+   *
+   * El servidor recorta el fondo de la foto principal y calcula los anclajes.
+   * Un recorte que falla NO deja el recurso listo: el probador cae al dibujo en
+   * vez de mostrar la foto con su fondo.
+   */
+  async prepararProbador() {
+    const id = this.route.snapshot.paramMap.get('id');
+    if (!id || this.preparando()) return;
+    this.preparando.set(true);
+    this.prepararMensaje.set('');
+    try {
+      const recurso = await firstValueFrom(
+        this.api.write<{ ai_status?: string; ai_error?: string }>(
+          'POST',
+          `/vestidor/admin/products/${id}/assets`,
+          {},
+        ),
+      );
+      const datos = recurso.data;
+      this.prepararMensaje.set(
+        datos?.ai_status === 'ready'
+          ? 'Recurso preparado. La prenda ya se prueba con su foto real.'
+          : datos?.ai_error || 'No se pudo recortar el fondo; el probador sigue con el dibujo.',
+      );
+      await this.load();
+    } catch (e) {
+      this.prepararMensaje.set(errorMessage(e));
+    } finally {
+      this.preparando.set(false);
+    }
+  }
+
   async save(body: Record<string, unknown>) {
     if (this.busy() || !this.canWrite()) return;
     this.busy.set(true);

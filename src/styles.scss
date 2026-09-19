@@ -2244,3 +2244,25 @@ td .button { min-height: 30px; padding: 5px 9px; font-size: 11.5px; }
   font-size: 13px;
   color: var(--muted);
 }
+
+/* Preparación del recurso del probador, en el editor de prendas. */
+.prepare-tryon {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  padding: 14px 16px;
+  margin: 0 0 16px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  background: var(--white);
+}
+.prepare-tryon p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.prepare-tryon strong {
+  color: var(--ink);
+}
