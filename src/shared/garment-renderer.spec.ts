@@ -202,3 +202,36 @@ describe('Tono del color', () => {
     expect(tono('no-es-color', -0.2)).toBe('#888888');
   });
 });
+
+describe('Vocabulario de prendas', () => {
+  it('reconoce un hoodie como prenda de manga larga', () => {
+    // Regresión: «hoodie» no estaba en la lista y caía en el caso por defecto,
+    // así que un buzo con capucha se dibujaba como una remera.
+    expect(formaDePrenda('Hoodie de algodón')).toBe('manga-larga');
+    expect(formaDePrenda('Canguro oversize')).toBe('manga-larga');
+    expect(formaDePrenda('Buzo con capucha')).toBe('manga-larga');
+    expect(formaDePrenda('Cardigan de lana')).toBe('manga-larga');
+  });
+
+  it('distingue abrigo de prenda liviana', () => {
+    expect(formaDePrenda('Campera de cuero')).toBe('chaqueta');
+    expect(formaDePrenda('Trench largo')).toBe('chaqueta');
+    expect(formaDePrenda('Saco de vestir')).toBe('chaqueta');
+    expect(formaDePrenda('Chaleco puffer')).toBe('musculosa');
+  });
+
+  it('sigue reconociendo lo que ya reconocía', () => {
+    expect(formaDePrenda('Polera básica de algodón')).toBe('remera');
+    expect(formaDePrenda('Camisa de lino')).toBe('camisa');
+    expect(formaDePrenda('Vestido midi')).toBe('vestido');
+    expect(formaDePrenda('Pantalón cargo')).toBe('pantalon');
+    expect(formaDePrenda('Short de jean')).toBe('short');
+    expect(formaDePrenda('Falda plisada')).toBe('falda');
+  });
+
+  it('sin nombre útil, la región del cuerpo decide', () => {
+    expect(formaDePrenda('', 'lower_body')).toBe('pantalon');
+    expect(formaDePrenda('', 'full_body')).toBe('vestido');
+    expect(formaDePrenda('', 'upper_body')).toBe('remera');
+  });
+});

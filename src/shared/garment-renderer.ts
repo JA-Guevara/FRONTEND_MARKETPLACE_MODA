@@ -63,14 +63,18 @@ export const entre = (a: Punto, b: Punto, t: number): Punto => suma(a, escala(re
 /** Traduce el tipo de prenda del catálogo a una forma dibujable. */
 export function formaDePrenda(tipo?: string | null, region?: string | null): FormaPrenda {
   const t = (tipo || '').toLowerCase();
-  if (/(musculosa|tank|bividi)/.test(t)) return 'musculosa';
-  if (/(camisa|blusa)/.test(t)) return 'camisa';
-  if (/(chaqueta|campera|abrigo|blazer|bomber|parka)/.test(t)) return 'chaqueta';
-  if (/(buzo|sweater|sudadera|manga larga|pullover)/.test(t)) return 'manga-larga';
+  if (/(musculosa|tank|bividi|chaleco|crop)/.test(t)) return 'musculosa';
+  if (/(camisa|blusa|chomba)/.test(t)) return 'camisa';
+  if (/(chaqueta|campera|abrigo|blazer|bomber|parka|cazadora|trench|saco)/.test(t))
+    return 'chaqueta';
+  // «hoodie» y «canguro» faltaban y caían en remera: la prenda se dibujaba sin
+  // mangas largas aunque el catálogo dijera claramente qué era.
+  if (/(buzo|sweater|sudadera|manga larga|pullover|hoodie|hoody|canguro|polar|cardigan)/.test(t))
+    return 'manga-larga';
   if (/vestido/.test(t)) return 'vestido';
   if (/(short|bermuda)/.test(t)) return 'short';
   if (/falda/.test(t)) return 'falda';
-  if (/(pantal|jean|jogger|legging)/.test(t)) return 'pantalon';
+  if (/(pantal|jean|jogger|legging|chupin|cargo)/.test(t)) return 'pantalon';
   if (/(remera|polera|camiseta|polo|top)/.test(t)) return 'remera';
   // Sin tipo declarado, la región del cuerpo alcanza para elegir algo sensato.
   if (region === 'lower_body') return 'pantalon';

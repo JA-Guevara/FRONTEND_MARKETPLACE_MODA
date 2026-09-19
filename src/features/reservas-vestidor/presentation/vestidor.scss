@@ -195,3 +195,22 @@
 .fitting-canvas.mirrored {
   transform: scaleX(-1);
 }
+
+/* Aviso de que se está viendo la silueta y no la foto de la prenda. */
+.fitting-aproximado {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--paper);
+  border-left: 3px solid var(--accent);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.fitting-aproximado fs-icon {
+  flex: 0 0 auto;
+  color: var(--accent);
+}

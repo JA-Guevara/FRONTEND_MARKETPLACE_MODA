@@ -16,6 +16,7 @@ import { CatalogService } from '../../usuarios-catalogo/infrastructure/catalog.s
 import { ApiService } from '../../../app/core/shared/api.service';
 import { IconComponent } from '../../../shared/icon.component';
 import { errorMessage } from '../../../shared/errors';
+import { Entity } from '../../../shared/models';
 import { PoseTrackingService } from '../../../shared/pose-tracking.service';
 import { POSE_LOST_MS, VideoBox } from '../../../shared/pose-projection';
 import {
@@ -164,6 +165,16 @@ interface TryOnResource {
             >Elegir talla</a
           >
         </div>
+        @if (cameraState() === 'active' && !usaFoto()) {
+          <!-- Honestidad con quien mira: esto es una silueta con el color de la
+               prenda, no su foto. Antes se veía un dibujo gris sin explicación
+               y parecía que el probador estaba fallando. -->
+          <p class="fitting-aproximado">
+            <fs-icon name="eye" />
+            Vista aproximada: mostramos la silueta de la prenda con su color. Esta prenda
+            todavía no tiene su foto preparada para el probador.
+          </p>
+        }
       </div>
 
       <!-- Respaldo: solo si el encaje automático no convence. -->
@@ -278,9 +289,20 @@ export class VestidorComponent implements OnInit, OnDestroy {
       if (this.destroyed || version !== this.loadVersion) return;
       this.productName.set(product.name);
       this.productId = product.id;
-      // El recurso depende del color: se toma el de la variante elegida.
-      const variante = (product.variants || []).find((v) => v.id === this.varianteId);
-      const color = variante?.['color'] as { id?: string; hex_code?: string } | undefined;
+      // El recurso depende del color: se toma el de la variante elegida. Si se
+      // entró al probador sin elegir talla, se usa la primera variante con
+      // color cargado: dibujar la prenda en gris cuando el catálogo sabe de qué
+      // color es era la razón por la que «no se reflejaba» la prenda.
+      const variantes = (product.variants || []) as Entity[];
+      const elegida = variantes.find((v) => v.id === this.varianteId);
+      const conColor = (v?: Entity) =>
+        (v?.['color'] as { id?: string; hex_code?: string } | undefined)?.hex_code
+          ? (v!['color'] as { id?: string; hex_code?: string })
+          : undefined;
+      const color =
+        conColor(elegida) ||
+        (elegida?.['color'] as { id?: string; hex_code?: string } | undefined) ||
+        conColor(variantes.find((v) => conColor(v)));
       this.colorId = color?.id || null;
       if (color?.hex_code) this.colorPrenda.set(color.hex_code);
 
