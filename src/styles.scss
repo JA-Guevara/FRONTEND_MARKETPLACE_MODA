@@ -2136,3 +2136,111 @@ td .button { min-height: 30px; padding: 5px 9px; font-size: 11.5px; }
     height: 240px;
   }
 }
+
+/* --- Campanita de avisos (barra superior) --------------------------------
+ * Va en la hoja global porque el panel se despliega sobre el resto de la barra
+ * y necesita apilarse por encima de la navegación.
+ */
+.bell {
+  position: relative;
+}
+.bell-button {
+  position: relative;
+  padding: 8px 10px;
+}
+.bell-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  line-height: 17px;
+  text-align: center;
+}
+/* Capa transparente para cerrar tocando fuera del panel. */
+.bell-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+.bell-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 41;
+  width: min(360px, calc(100vw - 24px));
+  max-height: 70vh;
+  overflow: auto;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.16);
+}
+.bell-panel header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.bell-panel header button {
+  font-size: 11px;
+  padding: 4px 8px;
+}
+.bell-panel ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bell-panel li {
+  border-bottom: 1px solid var(--line);
+}
+.bell-panel li:last-child {
+  border-bottom: 0;
+}
+/* Lo que todavía no se vio lleva una marca al costado. */
+.bell-panel li.is-nuevo {
+  border-left: 3px solid var(--accent);
+  background: var(--paper);
+}
+.bell-panel li a {
+  display: flex;
+  gap: 10px;
+  padding: 11px 14px;
+  text-decoration: none;
+  color: inherit;
+}
+.bell-panel li a:hover {
+  background: var(--paper);
+}
+.bell-icono {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+.bell-texto {
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+}
+.bell-texto small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.bell-texto em {
+  font-style: normal;
+  color: var(--muted);
+  font-size: 12px;
+}
+.bell-vacio {
+  margin: 0;
+  padding: 18px 14px;
+  font-size: 13px;
+  color: var(--muted);
+}

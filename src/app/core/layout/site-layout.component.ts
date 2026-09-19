@@ -6,6 +6,7 @@ import { SessionService } from '../../../features/auth/application/session.servi
 import { TryOnListService } from '../../../features/reservas-vestidor/application/try-on-list.service';
 import { ACCOUNT_SECTIONS } from '../../../features/auth/presentation/account-layout.component';
 import { IconComponent } from '../../../shared/icon.component';
+import { NotificationsBellComponent } from '../../../features/ventas-pagos/presentation/notifications-bell.component';
 import { AssistantWidgetComponent } from '../../../features/ventas-pagos/presentation/assistant-widget.component';
 import { CartStateService } from '../../../features/ventas-pagos/application/cart-state.service';
 @Component({
@@ -14,7 +15,7 @@ import { CartStateService } from '../../../features/ventas-pagos/application/car
     '(document:click)': 'closeOutside($event)',
     '(document:keydown.escape)': 'onEscape()',
   },
-  imports: [RouterLink, RouterLinkActive, RouterOutlet, IconComponent, AssistantWidgetComponent],
+  imports: [RouterLink, RouterLinkActive, RouterOutlet, IconComponent, AssistantWidgetComponent, NotificationsBellComponent],
   styles: `
     :host { display: contents; }
     /* ── Boton hamburguesa: solo visible en movil ── */
@@ -73,6 +74,10 @@ import { CartStateService } from '../../../features/ventas-pagos/application/car
         <div class="account-nav">
           <a routerLink="/reservar" class="button visit-link" aria-label="Revisar selección para reservar y probarte prendas en sucursal"><fs-icon name="calendar" />Reservas@if (tryOn.distinctCount) {<span class="visit-counter" aria-label="{{ tryOn.distinctCount }} variantes seleccionadas">{{ tryOn.distinctCount }}</span>}</a>
           <a routerLink="/carrito" class="button cart-link" aria-label="Ver carrito de compras"><fs-icon name="cart" />Carrito@if (cart.count()) {<span class="cart-counter" aria-label="{{ cart.count() }} prendas en el carrito">{{ cart.count() }}</span>}</a>
+          @if (session.user()) {
+            <!-- La campanita solo tiene sentido con sesión: los avisos son personales. -->
+            <fs-notifications-bell />
+          }
           @if (session.user(); as user) {
             <div class="account-menu">
               <button

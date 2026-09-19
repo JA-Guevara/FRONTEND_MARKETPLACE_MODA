@@ -80,6 +80,10 @@ Cada ruta administrativa declara su permiso en `data.permission` y el guardia lo
 
 **Probador virtual.** No superpone la fotografía del catálogo: dibuja la prenda a partir de los puntos del cuerpo que detecta MediaPipe. Eso evita el problema del fondo blanco de raíz —no hay foto que recortar— y permite que la prenda siga al cuerpo. Cuando el producto sí tiene un recurso preparado por el backend, se usa esa imagen con sus anclajes.
 
+**Ubicación en el mapa.** El formulario de sucursal tiene un campo `type: 'map'` que escribe sobre `latitude` y `longitude`: el mapa es una forma más cómoda de llenarlos, no un dato nuevo, y quien prefiera tipear los números sigue pudiendo. Usa Leaflet con mapas de OpenStreetMap, cargado **bajo demanda** para que solo lo pague quien abre ese formulario. El marcador se dibuja con CSS porque los PNG de Leaflet se referencian por ruta relativa y se rompen al empaquetar. La lógica que puede fallar —coordenadas fuera de rango, longitudes que dieron la vuelta al mundo, respuestas del buscador de direcciones— vive en `geo.ts`, en funciones puras con sus pruebas.
+
+**Campanita de avisos.** En la barra superior, solo con sesión iniciada. Muestra compras, reservas y devoluciones con los mismos textos que los correos. Lo leído se recuerda con la fecha del último aviso visto, en el navegador: evita una tabla, a cambio de que el punto rojo sea por dispositivo.
+
 **Bandejas de gestión.** `/admin/pedidos` y `/admin/devoluciones` filtran por estado, sucursal,
 canal y número o correo, y vuelven a la primera página con cada filtro nuevo. Un pedido muestra si
 viene de caja y si tiene una devolución sin resolver; una devolución muestra de qué pedido y de
