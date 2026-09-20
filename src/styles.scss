@@ -2266,3 +2266,21 @@ td .button { min-height: 30px; padding: 5px 9px; font-size: 11.5px; }
 .prepare-tryon strong {
   color: var(--ink);
 }
+.tryon-result {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+.tryon-result img {
+  width: 96px;
+  height: 112px;
+  object-fit: contain;
+  background: repeating-conic-gradient(#ebe6de 0 25%, #fff 0 50%) 50% / 14px 14px;
+}
+.tryon-result p, .tryon-result small { margin: 4px 0; }
+.tryon-result.failed { border-color: #d69b91; background: #fff6f3; }

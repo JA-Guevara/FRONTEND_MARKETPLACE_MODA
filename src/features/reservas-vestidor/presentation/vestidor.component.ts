@@ -41,6 +41,7 @@ type CameraState = 'off' | 'requesting' | 'active' | 'error';
 
 /** Recurso preparado que devuelve /vestidor/sessions. */
 interface TryOnResource {
+  asset_type?: string;
   asset_url: string;
   body_region?: string | null;
   anchor_points?: GarmentAnchors | null;
@@ -314,7 +315,12 @@ export class VestidorComponent implements OnInit, OnDestroy {
 
       const recurso = await this.fetchResource();
       if (this.destroyed || version !== this.loadVersion) return;
-      if (recurso?.asset_url) {
+      // Solo una imagen preparada por el servidor puede ponerse sobre la
+      // cámara. Los recursos antiguos `image_overlay` eran fotos comerciales
+      // sin alfa y producían el rectángulo blanco que se veía en el probador.
+      // Es preferible el dibujo geométrico antes que ocultar a la persona con
+      // una foto de fondo.
+      if (recurso?.asset_url && recurso.asset_type === 'prepared_2_5d') {
         const url = new URL(recurso.asset_url, window.location.origin);
         if (['https:', 'http:'].includes(url.protocol)) {
           this.assetUrl.set(url.href);

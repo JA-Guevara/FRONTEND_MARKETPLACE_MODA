@@ -1,5 +1,6 @@
 import { DialogFocusDirective } from '../../../shared/dialog-focus.directive';
 import { Component, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../../app/core/shared/api.service';
@@ -13,7 +14,7 @@ import { errorMessage } from '../../../shared/errors';
 import { lookup } from '../application/resources';
 @Component({
   selector: 'fs-product-editor',
-  imports: [RouterLink, EntityFormComponent, ImageFormComponent, ArAssetFormComponent, DialogFocusDirective],
+  imports: [RouterLink, FormsModule, EntityFormComponent, ImageFormComponent, ArAssetFormComponent, DialogFocusDirective],
   template: `
     <a routerLink="/admin/products" class="back-link">← Todas las prendas</a>
     <div class="page-heading">
@@ -59,15 +60,24 @@ import { lookup } from '../application/resources';
             <div class="prepare-tryon">
               <p>
                 <strong>Preparar con la foto del catálogo.</strong>
-                Recorta el fondo de la foto principal y calcula dónde apoya la prenda sobre el
-                cuerpo. Si la prenda es del mismo color que su fondo el recorte falla y queda
-                anotado acá; el probador sigue funcionando con el dibujo.
+                Elegí el color de la foto principal: se elimina el fondo, se calcula dónde apoya
+                la prenda en el cuerpo y se genera una imagen transparente para el vestidor.
               </p>
-              <button type="button" (click)="prepararProbador()" [disabled]="preparando()">
+              <label>Color de la foto<select [(ngModel)]="colorProbador" [disabled]="preparando()">
+                <option value="">Seleccioná un color</option>
+                @for (color of coloresProbador(); track color.id) { <option [value]="color.id">{{ color.name }}</option> }
+              </select></label>
+              <button type="button" (click)="prepararProbador()" [disabled]="preparando() || !colorProbador">
                 {{ preparando() ? 'Preparando…' : 'Preparar desde la foto' }}
               </button>
               @if (prepararMensaje()) {
                 <p class="alert" role="status">{{ prepararMensaje() }}</p>
+              }
+              @for (recurso of tryOnAssets(); track recurso.id) {
+                <article class="tryon-result" [class.failed]="recurso['ai_status'] === 'failed'">
+                  @if (recurso['transparent_url']) { <img [src]="recurso['transparent_url']" alt="Recorte preparado" /> }
+                  <div><strong>{{ colorNombre(recurso['color_id']) }}</strong><p>Estado: {{ estadoProbador(recurso['ai_status']) }}</p><small>{{ recurso['ai_error'] || 'Fondo retirado y recurso disponible.' }}</small></div>
+                </article>
               }
             </div>
           }
@@ -265,6 +275,8 @@ export class ProductEditorComponent {
   editing = signal(false);
   preparando = signal(false);
   prepararMensaje = signal('');
+  tryOnAssets = signal<Entity[]>([]);
+  colorProbador = '';
   section = 'variants';
   current: Entity | null = null;
   pending: Entity | null = null;
@@ -287,7 +299,20 @@ export class ProductEditorComponent {
   async load() {
     this.error.set('');
     try {
-      this.product.set(await firstValueFrom(this.api.get<Product>(this.path)));
+      const product = await firstValueFrom(this.api.get<Product>(this.path));
+      this.product.set(product);
+      const colors = this.coloresProbador();
+      if (!this.colorProbador && colors.length === 1) this.colorProbador = colors[0].id;
+      if (this.session.can('catalog.read')) {
+        try {
+          this.tryOnAssets.set(
+            await firstValueFrom(this.api.get<Entity[]>(`/vestidor/admin/products/${product.id}/assets`)),
+          );
+        } catch {
+          // La prenda debe seguir siendo editable cuando aún no existe un recurso preparado.
+          this.tryOnAssets.set([]);
+        }
+      }
       if (this.session.can('suppliers.read'))
         this.suppliers.set(
           await firstValueFrom(
@@ -303,6 +328,20 @@ export class ProductEditorComponent {
   }
   rows() {
     return this.product()?.[this.section === 'ar-assets' ? 'ar_assets' : this.section] || [];
+  }
+  coloresProbador() {
+    const encontrados = new Map<string, { id: string; name: string }>();
+    for (const variant of this.product()?.variants || []) {
+      const color = variant['color'] as { id?: string; name?: string } | undefined;
+      if (color?.id) encontrados.set(color.id, { id: color.id, name: color.name || 'Color sin nombre' });
+    }
+    return [...encontrados.values()];
+  }
+  colorNombre(id: string) {
+    return this.coloresProbador().find((color) => color.id === id)?.name || 'Color';
+  }
+  estadoProbador(status: unknown) {
+    return ({ ready: 'Listo para el vestidor', manual: 'Ajustado manualmente', failed: 'Necesita otra foto', pending: 'Pendiente' } as Record<string, string>)[String(status)] || String(status);
   }
   sectionTitle() {
     return this.tabs.find((t) => t.key === this.section)?.label || '';
@@ -390,7 +429,7 @@ export class ProductEditorComponent {
    */
   async prepararProbador() {
     const id = this.route.snapshot.paramMap.get('id');
-    if (!id || this.preparando()) return;
+    if (!id || !this.colorProbador || this.preparando()) return;
     this.preparando.set(true);
     this.prepararMensaje.set('');
     try {
@@ -398,7 +437,7 @@ export class ProductEditorComponent {
         this.api.write<{ ai_status?: string; ai_error?: string }>(
           'POST',
           `/vestidor/admin/products/${id}/assets`,
-          {},
+          { color_id: this.colorProbador },
         ),
       );
       const datos = recurso.data;

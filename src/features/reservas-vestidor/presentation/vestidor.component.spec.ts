@@ -68,6 +68,7 @@ describe('Probador virtual: ubicación automática', () => {
   }
 
   const recursoPreparado = {
+    asset_type: 'prepared_2_5d',
     asset_url: '/prenda-recortada.webp',
     body_region: 'upper_body',
     anchor_points: {
@@ -167,6 +168,11 @@ describe('Probador virtual: ubicación automática', () => {
     const { component } = await setup();
     expect(component.usaFoto()).toBe(true);
     expect(component.assetUrl()).toContain('/prenda-recortada.webp');
+  });
+
+  it('no superpone una foto comercial antigua que no garantiza transparencia', async () => {
+    const { component } = await setup({ recurso: { asset_type: 'image_overlay', asset_url: '/foto-blanca.webp' } });
+    expect(component.usaFoto()).toBe(false);
   });
 
   it('elige la forma a dibujar desde el nombre de la prenda', async () => {
