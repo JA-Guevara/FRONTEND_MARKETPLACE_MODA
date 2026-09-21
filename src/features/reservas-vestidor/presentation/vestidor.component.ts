@@ -22,12 +22,9 @@ import { POSE_LOST_MS, VideoBox } from '../../../shared/pose-projection';
 import {
   BodyRegion,
   GarmentAnchors,
-  GarmentFit,
   Guidance,
-  calcularAjuste,
   esRegion,
   evaluarPostura,
-  suavizarAjuste,
 } from '../../../shared/garment-fit';
 import {
   FormaPrenda,
@@ -101,21 +98,11 @@ interface TryOnResource {
           #lienzo
           class="fitting-canvas"
           [class.mirrored]="facing() === 'user'"
-          [hidden]="cameraState() !== 'active' || usaFoto()"
+          [hidden]="cameraState() !== 'active'"
         ></canvas>
 
-        @if (cameraState() === 'active' && usaFoto() && !imageFailed()) {
-          <img
-            class="fitting-overlay"
-            [src]="assetUrl()"
-            [alt]="productName()"
-            draggable="false"
-            [class.ready]="placed()"
-            [style.transform]="transform()"
-            (load)="onImageLoad($event)"
-            (error)="onImageError()"
-          />
-        }
+        <!-- La foto preparada ya no es una capa: se dibuja dentro del lienzo
+             como relleno del polígono que sigue al cuerpo. -->
 
         <!-- Indicación única y grande: qué tiene que hacer la persona. -->
         @if (cameraState() !== 'active') {
@@ -177,6 +164,9 @@ interface TryOnResource {
             todavía no tiene su foto preparada para el probador.
           </p>
         }
+        <p class="fitting-resource-status" [class.ready]="usaFoto()" aria-live="polite">
+          <fs-icon [name]="usaFoto() ? 'check' : 'image'" />{{ resourceNotice() }}
+        </p>
       </div>
 
       <!-- Respaldo: solo si el encaje automático no convence. -->
@@ -229,6 +219,9 @@ export class VestidorComponent implements OnInit, OnDestroy {
   assetUrl = signal('');
   imageFailed = signal(false);
   auditNotice = signal('');
+  /** Explica qué se está viendo. Antes el error de cargar el recurso se
+   * ocultaba y el cliente interpretaba la silueta como un probador roto. */
+  resourceNotice = signal('Comprobando la imagen de la prenda…');
   tuning = signal(false);
   /** Con recurso preparado se usa la foto recortada (se ve el producto real);
    * sin él se dibuja la prenda, que siempre está disponible. */
@@ -237,32 +230,33 @@ export class VestidorComponent implements OnInit, OnDestroy {
   colorPrenda = signal('#7a7a7a');
 
   /** Ajuste calculado a partir del cuerpo; null mientras no se ubica. */
-  private fit = signal<GarmentFit | null>(null);
   /** Corrección manual opcional, sumada al ajuste automático. */
-  private tuneScale = signal(1);
-  private tuneY = signal(0);
+  /** Ajuste fino del cliente: escala y desplazamiento sobre el dibujo. */
+  tuneScale = signal(1);
+  tuneY = signal(0);
   guidance = signal<Guidance>({
     code: 'sin-camara',
     message: 'Activá la cámara para probarte la prenda.',
     ok: false,
   });
-  placed = computed(() => !!this.fit() && this.guidance().ok);
-  transform = computed(() => {
-    const ajuste = this.fit();
-    if (!ajuste) return 'translate(-50%, -50%) scale(0.9)';
-    const escala = ajuste.scale * this.tuneScale();
-    return (
-      `translate(-50%, -50%) translate(${ajuste.offsetX.toFixed(1)}px, ` +
-      `${(ajuste.offsetY + this.tuneY()).toFixed(1)}px) ` +
-      `rotate(${ajuste.rotation.toFixed(3)}rad) scale(${escala.toFixed(3)})`
-    );
-  });
+  /**
+   * Si la prenda está puesta sobre el cuerpo ahora mismo.
+   *
+   * Antes dependía de la transformación rígida de la capa de imagen. Ahora que
+   * todo se dibuja en el lienzo, lo que importa es que el último cuadro haya
+   * conseguido dibujar y que la postura sea utilizable.
+   */
+  placed = computed(() => this.dibujada() && this.guidance().ok);
+  /** El último cuadro pudo dibujar la prenda sobre el cuerpo. */
+  dibujada = signal(false);
 
   productId = '';
   colorId: string | null = null;
   private region: BodyRegion = 'upper_body';
   private anchors: GarmentAnchors | null = null;
   private imageSize = { width: 0, height: 0 };
+  /** La foto preparada, ya cargada, para usarla como relleno del dibujo. */
+  private textura: HTMLImageElement | null = null;
   private destroyed = false;
   private loadVersion = 0;
   private cameraVersion = 0;
@@ -288,7 +282,10 @@ export class VestidorComponent implements OnInit, OnDestroy {
     this.assetUrl.set('');
     this.productName.set('');
     this.imageFailed.set(false);
+    this.usaFoto.set(false);
+    this.textura = null;
     this.auditNotice.set('');
+    this.resourceNotice.set('Comprobando la imagen de la prenda…');
     this.recorded = false;
     this.clearTuning();
     try {
@@ -335,6 +332,15 @@ export class VestidorComponent implements OnInit, OnDestroy {
           if (recurso.garment_type) this.forma.set(formaDePrenda(recurso.garment_type, this.region));
           await this.preloadImage(url.href, version);
           this.usaFoto.set(!this.imageFailed());
+          this.resourceNotice.set(
+            this.imageFailed()
+              ? 'La imagen preparada no pudo abrirse; usamos la vista aproximada.'
+              : 'Imagen preparada: al activar la cámara verás la prenda real sin fondo.',
+          );
+        } else {
+          this.resourceNotice.set(
+            'Esta prenda aún no tiene una imagen preparada. Mostramos una vista aproximada hasta que se prepare su foto.',
+          );
         }
       }
     } catch (e) {
@@ -358,8 +364,15 @@ export class VestidorComponent implements OnInit, OnDestroy {
       );
       this.recorded = true;
       return respuesta.data;
-    } catch {
+    } catch (e) {
+      // El resto de la pantalla sigue funcionando con el dibujo, pero el
+      // motivo deja de ser invisible para quien prueba la prenda.
       this.auditNotice.set('');
+      this.resourceNotice.set(
+        errorMessage(e).includes('todavía no está preparado')
+          ? 'Esta combinación de color todavía no tiene una imagen preparada.'
+          : 'No pudimos recuperar la imagen preparada; usamos una vista aproximada.',
+      );
       return null;
     }
   }
@@ -369,9 +382,14 @@ export class VestidorComponent implements OnInit, OnDestroy {
   private preloadImage(url: string, version: number) {
     return new Promise<void>((resolve) => {
       const img = new Image();
+      // Sin esto, el lienzo no puede usar la imagen como textura: al dibujar
+      // una imagen de otro origen, el canvas queda «manchado» y no se puede leer.
+      img.crossOrigin = 'anonymous';
       img.onload = () => {
-        if (!this.destroyed && version === this.loadVersion)
+        if (!this.destroyed && version === this.loadVersion) {
           this.imageSize = { width: img.naturalWidth, height: img.naturalHeight };
+          this.textura = img;
+        }
         resolve();
       };
       img.onerror = () => {
@@ -460,7 +478,7 @@ export class VestidorComponent implements OnInit, OnDestroy {
     }
     this.cameraState.set('off');
     this.cameraError.set('');
-    this.fit.set(null);
+    this.dibujada.set(false);
     this.limpiarLienzo();
     this.poseLast = 0;
     this.guidance.set({
@@ -501,8 +519,10 @@ export class VestidorComponent implements OnInit, OnDestroy {
         message: 'No se pudo cargar el detector de postura. Usá «Ajustar» para acomodar la prenda.',
         ok: false,
       });
-      // Sin detector, al menos se muestra centrada para poder ajustarla a mano.
-      this.fit.set({ offsetX: 0, offsetY: 0, rotation: 0, scale: 1 });
+      // Sin detector no hay cuerpo que seguir: no se dibuja nada y se explica
+      // por qué, en vez de dejar una prenda flotando en el centro.
+      this.dibujada.set(false);
+      this.limpiarLienzo();
       return;
     }
     while (!this.destroyed && this.poseVersion === version && this.cameraState() === 'active') {
@@ -519,20 +539,16 @@ export class VestidorComponent implements OnInit, OnDestroy {
       const guia = evaluarPostura(landmarks, this.region, box);
       const ahora = Date.now();
 
-      if (landmarks) {
-        if (this.usaFoto()) {
-          const objetivo = calcularAjuste(landmarks, this.region, this.anchors, this.imageSize, box);
-          if (objetivo) {
-            this.fit.set(suavizarAjuste(this.fit(), objetivo));
-            this.poseLast = ahora;
-          }
-        } else if (this.pintar(landmarks, box, guia.ok)) {
-          this.poseLast = ahora;
-        }
+      // Un solo camino de dibujo: el lienzo. Con foto preparada se usa como
+      // relleno del polígono; sin ella, color liso. Antes la foto era una capa
+      // aparte con un transform rígido y por eso no se deformaba con el cuerpo.
+      if (landmarks && this.pintar(landmarks, box, guia.ok)) {
+        this.poseLast = ahora;
+        this.dibujada.set(true);
       }
       // Si hace rato que no se ve a nadie, la prenda no se queda flotando.
       if (this.poseLast && ahora - this.poseLast > POSE_LOST_MS) {
-        this.fit.set(null);
+        this.dibujada.set(false);
         this.limpiarLienzo();
       }
       this.guidance.set(guia);
@@ -579,7 +595,13 @@ export class VestidorComponent implements OnInit, OnDestroy {
     } else if (this.tuneY()) {
       for (const punto of completos) if (punto) punto.y += this.tuneY();
     }
-    return dibujarPrenda(ctx, completos, { forma: this.forma(), color: this.colorPrenda() });
+    return dibujarPrenda(ctx, completos, {
+      forma: this.forma(),
+      color: this.colorPrenda(),
+      // Con foto preparada, el polígono es el molde y la foto el relleno: la
+      // prenda se deforma con el cuerpo en vez de flotar rígida encima.
+      textura: this.textura,
+    });
   }
 
   private limpiarLienzo() {

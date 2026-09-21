@@ -69,6 +69,7 @@ describe('Compra desde el carrito', () => {
       branch_id: 'b1',
       address: component.address,
       payment_method: 'manual',
+      coupon_code: null,
     });
     expect(navigation).toHaveBeenCalledWith(['/mi-cuenta/pedidos'], {
       queryParams: { pedido: 'order1' },
@@ -83,6 +84,9 @@ describe('Compra desde el carrito', () => {
     expect(cuenta.children?.map((r) => r.path)).toContain('pedidos');
     const admin = routes.find((r) => r.path === 'admin')!;
     expect(admin.children?.find((r) => r.path === 'pedidos')?.data?.['permission']).toBe(
+      'commerce.read',
+    );
+    expect(admin.children?.find((r) => r.path === 'promociones')?.data?.['permission']).toBe(
       'commerce.read',
     );
     expect(admin.children?.find((r) => r.path === 'stock')?.data?.['permission']).toBe(

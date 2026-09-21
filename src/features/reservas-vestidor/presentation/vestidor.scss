@@ -214,3 +214,18 @@
   flex: 0 0 auto;
   color: var(--accent);
 }
+
+/* Estado permanente del recurso: permite distinguir el recorte real del
+   respaldo geométrico incluso antes de activar la cámara. */
+.fitting-resource-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  width: 100%;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.fitting-resource-status.ready { color: #286042; }
+.fitting-resource-status fs-icon { flex: 0 0 auto; margin-top: 1px; }

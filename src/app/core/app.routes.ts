@@ -104,16 +104,6 @@ export const routes: Routes = [
           ),
       },
       {
-        path: 'promociones',
-        title: 'Cupones y promociones | FashionStore',
-        canActivate: [authGuard],
-        data: { permission: 'commerce.read' },
-        loadComponent: () =>
-          import('../../features/ventas-pagos/presentation/promotions-page.component').then(
-            (m) => m.PromotionsPageComponent,
-          ),
-      },
-      {
         path: 'favoritos',
         title: 'Mis favoritos | FashionStore',
         loadComponent: () =>
@@ -180,6 +170,16 @@ export const routes: Routes = [
         loadComponent: () =>
           import('../../features/ventas-pagos/presentation/orders-page.component').then(
             (m) => m.OrdersPageComponent,
+          ),
+      },
+      {
+        path: 'promociones',
+        title: 'Cupones y promociones | FashionStore',
+        canActivate: [authGuard],
+        data: { admin: true, permission: 'commerce.read' },
+        loadComponent: () =>
+          import('../../features/ventas-pagos/presentation/promotions-page.component').then(
+            (m) => m.PromotionsPageComponent,
           ),
       },
       {

@@ -12,6 +12,27 @@ import { PoseTrackingService } from '../../../shared/pose-tracking.service';
  * verifican el camino automático (recurso preparado → cuerpo → encaje) y las
  * indicaciones que reemplazan a los controles.
  */
+/**
+ * Contexto 2D simulado.
+ *
+ * jsdom no implementa `getContext`, asi que sin esto `pintar()` nunca consigue
+ * un lienzo y la prenda jamas se dibuja: las pruebas medirian el entorno, no el
+ * componente.
+ */
+function conLienzoFalso() {
+  const ctx = {
+    fillStyle: '', strokeStyle: '', lineWidth: 0, lineCap: '', lineJoin: '',
+    globalCompositeOperation: '',
+    beginPath: () => {}, moveTo: () => {}, lineTo: () => {}, closePath: () => {},
+    fill: () => {}, stroke: () => {}, arc: () => {}, ellipse: () => {},
+    save: () => {}, restore: () => {}, clip: () => {}, translate: () => {},
+    rotate: () => {}, drawImage: () => {}, clearRect: () => {}, setTransform: () => {},
+  };
+  return vi
+    .spyOn(HTMLCanvasElement.prototype, 'getContext')
+    .mockReturnValue(ctx as unknown as CanvasRenderingContext2D);
+}
+
 describe('Probador virtual: ubicación automática', () => {
   const originalMedia = Object.getOwnPropertyDescriptor(navigator, 'mediaDevices');
   let camera: ReturnType<typeof vi.fn>;
@@ -208,6 +229,7 @@ describe('Probador virtual: ubicación automática', () => {
   });
 
   it('ubica la prenda sola cuando ve el cuerpo, sin intervención', async () => {
+    conLienzoFalso();
     const harness = await setup();
     harness.pose.detectTorso.mockReturnValue(cuerpo());
     await conCamara(harness);
@@ -215,10 +237,11 @@ describe('Probador virtual: ubicación automática', () => {
     harness.fixture.detectChanges();
 
     expect(harness.component.guidance().ok).toBe(true);
+    // La prenda se dibuja sobre el cuerpo en el lienzo. Antes esto comprobaba
+    // una transformación CSS rígida; ese camino se eliminó porque con mover,
+    // rotar y escalar la prenda no podía deformarse con la persona.
+    expect(harness.component.dibujada()).toBe(true);
     expect(harness.component.placed()).toBe(true);
-    // La transformación deja de ser la de reposo: hay escala y posición reales.
-    expect(harness.component.transform()).toContain('rotate');
-    expect(harness.component.transform()).not.toBe('translate(-50%, -50%) scale(0.9)');
   });
 
   it('le dice a la persona cómo pararse en lugar de ofrecerle controles', async () => {
@@ -245,6 +268,7 @@ describe('Probador virtual: ubicación automática', () => {
   });
 
   it('oculta la prenda si pierde de vista a la persona', async () => {
+    conLienzoFalso();
     const harness = await setup();
     harness.pose.detectTorso.mockReturnValue(cuerpo());
     await conCamara(harness);
@@ -262,7 +286,8 @@ describe('Probador virtual: ubicación automática', () => {
     await conCamara(harness);
     await new Promise((r) => setTimeout(r, 100));
     expect(harness.component.guidance().message).toContain('Ajustar');
-    expect(harness.component.transform()).toContain('scale');
+    // Sin detector no hay cuerpo que seguir: no se dibuja una prenda flotando.
+    expect(harness.component.dibujada()).toBe(false);
   });
 
   it('el ajuste manual corrige sobre el automático y se puede volver atrás', async () => {
@@ -271,13 +296,19 @@ describe('Probador virtual: ubicación automática', () => {
     await conCamara(harness);
     await new Promise((r) => setTimeout(r, 200));
 
-    const automatico = harness.component.transform();
+    // El ajuste fino ya no altera una transformación CSS: escala y desplaza los
+    // puntos del cuerpo antes de dibujar, así que se comprueba ese estado.
+    expect(harness.component.tuneScale()).toBe(1);
+    expect(harness.component.tuneY()).toBe(0);
+
     harness.component.adjustScale(0.12);
     harness.component.adjustOffset(0, 20);
-    expect(harness.component.transform()).not.toBe(automatico);
+    expect(harness.component.tuneScale()).toBeCloseTo(1.12, 5);
+    expect(harness.component.tuneY()).toBe(20);
 
     harness.component.clearTuning();
-    expect(harness.component.transform()).toBe(automatico);
+    expect(harness.component.tuneScale()).toBe(1);
+    expect(harness.component.tuneY()).toBe(0);
   });
 
   it('libera la cámara al terminar y al ocultar la pestaña', async () => {

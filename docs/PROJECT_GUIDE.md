@@ -78,6 +78,21 @@ Cada ruta administrativa declara su permiso en `data.permission` y el guardia lo
 
 **Fechas locales.** Un `datetime-local` trabaja en hora local; `toISOString()` devuelve UTC. Mezclarlos corría el horario mínimo de una reserva cuatro horas en Bolivia. Las fechas de formulario se ajustan con el desfase del navegador.
 
+**Probador virtual: la prenda se deforma, no se pega.** La foto preparada del catálogo no se
+superpone como imagen: se usa como **relleno del polígono** que ya seguía hombros, codos, muñecas y
+caderas. La foto se reparte en una malla de 4×6 celdas y cada celda se estira, triángulo a
+triángulo, hasta la parte del cuerpo que le toca (`garment-texture.ts`). Antes la foto se colocaba
+con mover, rotar y escalar: con cuatro parámetros no existe deformación posible, y por eso se veía
+como una calcomanía.
+
+Dos detalles que costaron: recortar no es deformar —clipar la foto contra la silueta la deja
+intacta y en un cuerpo angosto le corta las mangas—, y cada triángulo recortado contra su propio
+borde deja un hilo transparente que agrieta la prenda como un mosaico; se resuelve solapando cada
+pieza 0,6 px. Toda la matemática está en funciones puras con pruebas: afín entre triángulos, malla,
+solape y encuadre.
+
+Sin foto preparada se dibuja la silueta con el color de la variante, y la vista lo dice.
+
 **Probador virtual.** No superpone la fotografía del catálogo: dibuja la prenda a partir de los puntos del cuerpo que detecta MediaPipe. Eso evita el problema del fondo blanco de raíz —no hay foto que recortar— y permite que la prenda siga al cuerpo. Cuando el producto sí tiene un recurso preparado por el backend, se usa esa imagen con sus anclajes.
 
 **Ubicación en el mapa.** El formulario de sucursal tiene un campo `type: 'map'` que escribe sobre `latitude` y `longitude`: el mapa es una forma más cómoda de llenarlos, no un dato nuevo, y quien prefiera tipear los números sigue pudiendo. Usa Leaflet con mapas de OpenStreetMap, cargado **bajo demanda** para que solo lo pague quien abre ese formulario. El marcador se dibuja con CSS porque los PNG de Leaflet se referencian por ruta relativa y se rompen al empaquetar. La lógica que puede fallar —coordenadas fuera de rango, longitudes que dieron la vuelta al mundo, respuestas del buscador de direcciones— vive en `geo.ts`, en funciones puras con sus pruebas.

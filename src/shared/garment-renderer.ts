@@ -9,7 +9,25 @@
  *
  * La geometría vive en funciones puras que devuelven polígonos; el dibujo en
  * canvas es una capa fina encima. Así se puede verificar la forma sin navegador.
+ *
+ * **Con la foto preparada, el polígono deja de ser el dibujo y pasa a ser el
+ * molde**: se rellena con la fotografía recortada en vez de con color liso. La
+ * forma la sigue decidiendo el cuerpo —hombros, codos, muñecas, caderas—, así
+ * que la prenda se deforma con la persona en lugar de flotar rígida encima. Es
+ * lo que separa «ropa puesta» de «calcomanía».
  */
+import {
+  afinDeTriangulo,
+  expandirTriangulo,
+  mallaDeTextura,
+  texturaUsable,
+} from './garment-texture';
+
+/** Las dos mitades de cada celda de la malla. */
+const TRIANGULOS = [
+  [0, 1, 2],
+  [0, 2, 3],
+] as const;
 
 export interface Punto {
   x: number;
@@ -223,9 +241,57 @@ export function tono(hex: string, factor: number): string {
 export interface OpcionesDibujo {
   forma: FormaPrenda;
   color: string;
+  /**
+   * Foto recortada de la prenda. Si viene y está cargada, rellena los polígonos
+   * en vez del color liso: la forma la sigue decidiendo el cuerpo, así que la
+   * foto se deforma con él en lugar de flotar rígida por encima.
+   */
+  textura?: unknown;
 }
 
 type Ctx2D = CanvasRenderingContext2D;
+
+/**
+ * Rellena el polígono con la foto de la prenda, recortada a su contorno.
+ *
+ * Devuelve false si la textura no sirve, para que el llamador use color liso.
+ */
+function rellenarConTextura(ctx: Ctx2D, puntos: Punto[], textura: unknown): boolean {
+  if (!texturaUsable(textura)) return false;
+  // Se necesitan las cuatro esquinas del cuadrilátero para estirar la foto.
+  if (puntos.length < 4) return false;
+  const celdas = mallaDeTextura(textura, puntos);
+  if (!celdas.length) return false;
+
+  let dibujadas = 0;
+  for (const celda of celdas) {
+    // Cada celda se pinta como dos triángulos: es la unidad más grande que una
+    // transformación afín puede mapear sin deformar de más.
+    for (const [i, j, k] of TRIANGULOS) {
+      const afin = afinDeTriangulo(
+        [celda.origen[i], celda.origen[j], celda.origen[k]],
+        [celda.destino[i], celda.destino[j], celda.destino[k]],
+      );
+      if (!afin) continue;
+      // El recorte se agranda un pelo: si cada triángulo se corta justo en su
+      // borde, el suavizado deja un hilo transparente y la prenda se ve
+      // agrietada como un mosaico.
+      const borde = expandirTriangulo([celda.destino[i], celda.destino[j], celda.destino[k]]);
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(borde[0].x, borde[0].y);
+      ctx.lineTo(borde[1].x, borde[1].y);
+      ctx.lineTo(borde[2].x, borde[2].y);
+      ctx.closePath();
+      ctx.clip();
+      ctx.transform(afin.a, afin.b, afin.c, afin.d, afin.e, afin.f);
+      ctx.drawImage(textura as CanvasImageSource, 0, 0);
+      ctx.restore();
+      dibujadas++;
+    }
+  }
+  return dibujadas > 0;
+}
 
 function trazarPoligono(ctx: Ctx2D, puntos: Punto[]) {
   ctx.beginPath();
@@ -241,22 +307,27 @@ function trazarPoligono(ctx: Ctx2D, puntos: Punto[]) {
 export function dibujarPrenda(ctx: Ctx2D, pts: Punto[], opciones: OpcionesDibujo): boolean {
   const e = ejes(pts);
   if (!e) return false;
-  const { forma, color } = opciones;
+  const { forma, color, textura } = opciones;
   const oscuro = tono(color, -0.28);
+  /** Rellena con la foto si se puede; si no, con el color de la variante. */
+  const rellenar = (poligono: Punto[]) => {
+    if (rellenarConTextura(ctx, poligono, textura)) return;
+    ctx.fillStyle = color;
+    trazarPoligono(ctx, poligono);
+    ctx.fill();
+  };
 
   if (esInferior(forma)) {
     ctx.fillStyle = color;
     if (forma === 'falda') {
       const falda = poligonoFalda(pts);
       if (!falda) return false;
-      trazarPoligono(ctx, falda);
-      ctx.fill();
+      rellenar(falda);
     } else {
       for (const lado of ['izq', 'der'] as const) {
         const pierna = poligonoPierna(pts, forma, lado);
         if (!pierna) continue;
-        trazarPoligono(ctx, pierna);
-        ctx.fill();
+        rellenar(pierna);
       }
     }
     // Cintura, para que se lea como prenda y no como una mancha.
@@ -296,9 +367,7 @@ export function dibujarPrenda(ctx: Ctx2D, pts: Punto[], opciones: OpcionesDibujo
 
   const torso = poligonoTorso(pts, forma);
   if (!torso) return false;
-  ctx.fillStyle = color;
-  trazarPoligono(ctx, torso);
-  ctx.fill();
+  rellenar(torso);
 
   // Cuello: se recorta del dibujo para que se vea la piel debajo.
   const cuello = suma(e.centroHombros, escala(e.abajo, e.ancho * 0.05));
