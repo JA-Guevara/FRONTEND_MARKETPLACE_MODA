@@ -104,6 +104,24 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'promociones',
+        title: 'Cupones y promociones | FashionStore',
+        canActivate: [authGuard],
+        data: { permission: 'commerce.read' },
+        loadComponent: () =>
+          import('../../features/ventas-pagos/presentation/promotions-page.component').then(
+            (m) => m.PromotionsPageComponent,
+          ),
+      },
+      {
+        path: 'favoritos',
+        title: 'Mis favoritos | FashionStore',
+        loadComponent: () =>
+          import('../../features/ventas-pagos/presentation/favorites-page.component').then(
+            (m) => m.FavoritesPageComponent,
+          ),
+      },
+      {
         path: 'reservas',
         title: 'Mis reservas | FashionStore',
         loadComponent: () =>

@@ -8,8 +8,8 @@ export class CommerceService {
   branches() {
     return firstValueFrom(this.api.get<Branch[]>('/commerce/branches'));
   }
-  cart(branch_id = '') {
-    return firstValueFrom(this.api.get<Cart>('/commerce/cart', { branch_id }));
+  cart(branch_id = '', coupon_code = '') {
+    return firstValueFrom(this.api.get<Cart>('/commerce/cart', { branch_id, coupon_code }));
   }
   async write<T>(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown) {
     return (await firstValueFrom(this.api.write<T>(method, '/commerce' + path, body))).data;

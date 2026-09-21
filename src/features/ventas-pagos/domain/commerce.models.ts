@@ -13,6 +13,10 @@ export interface CartItem {
 }
 export interface Cart {
   items: CartItem[];
+  subtotal?: string;
+  discount_total?: string;
+  discounts?: { promotion_id: string; name: string; code: string | null; type: string; amount: string; message?: string | null }[];
+  coupon_code?: string | null;
   total: string;
   currency: string;
 }
@@ -54,6 +58,9 @@ export interface Order {
   payment_method: string;
   payment_reference: string | null;
   total: string;
+  subtotal?: string;
+  discount_total?: string;
+  discounts?: { name: string; code: string | null; type: string; amount: string }[];
   currency: string;
   address: DeliveryAddress;
   items: CartItem[];

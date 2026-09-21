@@ -9,9 +9,10 @@ import { Branch, Cart, DeliveryAddress, Order, SavedAddress } from '../domain/co
 import { ApiService } from '../../../app/core/shared/api.service';
 import { SessionService } from '../../auth/application/session.service';
 import { errorMessage } from '../../../shared/errors';
+import { IconComponent } from '../../../shared/icon.component';
 @Component({
   selector: 'fs-cart-page',
-  imports: [FormsModule, RouterLink, DecimalPipe, UpperCasePipe],
+  imports: [FormsModule, RouterLink, DecimalPipe, UpperCasePipe, IconComponent],
   styleUrl: './commerce.scss',
   template: ` <section class="commerce-page">
     <p class="eyebrow">TU SELECCIÓN</p>
@@ -83,6 +84,20 @@ import { errorMessage } from '../../../shared/errors';
               </select></label
             >
             <div class="commerce-total">
+              <span>Subtotal</span
+              ><strong>{{ c.currency | uppercase }} {{ (c.subtotal || c.total) | number: '1.2-2' }}</strong>
+            </div>
+            <div class="coupon-box">
+              <label>¿Tenés un cupón?
+                <span class="coupon-entry"><input name="coupon" [(ngModel)]="coupon" maxlength="50" placeholder="Ej. VERANO15" [disabled]="busy()" /><button type="button" (click)="applyCoupon()" [disabled]="busy()">Aplicar</button></span>
+              </label>
+              @if (couponMessage()) { <small [class.error]="couponError()">{{ couponMessage() }}</small> }
+            </div>
+            @for (discount of c.discounts || []; track discount.promotion_id) {
+              <div class="discount-line"><span><fs-icon name="tag" />{{ discount.name }}{{ discount.code ? ' · ' + discount.code : '' }}</span><strong>@if (discount.amount !== '0.00') {− {{ c.currency | uppercase }} {{ discount.amount | number: '1.2-2' }}} @else {Beneficio aplicado}</strong></div>
+              @if (discount.message) { <small class="muted">{{ discount.message }}</small> }
+            }
+            <div class="commerce-total final-total">
               <span>Total</span
               ><strong>{{ c.currency | uppercase }} {{ c.total | number: '1.2-2' }}</strong>
             </div>
@@ -243,6 +258,9 @@ export class CartPageComponent {
   saveToProfile = false;
   branch = '';
   method = 'manual';
+  coupon = '';
+  couponMessage = signal('');
+  couponError = signal(false);
   address: DeliveryAddress = {
     recipient: [this.session.user()?.first_name, this.session.user()?.last_name]
       .filter(Boolean)
@@ -270,7 +288,7 @@ export class CartPageComponent {
     this.busy.set(true);
     this.error.set('');
     try {
-      this.cart.set(await this.api.cart(this.branch));
+      this.cart.set(await this.api.cart(this.branch, this.coupon));
     } catch (e) {
       this.cart.set(null);
       this.error.set(errorMessage(e));
@@ -284,6 +302,26 @@ export class CartPageComponent {
       !!this.cart()?.items.length &&
       this.cart()!.items.every((i) => i.available >= i.quantity)
     );
+  }
+  async applyCoupon() {
+    this.coupon = this.coupon.trim().toUpperCase();
+    this.couponMessage.set('');
+    this.couponError.set(false);
+    this.busy.set(true);
+    try {
+      // Si el código no es válido se conserva el carrito que el cliente ya
+      // estaba revisando; una validación de cupón no debe vaciar la pantalla.
+      const quoted = await this.api.cart(this.branch, this.coupon);
+      this.cart.set(quoted);
+      const applied = quoted.discounts?.find((row) => row.code === this.coupon);
+      this.couponMessage.set(applied ? 'Cupón aplicado al total.' : 'No hay un beneficio asociado a este cupón.');
+      this.couponError.set(!applied);
+    } catch (e) {
+      this.couponError.set(true);
+      this.couponMessage.set(errorMessage(e));
+    } finally {
+      this.busy.set(false);
+    }
   }
   async quantity(id: string, event: Event) {
     const input = event.target as HTMLInputElement;
@@ -381,6 +419,7 @@ export class CartPageComponent {
         branch_id: this.branch,
         address: this.address,
         payment_method: this.method,
+        coupon_code: this.coupon || null,
       });
       await this.cartState.refresh();
       if (this.saveToProfile && !this.selectedAddress) await this.storeAddress();

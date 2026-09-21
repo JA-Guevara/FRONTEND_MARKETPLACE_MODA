@@ -12,6 +12,7 @@ import { CatalogService } from '../infrastructure/catalog.service';
 import { Product, Entity, hasVestidor } from '../domain/catalog.models';
 import { errorMessage } from '../../../shared/errors';
 import { TryOnListService } from '../../reservas-vestidor/application/try-on-list.service';
+import { EngagementService } from '../../ventas-pagos/infrastructure/engagement.service';
 import {
   MAX_ITEM_QUANTITY,
   MIN_ITEM_QUANTITY,
@@ -63,6 +64,10 @@ import {
           <p class="detail-price">
             Bs {{ variant()?.['price_override'] ?? p.base_price | number: '1.2-2' }}
           </p>
+          <button type="button" (click)="toggleFavorite()" [disabled]="favoriteBusy()">
+            <fs-icon name="heart" />{{ favorite() ? 'Guardada en favoritos' : 'Guardar en favoritos' }}
+          </button>
+          @if (favoriteMessage()) { <p class="muted">{{ favoriteMessage() }}</p> }
           <p class="description">{{ p.description }}</p>
           @if (p.collection) {
             <p>Colección: {{ p.collection['name'] }}</p>
@@ -170,11 +175,15 @@ import {
 })
 export class ProductPageComponent {
   private commerce = inject(CommerceService);
+  private engagement = inject(EngagementService);
   private cartState = inject(CartStateService);
   session = inject(SessionService);
   private router = inject(Router);
   private tryOn = inject(TryOnListService);
   adding = signal(false);
+  favorite = signal(false);
+  favoriteBusy = signal(false);
+  favoriteMessage = signal('');
   cartMessage = signal('');
   cartError = signal('');
   tryOnMessage = signal('');
@@ -243,6 +252,31 @@ export class ProductPageComponent {
       this.adding.set(false);
     }
   }
+  async toggleFavorite() {
+    const product = this.product();
+    if (!product || this.favoriteBusy()) return;
+    if (!this.session.user()) {
+      await this.router.navigate(['/iniciar-sesion'], { queryParams: { returnUrl: this.router.url } });
+      return;
+    }
+    this.favoriteBusy.set(true);
+    this.favoriteMessage.set('');
+    try {
+      if (this.favorite()) {
+        await this.engagement.removeFavorite(product.id);
+        this.favorite.set(false);
+        this.favoriteMessage.set('Quitamos la prenda de tus favoritos.');
+      } else {
+        await this.engagement.saveFavorite(product.id);
+        this.favorite.set(true);
+        this.favoriteMessage.set('La guardamos y te avisaremos por correo si vuelve el stock o baja el precio.');
+      }
+    } catch (e) {
+      this.favoriteMessage.set(errorMessage(e));
+    } finally {
+      this.favoriteBusy.set(false);
+    }
+  }
   private api = inject(CatalogService);
   private route = inject(ActivatedRoute);
   private destroy = inject(DestroyRef);
@@ -281,6 +315,7 @@ export class ProductPageComponent {
       )
       .subscribe((p) => {
         this.product.set(p);
+        this.favorite.set(false);
         // Conserva la variante elegida al volver del probador (query ?variante=).
         const wantedId = this.route.snapshot?.queryParamMap?.get('variante') ?? null;
         this.variant.set(
@@ -290,6 +325,9 @@ export class ProductPageComponent {
           (p?.images.find((i) => i['is_primary']) || p?.images[0])?.['url'] || '',
         );
         this.loading.set(false);
+        if (p && this.session.user()) {
+          void this.engagement.getFavorite(p.id).then((data) => this.favorite.set(data.is_favorite)).catch(() => undefined);
+        }
       });
   }
 }

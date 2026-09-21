@@ -82,6 +82,9 @@ import { resources } from '../shared/resources';
               <a routerLink="/admin/pedidos" routerLinkActive="active"
                 >Pedidos y pagos<span>↗</span></a
               >
+              <a routerLink="/admin/promociones" routerLinkActive="active"
+                >Cupones y promociones<span>↗</span></a
+              >
             }
             @if (session.can('commerce.read')) {
               <a routerLink="/admin/devoluciones" routerLinkActive="active"
