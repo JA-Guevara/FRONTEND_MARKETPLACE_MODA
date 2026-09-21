@@ -206,6 +206,16 @@ export const routes: Routes = [
         data: { permission: 'catalog.read' },
       },
       {
+        path: 'probador',
+        title: 'Recursos del probador | FashionStore',
+        loadComponent: () =>
+          import('../../features/probador-virtual/presentation/admin-recursos.component').then(
+            (m) => m.AdminRecursosComponent,
+          ),
+        canActivate: [authGuard],
+        data: { permission: 'catalog.read' },
+      },
+      {
         path: 'reservas',
         title: 'Reservas | FashionStore',
         loadComponent: () =>

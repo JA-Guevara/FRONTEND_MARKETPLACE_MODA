@@ -61,6 +61,14 @@ import { resources } from '../shared/resources';
             </nav>
           }
         }
+        @if (session.can('catalog.read')) {
+          <h3>Probador virtual</h3>
+          <nav aria-label="Probador virtual">
+            <a routerLink="/admin/probador" routerLinkActive="active"
+              >Recursos del probador<span>↗</span></a
+            >
+          </nav>
+        }
         @if (session.can('audit.read')) {
           <h3>Actividad</h3>
           <nav aria-label="Actividad">

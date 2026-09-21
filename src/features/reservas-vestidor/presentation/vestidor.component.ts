@@ -36,6 +36,7 @@ import {
   estimarOcultos,
   formaDePrenda,
 } from '../../../shared/garment-renderer';
+import { FotoRealistaComponent } from '../../probador-virtual/presentation/foto-realista.component';
 
 type CameraState = 'off' | 'requesting' | 'active' | 'error';
 
@@ -61,7 +62,7 @@ interface TryOnResource {
  */
 @Component({
   selector: 'fs-vestidor',
-  imports: [RouterLink, IconComponent],
+  imports: [RouterLink, IconComponent, FotoRealistaComponent],
   styleUrl: './vestidor.scss',
   host: { '(document:visibilitychange)': 'onVisibilityChange()' },
   template: `<section class="fitting-page">
@@ -196,6 +197,11 @@ interface TryOnResource {
         La cámara se procesa en tu dispositivo y no se envía ni se graba. La vista es orientativa:
         no determina tu talla.
       </p>
+      <fs-foto-realista
+        [productId]="productId"
+        [colorId]="colorId"
+        [productName]="productName()"
+      />
       @if (auditNotice()) {
         <p class="fitting-note" role="status">{{ auditNotice() }}</p>
       }
@@ -252,8 +258,8 @@ export class VestidorComponent implements OnInit, OnDestroy {
     );
   });
 
-  private productId = '';
-  private colorId: string | null = null;
+  productId = '';
+  colorId: string | null = null;
   private region: BodyRegion = 'upper_body';
   private anchors: GarmentAnchors | null = null;
   private imageSize = { width: 0, height: 0 };

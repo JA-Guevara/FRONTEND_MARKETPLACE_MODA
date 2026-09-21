@@ -39,6 +39,13 @@ import { SessionService } from '../../../features/auth/application/session.servi
           <p>Consultar el historial de operaciones</p></a
         >
       }
+      @if (session.can('catalog.read')) {
+        <a class="panel admin-card" routerLink="/admin/probador"
+          ><p class="eyebrow">PROBADOR VIRTUAL</p>
+          <h2>Recursos del probador ↗</h2>
+          <p>Revisar, aprobar y preparar en lote los recursos del probador</p></a
+        >
+      }
     </div>`,
 })
 export class AdminHomeComponent {
