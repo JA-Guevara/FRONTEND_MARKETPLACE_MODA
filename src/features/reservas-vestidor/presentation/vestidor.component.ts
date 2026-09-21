@@ -152,9 +152,9 @@ interface TryOnResource {
               type="button"
               [class.active]="tuning()"
               (click)="tuning.set(!tuning())"
-              aria-label="Ajuste fino"
+              aria-label="Ajustar posición de la prenda"
             >
-              <fs-icon name="maximize" />Ajustar
+              <fs-icon name="maximize" />Ajustar posición
             </button>
             <button type="button" (click)="stopCamera()">
               <fs-icon name="close" />Terminar

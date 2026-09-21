@@ -8,13 +8,12 @@ import { SessionService } from '../../auth/application/session.service';
 import { Field } from '../../../shared/form-schema';
 import { EntityFormComponent } from '../../../shared/entity-form.component';
 import { ImageFormComponent } from '../../../shared/image-form.component';
-import { ArAssetFormComponent } from './ar-asset-form.component';
 import { Entity, Product } from '../domain/catalog.models';
 import { errorMessage } from '../../../shared/errors';
 import { lookup } from '../application/resources';
 @Component({
   selector: 'fs-product-editor',
-  imports: [RouterLink, FormsModule, EntityFormComponent, ImageFormComponent, ArAssetFormComponent, DialogFocusDirective],
+  imports: [RouterLink, FormsModule, EntityFormComponent, ImageFormComponent, DialogFocusDirective],
   template: `
     <a routerLink="/admin/products" class="back-link">← Todas las prendas</a>
     <div class="page-heading">
@@ -42,7 +41,7 @@ import { lookup } from '../application/resources';
       <div class="panel">
         <div class="page-heading">
           <h2>{{ sectionTitle() }}</h2>
-          @if (canWrite() && !p['deleted_at']) {
+          @if (canWrite() && !p['deleted_at'] && section !== 'ar-assets') {
             <button class="primary" (click)="open()">+ Agregar {{ singular() }}</button>
           }
         </div>
@@ -51,17 +50,15 @@ import { lookup } from '../application/resources';
         }
         @if (section === 'ar-assets') {
             <p class="muted">
-              El recurso del probador es una imagen frontal preparada (PNG o WebP con transparencia), distinta
-              de las fotos comerciales. El vestidor web solo superpone imágenes 2D; los formatos 3D se guardan
-              pero no se muestran.
+              Esta es la única configuración necesaria: el sistema toma la imagen principal del catálogo,
+              la prepara para cada color y muestra una vista previa antes de habilitarla en cámara.
+              No cargues un recurso AR manual ni un modelo 3D.
             </p>
-            <!-- Sin esto, la preparación automática existía en el servidor y no
-                 la podía disparar nadie: el probador caía siempre al dibujo. -->
             <div class="prepare-tryon">
               <p>
-                <strong>Preparar con la foto del catálogo.</strong>
-                Elegí el color de la foto principal: se elimina el fondo, se calcula dónde apoya
-                la prenda en el cuerpo y se genera una imagen transparente para el vestidor.
+                <strong>1. Elegí el color. 2. Prepará la imagen. 3. Revisá el resultado.</strong>
+                Se usa la foto principal de esta prenda; se quita el fondo, se calculan los anclajes
+                y se genera la imagen transparente que verá el cliente.
               </p>
               <label>Color de la foto<select [(ngModel)]="colorProbador" [disabled]="preparando()">
                 <option value="">Seleccioná un color</option>
@@ -103,7 +100,7 @@ import { lookup } from '../application/resources';
             }
           </div>
         }
-        <div class="table-wrap" [hidden]="section === 'images'">
+        <div class="table-wrap" [hidden]="section === 'images' || section === 'ar-assets'">
           <table>
             <thead>
               <tr>
@@ -216,14 +213,7 @@ import { lookup } from '../application/resources';
           @if (formError()) {
             <p class="alert error" role="alert">{{ formError() }}</p>
           }
-          @if (section === 'ar-assets') {
-            <fs-ar-asset-form
-              [busy]="busy()"
-              [current]="current"
-              (saved)="save($event)"
-              (cancel)="editing.set(false)"
-            />
-          } @else if (section === 'images' && !current) {
+          @if (section === 'images' && !current) {
             <fs-image-form [busy]="busy()" (saved)="save($event)" (cancel)="editing.set(false)" />
           } @else {
           <fs-entity-form
@@ -277,14 +267,14 @@ export class ProductEditorComponent {
   prepararMensaje = signal('');
   tryOnAssets = signal<Entity[]>([]);
   colorProbador = '';
-  section = 'variants';
+  section = this.route.snapshot.queryParamMap.get('seccion') === 'probador' ? 'ar-assets' : 'variants';
   current: Entity | null = null;
   pending: Entity | null = null;
   fields: Field[] = [];
   tabs = [
     { key: 'variants', label: 'Variantes' },
     { key: 'images', label: 'Imágenes' },
-    { key: 'ar-assets', label: 'Probador virtual' },
+    { key: 'ar-assets', label: 'Preparar probador' },
     { key: 'suppliers', label: 'Proveedores' },
   ];
   private get path() {

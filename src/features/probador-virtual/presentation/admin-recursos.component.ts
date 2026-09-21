@@ -129,7 +129,7 @@ import {
                           Reintentar
                         </button>
                       }
-                      <button (click)="abrirAjuste(item)">Ajustar</button>
+                      <button (click)="abrirAjuste(item)">Corregir datos</button>
                     </div>
                   }
                 </td>
@@ -188,13 +188,13 @@ import {
           class="modal small"
           role="dialog"
           aria-modal="true"
-          aria-label="Ajustar recurso del probador"
+          aria-label="Corregir datos del recurso del probador"
           (dismissed)="ajuste.set(null); formError.set('')"
         >
-          <h2>Ajustar a mano</h2>
+          <h2>Corregir datos del recurso</h2>
           <p class="muted">
-            Corregí lo que propuso el análisis. El ajuste se conserva: no hace falta
-            preparar la prenda de nuevo.
+            Corregí la región o tipo que propuso el análisis. Esto no reemplaza la
+            imagen preparada ni agrega un modelo 3D.
           </p>
           @if (formError()) {
             <p class="alert error">{{ formError() }}</p>
@@ -206,7 +206,6 @@ import {
             }
           </select></label>
           <label>Tipo de prenda<input name="tipo" [(ngModel)]="tipoAjuste" maxlength="40" placeholder="Por ejemplo: remera" /></label>
-          <label>URL del modelo 3D<input name="modelo" [(ngModel)]="modeloAjuste" maxlength="1000" placeholder="https://…" /></label>
           <label class="check"><input type="checkbox" name="activo" [(ngModel)]="activoAjuste" />Recurso habilitado</label>
           <div class="form-actions">
             <button class="primary" [disabled]="busy()" (click)="guardarAjuste(item)">
@@ -236,7 +235,6 @@ export class AdminRecursosComponent {
   nota = '';
   regionSeleccionada = '';
   tipoAjuste = '';
-  modeloAjuste = '';
   activoAjuste = true;
   REGIONES_CUERPO = REGIONES_CUERPO;
   recursoEstadoLabel = recursoEstadoLabel;
@@ -309,7 +307,6 @@ export class AdminRecursosComponent {
   abrirAjuste(item: RecursoTryOn) {
     this.regionSeleccionada = item.body_region || '';
     this.tipoAjuste = item.garment_type || '';
-    this.modeloAjuste = item.model_3d_url || '';
     this.activoAjuste = item.enabled !== false;
     this.formError.set('');
     this.ajuste.set(item);
@@ -320,7 +317,6 @@ export class AdminRecursosComponent {
     const cuerpo: Record<string, unknown> = { enabled: this.activoAjuste };
     if (this.regionSeleccionada) cuerpo['body_region'] = this.regionSeleccionada;
     if (this.tipoAjuste.trim()) cuerpo['garment_type'] = this.tipoAjuste.trim();
-    if (this.modeloAjuste.trim()) cuerpo['model_3d_url'] = this.modeloAjuste.trim();
     this.busy.set(item.id);
     this.formError.set('');
     try {

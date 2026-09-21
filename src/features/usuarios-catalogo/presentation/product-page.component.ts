@@ -86,7 +86,7 @@ import {
           }
           <div class="fitting-access">
             <h3>Probador virtual</h3>
-            @if (hasArAsset()) {
+            @if (puedeProbar()) {
               <p class="muted">
                 Activá tu cámara para ver una aproximación de cómo se ve la prenda. Nada se
                 graba ni se envía al servidor. El permiso de cámara se pide cuando entrás.
@@ -98,10 +98,23 @@ import {
               >
                 <fs-icon name="camera" />Probarme esta prenda
               </a>
+              @if (session.can('catalog.write')) {
+                <a
+                  class="button"
+                  [routerLink]="['/admin/products', p.id]"
+                  [queryParams]="{ seccion: 'probador' }"
+                  >Preparar imagen de referencia</a
+                >
+              }
             } @else {
-              <p class="muted">Esta prenda todavía no tiene probador disponible.</p>
+              <p class="muted">Agregá al menos una talla y color para habilitar el probador.</p>
               @if (session.can('catalog.read')) {
-                <a class="button" [routerLink]="['/admin/products', p.id]">Configurar probador</a>
+                <a
+                  class="button"
+                  [routerLink]="['/admin/products', p.id]"
+                  [queryParams]="{ seccion: 'probador' }"
+                  >Preparar imágenes del probador</a
+                >
               }
             }
           </div>
@@ -166,8 +179,9 @@ export class ProductPageComponent {
   cartError = signal('');
   tryOnMessage = signal('');
   tryOnQuantity = MIN_ITEM_QUANTITY;
-  /// La ficha decide con el mismo criterio que el catálogo y el probador.
-  hasArAsset() {
+  /// Toda prenda con variantes activas puede abrir el espejo. La imagen
+  /// preparada mejora la vista, pero ya no depende del viejo recurso AR manual.
+  puedeProbar() {
     return hasVestidor(this.product() ?? { variants: [] });
   }
   selectVariant(v: Entity) {

@@ -97,7 +97,8 @@ const block = fixture.nativeElement.querySelector('.fitting-access');
   it('solo lo oculta si la prenda no tiene variantes que probarse', async () => {
     const admin = await render({ product: SIN_VARIANTES, canRead: true });
     const block = admin.nativeElement.querySelector('.fitting-access');
-    expect(block.textContent).toContain('no tiene probador disponible');
-    expect(block.querySelector('a[href="/admin/products/p1"]')).toBeTruthy();
+    expect(block.textContent).toContain('Agregá al menos una talla y color');
+    expect(block.textContent).toContain('Preparar imágenes del probador');
+    expect(block.querySelector('a[href^="/admin/products/p1"]')).toBeTruthy();
   });
 });
