@@ -1,10 +1,10 @@
 import { Routes } from '@angular/router';
-import { authGuard } from '../../features/auth/presentation/auth.guard';
+import { authGuard } from './auth.guard';
 import { resources } from './shared/resources';
 import { addressesResource } from '../../features/usuarios-catalogo/application/resources';
 
 const auth = () =>
-  import('../../features/auth/presentation/auth-page.component').then((m) => m.AuthPageComponent);
+  import('../../features/usuarios-catalogo/presentation/auth-page.component').then((m) => m.AuthPageComponent);
 const resource = () =>
   import('../../shared/resource-page.component').then((m) => m.ResourcePageComponent);
 export const routes: Routes = [
@@ -76,7 +76,7 @@ export const routes: Routes = [
     // Espacio personal del cliente: un solo módulo con menú propio.
     path: 'mi-cuenta',
     loadComponent: () =>
-      import('../../features/auth/presentation/account-layout.component').then(
+      import('../../features/usuarios-catalogo/presentation/account-layout.component').then(
         (m) => m.AccountLayoutComponent,
       ),
     canActivate: [authGuard],
@@ -85,7 +85,7 @@ export const routes: Routes = [
         path: '',
         title: 'Mi perfil | FashionStore',
         loadComponent: () =>
-          import('../../features/auth/presentation/account-page.component').then(
+          import('../../features/usuarios-catalogo/presentation/account-page.component').then(
             (m) => m.AccountPageComponent,
           ),
       },
@@ -257,7 +257,7 @@ export const routes: Routes = [
         path: 'bitacora',
         title: 'Bitácora | FashionStore',
         loadComponent: () =>
-          import('../../features/usuarios-catalogo/presentation/audit-page.component').then(
+          import('./audit/audit-page.component').then(
             (m) => m.AuditPageComponent,
           ),
         canActivate: [authGuard],
@@ -277,3 +277,4 @@ export const routes: Routes = [
       import('./layout/status-page.component').then((m) => m.StatusPageComponent),
   },
 ];
+

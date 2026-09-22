@@ -18,7 +18,7 @@ const blank = (): Draft => ({ name:'', code:'', description:'', discount_type:'p
   selector: 'fs-promotions-page', imports: [FormsModule, IconComponent], styleUrl: './commerce.scss',
   template: `<section class="commerce-page"><p class="eyebrow">GESTIÓN COMERCIAL</p><h1>Cupones y promociones</h1>
     <p class="muted">Un cupón tiene código y el cliente lo ingresa al comprar. Una promoción sin código se aplica sola cuando cumple sus condiciones. Envío gratis queda registrado como beneficio porque hoy la tienda no cobra flete por separado.</p>
-    @if (error()) { <p class="alert error">{{ error() }}</p> }
+    @if (error()) { <div class="alert error"><p>{{ error() }}</p><button type="button" (click)="load()" [disabled]="loading()">Reintentar carga</button></div> }
     <div class="commerce-grid promotion-layout"><form class="checkout-summary" #form="ngForm" (ngSubmit)="form.valid && save()">
       <h2>{{ editing() ? 'Editar campaña' : 'Nueva campaña' }}</h2>
       <div class="commerce-fields">
@@ -46,7 +46,21 @@ export class PromotionsPageComponent {
   private api = inject(EngagementService); private http = inject(ApiService);
   promotions = signal<Promotion[]>([]); categories = signal<Entity[]>([]); products = signal<Product[]>([]); loading = signal(true); busy = signal(false); error = signal(''); editing = signal<string | null>(null); draft: Draft = blank();
   constructor() { void this.load(); }
-  async load() { this.loading.set(true); try { const [promotions, categories, products] = await Promise.all([this.api.promotions(), firstValueFrom(this.http.get<Entity[]>('/catalog/categories')), firstValueFrom(this.http.get<Page<Product>>('/catalog/products', {page_size:100}))]); this.promotions.set(promotions); this.categories.set(categories); this.products.set(products.items); } catch(e) { this.error.set(errorMessage(e)); } finally { this.loading.set(false); } }
+  async load() {
+    this.loading.set(true); this.error.set('');
+    const [promotions, categories, products] = await Promise.allSettled([
+      this.api.promotions(),
+      firstValueFrom(this.http.get<Entity[]>('/catalog/categories')),
+      firstValueFrom(this.http.get<Page<Product>>('/catalog/products', { page_size: 100 })),
+    ]);
+    if (promotions.status === 'fulfilled') this.promotions.set(promotions.value);
+    else this.error.set('No se pudieron cargar las campañas. ' + errorMessage(promotions.reason));
+    if (categories.status === 'fulfilled') this.categories.set(categories.value);
+    else if (!this.error()) this.error.set('No se pudieron cargar las categorías. ' + errorMessage(categories.reason));
+    if (products.status === 'fulfilled') this.products.set(products.value.items);
+    else if (!this.error()) this.error.set('No se pudieron cargar las prendas. ' + errorMessage(products.reason));
+    this.loading.set(false);
+  }
   label(row: Promotion) { return row.discount_type === 'percent' ? `${row.discount_value}% de descuento` : row.discount_type === 'fixed' ? `BOB ${row.discount_value} de descuento` : 'Envío gratis'; }
   edit(row: Promotion) { this.editing.set(row.id); this.draft = { name:row.name, code:row.code||'', description:row.description||'', discount_type:row.discount_type, discount_value:Number(row.discount_value), minimum_order:Number(row.minimum_order), scope:row.customer_scope, target:row.category_id?'category':row.product_id?'product':'all', target_id:row.category_id||row.product_id||'', starts_at:row.starts_at?.slice(0,16)||'', ends_at:row.ends_at?.slice(0,16)||'', max_uses:row.max_uses?.toString()||'', per_user_limit:row.per_user_limit?.toString()||'', is_active:row.is_active }; }
   cancel() { this.editing.set(null); this.draft = blank(); }

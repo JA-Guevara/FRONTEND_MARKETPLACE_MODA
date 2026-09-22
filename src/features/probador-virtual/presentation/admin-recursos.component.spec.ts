@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { AdminRecursosComponent } from './admin-recursos.component';
 import { VestidorAdminService } from '../infrastructure/vestidor-admin.service';
-import { SessionService } from '../../auth/application/session.service';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { RecursoTryOn } from '../domain/vestidor-admin.models';
 
 function recurso(cambios: Partial<RecursoTryOn> = {}): RecursoTryOn {

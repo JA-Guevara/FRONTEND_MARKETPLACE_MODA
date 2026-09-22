@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { IconComponent } from '../../../shared/icon.component';
 import { CommerceService } from '../infrastructure/commerce.service';
 import { Branch, OrderReturn, commerceLabel } from '../domain/commerce.models';
-import { SessionService } from '../../auth/application/session.service';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { errorMessage } from '../../../shared/errors';
 
 /** Qué puede hacer administración con una devolución según su estado (CU19). */
@@ -292,3 +292,4 @@ export class AdminReturnsComponent {
     }
   }
 }
+

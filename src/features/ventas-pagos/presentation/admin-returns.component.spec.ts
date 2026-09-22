@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { AdminReturnsComponent } from './admin-returns.component';
 import { CommerceService } from '../infrastructure/commerce.service';
-import { SessionService } from '../../auth/application/session.service';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { OrderReturn } from '../domain/commerce.models';
 
 function devolucion(cambios: Partial<OrderReturn> = {}): OrderReturn {
@@ -119,3 +119,4 @@ describe('Bandeja de devoluciones', () => {
     expect(componente.acciones(devolucion({ status: 'rejected' }))).toEqual([]);
   });
 });
+

@@ -2,9 +2,9 @@ import { environment } from '../../../environments/environment';
 import { Component, ElementRef, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import { SessionService } from '../../../features/auth/application/session.service';
+import { SessionService } from '../../../features/usuarios-catalogo/application/session.service';
 import { TryOnListService } from '../../../features/reservas-vestidor/application/try-on-list.service';
-import { ACCOUNT_SECTIONS } from '../../../features/auth/presentation/account-layout.component';
+import { ACCOUNT_SECTIONS } from '../../../features/usuarios-catalogo/presentation/account-layout.component';
 import { IconComponent } from '../../../shared/icon.component';
 import { NotificationsBellComponent } from '../../../features/ventas-pagos/presentation/notifications-bell.component';
 import { AssistantWidgetComponent } from '../../../features/ventas-pagos/presentation/assistant-widget.component';
@@ -180,3 +180,4 @@ export class SiteLayoutComponent {
     }
   }
 }
+

@@ -4,7 +4,7 @@ import { of } from 'rxjs';
 import { ProductPageComponent } from './product-page.component';
 import { CatalogService } from '../infrastructure/catalog.service';
 import { CommerceService } from '../../ventas-pagos/infrastructure/commerce.service';
-import { SessionService } from '../../auth/application/session.service';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { TryOnListService } from '../../reservas-vestidor/application/try-on-list.service';
 import { Product } from '../domain/catalog.models';
 

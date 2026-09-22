@@ -3,7 +3,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { CommerceService } from '../../ventas-pagos/infrastructure/commerce.service';
 import { CartStateService } from '../../ventas-pagos/application/cart-state.service';
-import { SessionService } from '../../auth/application/session.service';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { IconComponent } from '../../../shared/icon.component';
 import { DecimalPipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -331,3 +331,4 @@ export class ProductPageComponent {
       });
   }
 }
+

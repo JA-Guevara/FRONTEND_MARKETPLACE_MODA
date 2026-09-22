@@ -3,7 +3,7 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 import { BehaviorSubject, of, throwError } from 'rxjs';
 import { VestidorComponent } from './vestidor.component';
 import { CatalogService } from '../../usuarios-catalogo/infrastructure/catalog.service';
-import { SessionService } from '../../auth/application/session.service';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { ApiService } from '../../../app/core/shared/api.service';
 import { PoseTrackingService } from '../../../shared/pose-tracking.service';
 
@@ -350,3 +350,4 @@ describe('Probador virtual: ubicación automática', () => {
     expect(enlace?.textContent?.trim()).toBe('Elegir talla');
   });
 });
+

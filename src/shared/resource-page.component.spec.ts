@@ -7,7 +7,7 @@ import { ResourcePageComponent } from './resource-page.component';
 import { resources } from '../app/core/shared/resources';
 import { addressesResource } from '../features/usuarios-catalogo/application/resources';
 import { Resource } from './form-schema';
-import { SessionService } from '../features/auth/application/session.service';
+import { SessionService } from '../features/usuarios-catalogo/application/session.service';
 
 describe('Contratos de las pantallas administrativas', () => {
   let backend: HttpTestingController;
@@ -61,3 +61,4 @@ describe('Contratos de las pantallas administrativas', () => {
     backend.expectNone('/api/v1/catalog/admin/categories');
   });
 });
+

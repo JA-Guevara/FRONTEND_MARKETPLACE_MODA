@@ -6,7 +6,7 @@ import { CommerceService } from '../infrastructure/commerce.service';
 import { Branch, Order, commerceLabel } from '../domain/commerce.models';
 import { OrderTrackerComponent } from './order-tracker.component';
 import { OrderReturnsComponent } from './order-returns.component';
-import { SessionService } from '../../auth/application/session.service';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { errorMessage } from '../../../shared/errors';
 @Component({
   selector: 'fs-orders-page',
@@ -440,3 +440,4 @@ export class OrdersPageComponent {
     }
   }
 }
+

@@ -1,7 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { IconComponent } from '../../../shared/icon.component';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { SessionService } from '../../../features/auth/application/session.service';
+import { SessionService } from '../../../features/usuarios-catalogo/application/session.service';
 import { resources } from '../shared/resources';
 @Component({
   selector: 'fs-admin-layout',
@@ -116,3 +116,4 @@ export class AdminLayoutComponent {
     return resources.filter((r) => r.group === group && this.session.can(r.permission));
   }
 }
+

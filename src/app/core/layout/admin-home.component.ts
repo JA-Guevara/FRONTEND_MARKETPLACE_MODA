@@ -1,7 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { resources } from '../shared/resources';
-import { SessionService } from '../../../features/auth/application/session.service';
+import { SessionService } from '../../../features/usuarios-catalogo/application/session.service';
 @Component({
   selector: 'fs-admin-home',
   imports: [RouterLink],
@@ -54,3 +54,4 @@ export class AdminHomeComponent {
     return resources.filter((r) => this.session.can(r.permission));
   }
 }
+

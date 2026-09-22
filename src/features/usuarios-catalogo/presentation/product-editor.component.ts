@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../../app/core/shared/api.service';
-import { SessionService } from '../../auth/application/session.service';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { Field } from '../../../shared/form-schema';
 import { EntityFormComponent } from '../../../shared/entity-form.component';
 import { ImageFormComponent } from '../../../shared/image-form.component';
@@ -501,3 +501,4 @@ export class ProductEditorComponent {
     }
   }
 }
+

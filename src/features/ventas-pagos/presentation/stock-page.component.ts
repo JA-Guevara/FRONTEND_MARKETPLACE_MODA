@@ -2,7 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CommerceService } from '../infrastructure/commerce.service';
 import { Branch, CartItem } from '../domain/commerce.models';
-import { SessionService } from '../../auth/application/session.service';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { errorMessage } from '../../../shared/errors';
 interface StockMovement { id: string; variant_id: string; delta: number; quantity_before: number; quantity_after: number; kind: string; reason: string; reference: string | null; actor_email: string | null; created_at: string; }
 @Component({
@@ -170,3 +170,4 @@ export class StockPageComponent {
     }
   }
 }
+

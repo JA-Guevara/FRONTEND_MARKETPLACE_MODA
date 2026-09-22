@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { FotoRealistaComponent } from './foto-realista.component';
 import { TryOnAiService } from '../infrastructure/tryon-ai.service';
-import { SessionService } from '../../auth/application/session.service';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { TryOnJob } from '../domain/tryon-jobs.models';
 
 function trabajo(cambios: Partial<TryOnJob> = {}): TryOnJob {

@@ -5,7 +5,7 @@ import { NavigationEnd, Router } from '@angular/router';
 import { of, Subject } from 'rxjs';
 import { AssistantWidgetComponent } from './assistant-widget.component';
 import { CommerceService } from '../infrastructure/commerce.service';
-import { SessionService } from '../../auth/application/session.service';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { CatalogService } from '../../usuarios-catalogo/infrastructure/catalog.service';
 import { DashboardService } from '../../ia-reportes/infrastructure/dashboard.service';
 import { AssistantContextService } from '../../../shared/assistant-context.service';
@@ -413,7 +413,7 @@ describe('Asistente: contexto compartido de reportes', () => {
     expect(fixture.nativeElement.textContent).toContain('Limitaciones: Análisis sobre pedidos pagos.');
   });
 
-  it('la voz deja la transcripción en el input lista para revisar, sin enviarla sola', async () => {
+  it('la voz transcribe y envía la consulta sin exigir un segundo clic', async () => {
     const FakeRecognition = vi.fn().mockImplementation(function (this: any) {
       this.lang = '';
       this.interimResults = false;
@@ -426,17 +426,21 @@ describe('Asistente: contexto compartido de reportes', () => {
     const prev = (globalThis as any).SpeechRecognition;
     (globalThis as any).SpeechRecognition = FakeRecognition;
     try {
-      const { fixture } = setup();
+      const { fixture, write } = setup();
       const recognition = (fixture.componentInstance as any).recognition;
       expect(recognition).not.toBeNull();
       fixture.componentInstance.toggle();
       fixture.componentInstance.toggleVoice();
       recognition.handlers.result({ results: [{ 0: { transcript: 'agenda una visita para mañana' } }] });
       fixture.detectChanges();
-      expect(fixture.componentInstance.draft).toBe('agenda una visita para mañana');
-      expect(fixture.nativeElement.querySelectorAll('.ai-msg--user').length).toBe(0);
+      expect(fixture.componentInstance.draft).toBe('');
+      expect(fixture.nativeElement.querySelectorAll('.ai-msg--user').length).toBe(1);
+      expect(write).toHaveBeenCalledWith('POST', '/assistant', {
+        message: 'agenda una visita para mañana', context: undefined,
+      });
     } finally {
       (globalThis as any).SpeechRecognition = prev;
     }
   });
 });
+

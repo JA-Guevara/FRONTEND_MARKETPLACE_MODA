@@ -5,7 +5,7 @@ import { CommerceService } from '../../ventas-pagos/infrastructure/commerce.serv
 import { ReservasService } from '../infrastructure/reservas.service';
 import { Reservation, reservationLabel } from '../domain/reservas.models';
 import { Branch } from '../../ventas-pagos/domain/commerce.models';
-import { SessionService } from '../../auth/application/session.service';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { IconComponent } from '../../../shared/icon.component';
 import { errorMessage } from '../../../shared/errors';
 

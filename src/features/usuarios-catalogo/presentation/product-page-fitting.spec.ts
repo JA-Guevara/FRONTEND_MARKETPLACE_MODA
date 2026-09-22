@@ -4,7 +4,7 @@ import { of } from 'rxjs';
 import { ProductPageComponent } from './product-page.component';
 import { CatalogService } from '../infrastructure/catalog.service';
 import { CommerceService } from '../../ventas-pagos/infrastructure/commerce.service';
-import { SessionService } from '../../auth/application/session.service';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 
 const BASE: object = {
   id: 'p1',
@@ -102,3 +102,4 @@ const block = fixture.nativeElement.querySelector('.fitting-access');
     expect(block.querySelector('a[href^="/admin/products/p1"]')).toBeTruthy();
   });
 });
+

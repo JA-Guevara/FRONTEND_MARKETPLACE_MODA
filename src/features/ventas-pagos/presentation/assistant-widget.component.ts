@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { NavigationEnd, Router } from '@angular/router';
 import { filter, firstValueFrom } from 'rxjs';
 import { CommerceService } from '../infrastructure/commerce.service';
-import { SessionService } from '../../auth/application/session.service';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { CatalogService } from '../../usuarios-catalogo/infrastructure/catalog.service';
 import { Entity, ProductDraftInput } from '../../usuarios-catalogo/domain/catalog.models';
 import { DashboardService } from '../../ia-reportes/infrastructure/dashboard.service';
@@ -102,6 +102,7 @@ const SUGGESTIONS = [
       flex: 1; min-width: 0; min-height: 40px; max-height: 120px; resize: none;
       border-radius: 12px; padding: 9px 12px; font-size: 13.5px; line-height: 1.45;
     }
+    .ai-btn--speaker.is-speaking { color: var(--accent); background: #f1e7eb; animation: ai-speak-pulse 1.1s ease-in-out infinite; }
     .ai-chip { color: var(--accent); border: 0; background: none; font-size: 12px; min-height: 0;
       padding: 0; }
     .ai-new { align-self: center; justify-self: end; margin-top: 6px; }
@@ -124,6 +125,7 @@ const SUGGESTIONS = [
       0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
       30% { opacity: 1; transform: translateY(-3px); }
     }
+    @keyframes ai-speak-pulse { 50% { transform: scale(1.06); } }
     @media (max-width: 600px) {
       .ai-widget { right: 12px; bottom: 12px; }
       .ai-launcher { width: 54px; height: 54px; }
@@ -247,6 +249,18 @@ const SUGGESTIONS = [
               <fs-icon name="mic" />
             </button>
           }
+          @if (speechOutputSupported) {
+            <button
+              type="button"
+              class="ai-btn ai-btn--speaker"
+              [class.is-speaking]="speaking()"
+              (click)="toggleVoiceOutput()"
+              [attr.aria-pressed]="voiceOutputEnabled()"
+              [attr.aria-label]="voiceOutputEnabled() ? 'Silenciar respuestas por voz' : 'Activar respuestas por voz'"
+            >
+              <fs-icon [name]="voiceOutputEnabled() ? 'volume' : 'volume-off'" />
+            </button>
+          }
           <button
             class="ai-btn ai-btn--send"
             type="submit"
@@ -275,6 +289,8 @@ export class AssistantWidgetComponent implements OnDestroy {
   busy = signal(false);
   error = signal('');
   listening = signal(false);
+  speaking = signal(false);
+  voiceOutputEnabled = signal(true);
   history = signal<ChatEntry[]>([]);
   downloads = signal<{ url: string; name: string }[]>([]);
   private lastExport: { reports: ExportReport[]; query: ReportQuery } | null = null;
@@ -293,10 +309,27 @@ export class AssistantWidgetComponent implements OnDestroy {
   private lastIntent: 'chat' | 'draft' | 'export' | 'explain' | 'apply' = 'chat';
   botState = signal<BotState>('idle');
   private recognition: any;
+  private utterance: SpeechSynthesisUtterance | null = null;
   private botTimer: ReturnType<typeof setTimeout> | null = null;
   readonly voiceSupported: boolean;
+  readonly speechOutputSupported: boolean;
 
   constructor() {
+    const SpeechRecognitionCtor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    this.voiceSupported = !!SpeechRecognitionCtor;
+    this.speechOutputSupported =
+      typeof window !== 'undefined' && 'speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined';
+    // Toda respuesta nueva se puede oír. Se cancela la anterior para que el
+    // asistente no acumule frases atrasadas si el usuario cambia de consulta.
+    let processedMessages = 0;
+    effect(() => {
+      const messages = this.history();
+      if (messages.length < processedMessages) processedMessages = 0;
+      const newMessages = messages.slice(processedMessages);
+      processedMessages = messages.length;
+      const latestReply = [...newMessages].reverse().find((message) => message.from === 'assistant');
+      if (latestReply) untracked(() => this.speak(latestReply.text));
+    });
     effect(() => {
       const id = this.session.user()?.id ?? null;
       if (id !== this.sessionUserId) {
@@ -307,8 +340,6 @@ export class AssistantWidgetComponent implements OnDestroy {
     this.router.events
       .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
       .subscribe((e) => this.currentModule.set(this.resolveModule(e.urlAfterRedirects)));
-    const SpeechRecognitionCtor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    this.voiceSupported = !!SpeechRecognitionCtor;
     if (SpeechRecognitionCtor) {
       this.recognition = new SpeechRecognitionCtor();
       this.recognition.lang = 'es-BO';
@@ -321,7 +352,12 @@ export class AssistantWidgetComponent implements OnDestroy {
         let text = '';
         for (let i = 0; i < event.results.length; i++) text += event.results[i][0].transcript;
         text = text.trim();
-        if (text) this.draft = text;
+        if (text) {
+          // Hablar equivale a enviar: la persona no tiene que pulsar el botón
+          // otra vez después de que el navegador terminó de transcribir.
+          this.draft = text;
+          void this.send(text);
+        }
       });
     }
     this.destroyRef.onDestroy(() => this.stopVoice());
@@ -353,6 +389,7 @@ export class AssistantWidgetComponent implements OnDestroy {
       this.recognition.stop();
       return;
     }
+    this.stopSpeaking();
     try {
       this.recognition.start();
     } catch {
@@ -367,6 +404,29 @@ export class AssistantWidgetComponent implements OnDestroy {
         /* no estaba iniciado */
       }
     }
+  }
+  toggleVoiceOutput() {
+    this.voiceOutputEnabled.update((enabled) => !enabled);
+    if (!this.voiceOutputEnabled()) this.stopSpeaking();
+  }
+  private speak(text: string) {
+    if (!this.speechOutputSupported || !this.voiceOutputEnabled() || !text.trim()) return;
+    this.stopSpeaking();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'es-BO';
+    utterance.rate = 1;
+    utterance.onstart = () => this.speaking.set(true);
+    utterance.onend = utterance.onerror = () => {
+      if (this.utterance === utterance) this.speaking.set(false);
+    };
+    this.utterance = utterance;
+    window.speechSynthesis.speak(utterance);
+  }
+  private stopSpeaking() {
+    if (!this.speechOutputSupported) return;
+    window.speechSynthesis.cancel();
+    this.utterance = null;
+    this.speaking.set(false);
   }
   greetName() {
     const name = this.session.user()?.first_name;
@@ -783,6 +843,7 @@ export class AssistantWidgetComponent implements OnDestroy {
     this.conversationVersion++;
     this.clearDownloads();
     this.stopVoice();
+    this.stopSpeaking();
     if (this.botTimer) clearTimeout(this.botTimer);
   }
   private clearDownloads() {
@@ -791,3 +852,4 @@ export class AssistantWidgetComponent implements OnDestroy {
     this.lastExport = null;
   }
 }
+

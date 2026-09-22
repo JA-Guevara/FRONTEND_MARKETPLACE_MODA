@@ -2,8 +2,8 @@ import { HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, switchMap, throwError } from 'rxjs';
-import { SessionService } from '../application/session.service';
-import { environment } from '../../../environments/environment';
+import { SessionService } from '../../features/usuarios-catalogo/application/session.service';
+import { environment } from '../../environments/environment';
 
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const session = inject(SessionService);
@@ -37,3 +37,4 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
     }),
   );
 };
+

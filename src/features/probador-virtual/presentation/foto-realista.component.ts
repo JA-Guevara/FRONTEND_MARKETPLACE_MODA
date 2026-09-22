@@ -3,7 +3,7 @@ import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { IconComponent } from '../../../shared/icon.component';
-import { SessionService } from '../../auth/application/session.service';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { errorMessage } from '../../../shared/errors';
 import { TryOnAiService } from '../infrastructure/tryon-ai.service';
 import {
@@ -314,3 +314,4 @@ export class FotoRealistaComponent implements OnInit {
     )[job.status] || job.status;
   }
 }
+

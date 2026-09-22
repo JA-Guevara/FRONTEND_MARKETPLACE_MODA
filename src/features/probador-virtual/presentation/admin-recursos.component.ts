@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { IconComponent } from '../../../shared/icon.component';
 import { DialogFocusDirective } from '../../../shared/dialog-focus.directive';
-import { SessionService } from '../../auth/application/session.service';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { errorMessage } from '../../../shared/errors';
 import { VestidorAdminService } from '../infrastructure/vestidor-admin.service';
 import {
@@ -351,3 +351,4 @@ export class AdminRecursosComponent {
     }
   }
 }
+

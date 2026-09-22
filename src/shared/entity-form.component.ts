@@ -7,7 +7,7 @@ import { Entity } from './models';
 import { ApiService } from '../app/core/shared/api.service';
 import { errorMessage } from './errors';
 import { IconComponent } from './icon.component';
-import { passwordError } from '../features/auth/domain/password';
+import { passwordError } from '../features/usuarios-catalogo/domain/password';
 
 @Component({
   selector: 'fs-entity-form',
@@ -428,3 +428,4 @@ export class EntityFormComponent implements OnChanges {
     this.saved.emit(data);
   }
 }
+

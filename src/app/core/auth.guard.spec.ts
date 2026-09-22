@@ -8,7 +8,7 @@ import {
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { authGuard } from './auth.guard';
-import { SessionService } from '../application/session.service';
+import { SessionService } from '../../features/usuarios-catalogo/application/session.service';
 describe('Rutas protegidas', () => {
   beforeEach(() =>
     TestBed.configureTestingModule({
@@ -40,3 +40,4 @@ describe('Rutas protegidas', () => {
     expect(TestBed.inject(Router).serializeUrl(guard() as any)).toBe('/sin-acceso');
   });
 });
+

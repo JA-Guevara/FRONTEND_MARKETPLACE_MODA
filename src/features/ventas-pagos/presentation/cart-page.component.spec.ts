@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { CommerceService } from '../infrastructure/commerce.service';
-import { SessionService } from '../../auth/application/session.service';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { CartPageComponent } from './cart-page.component';
 import { routes } from '../../../app/core/app.routes';
 
@@ -94,3 +94,4 @@ describe('Compra desde el carrito', () => {
     );
   });
 });
+

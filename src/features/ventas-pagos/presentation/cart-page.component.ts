@@ -7,7 +7,7 @@ import { CommerceService } from '../infrastructure/commerce.service';
 import { CartStateService } from '../application/cart-state.service';
 import { Branch, Cart, DeliveryAddress, Order, SavedAddress } from '../domain/commerce.models';
 import { ApiService } from '../../../app/core/shared/api.service';
-import { SessionService } from '../../auth/application/session.service';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { errorMessage } from '../../../shared/errors';
 import { IconComponent } from '../../../shared/icon.component';
 @Component({
@@ -431,3 +431,4 @@ export class CartPageComponent {
     }
   }
 }
+

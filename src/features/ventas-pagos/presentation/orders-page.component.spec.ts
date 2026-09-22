@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { OrdersPageComponent } from './orders-page.component';
 import { CommerceService } from '../infrastructure/commerce.service';
-import { SessionService } from '../../auth/application/session.service';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { Order } from '../domain/commerce.models';
 
 const pending: Order = {
@@ -124,3 +124,4 @@ describe('Bandeja de pedidos de gestión', () => {
     expect(pos.hayFiltros()).toBe(false);
   });
 });
+

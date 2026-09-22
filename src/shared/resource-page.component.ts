@@ -4,7 +4,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../app/core/shared/api.service';
-import { SessionService } from '../features/auth/application/session.service';
+import { SessionService } from '../features/usuarios-catalogo/application/session.service';
 import { Entity, Page } from './models';
 import { Field, Resource } from './form-schema';
 import { EntityFormComponent } from './entity-form.component';
@@ -571,3 +571,4 @@ export class ResourcePageComponent implements OnInit {
     return String(value);
   }
 }
+

@@ -1,5 +1,5 @@
 import { effect, inject, Injectable, signal } from '@angular/core';
-import { SessionService } from '../../auth/application/session.service';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { CommerceService } from '../infrastructure/commerce.service';
 
 /** Estado compartido del contador del carrito para el encabezado del sitio.

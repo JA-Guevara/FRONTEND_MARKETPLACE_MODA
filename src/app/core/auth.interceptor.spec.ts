@@ -3,8 +3,8 @@ import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter, Router } from '@angular/router';
 import { authInterceptor } from './auth.interceptor';
-import { SessionService } from '../application/session.service';
-import { Tokens } from '../../../shared/models';
+import { SessionService } from '../../features/usuarios-catalogo/application/session.service';
+import { Tokens } from '../../shared/models';
 
 describe('Sesión e interceptor', () => {
   let http: HttpClient;
@@ -144,4 +144,5 @@ describe('Sesión e interceptor', () => {
     expect(session.user()).toBeNull();
   });
 });
+
 
