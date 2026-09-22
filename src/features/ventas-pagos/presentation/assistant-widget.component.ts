@@ -353,6 +353,13 @@ export class AssistantWidgetComponent implements OnDestroy {
   private mediaRecorder: MediaRecorder | null = null;
   private mediaStream: MediaStream | null = null;
   private audioChunks: BlobPart[] = [];
+  /** Detecta el final natural de una indicación. El usuario puede tocar el
+   * micrófono otra vez si prefiere terminarla antes. */
+  private voiceAudioContext: AudioContext | null = null;
+  private voiceAnalyser: AnalyserNode | null = null;
+  private voiceActivityFrame: number | null = null;
+  private voiceHasSpeech = false;
+  private voiceLastSpeechAt = 0;
   private utterance: SpeechSynthesisUtterance | null = null;
   private botTimer: ReturnType<typeof setTimeout> | null = null;
   private voiceDurationTimer: ReturnType<typeof setInterval> | null = null;
@@ -509,6 +516,7 @@ export class AssistantWidgetComponent implements OnDestroy {
       recorder.start(250);
       this.listening.set(true);
       this.startVoiceDuration();
+      this.startVoiceActivityDetection(stream);
       this.startBrowserTranscript();
     } catch (error: any) {
       this.voiceMode.set(false);
@@ -523,6 +531,7 @@ export class AssistantWidgetComponent implements OnDestroy {
     this.listening.set(false);
     // Conserva la duración en pantalla mientras se transcribe el audio.
     this.stopVoiceDuration(false);
+    this.stopVoiceActivityDetection();
     this.voiceTranscribing.set(true);
     this.voiceTranscript.set('Transcribiendo tu audio…');
     this.stopBrowserTranscript();
@@ -548,14 +557,6 @@ export class AssistantWidgetComponent implements OnDestroy {
     }
     try {
       const localText = this.browserTranscript.trim();
-      if (localText) {
-        this.voiceMode.set(false);
-        this.voiceTranscribing.set(false);
-        this.voiceTranscript.set('');
-        this.stopVoiceDuration();
-        await this.send(localText);
-        return;
-      }
       const result = await this.commerce.transcribeVoice(audio);
       if (!this.voiceMode()) return;
       this.voiceMode.set(false);
@@ -563,8 +564,19 @@ export class AssistantWidgetComponent implements OnDestroy {
       this.voiceTranscript.set('');
       this.stopVoiceDuration();
       const text = result.text?.trim();
-      if (!result.available || !text) throw new Error(result.message || 'No pude entender el audio.');
-      await this.send(text);
+      // El reconocimiento del navegador solamente muestra progreso. La
+      // transcripción del audio completo es la fuente principal para no
+      // enviar frases parciales o equivocadas. Si el proveedor no responde,
+      // usamos el texto local ya visible como último respaldo.
+      if (result.available && text) {
+        await this.send(text);
+        return;
+      }
+      if (localText) {
+        await this.send(localText);
+        return;
+      }
+      throw new Error(result.message || 'No pude entender el audio.');
     } catch (error) {
       this.voiceMode.set(false);
       this.voiceTranscribing.set(false);
@@ -574,6 +586,7 @@ export class AssistantWidgetComponent implements OnDestroy {
     }
   }
   private releaseVoiceStream() {
+    this.stopVoiceActivityDetection();
     this.mediaStream?.getTracks().forEach(track => track.stop());
     this.mediaStream = null;
   }
@@ -589,6 +602,56 @@ export class AssistantWidgetComponent implements OnDestroy {
     if (this.voiceDurationTimer) clearInterval(this.voiceDurationTimer);
     this.voiceDurationTimer = null;
     if (reset) this.voiceElapsedSeconds.set(0);
+  }
+  private startVoiceActivityDetection(stream: MediaStream) {
+    const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextCtor || typeof window.requestAnimationFrame !== 'function') return;
+    try {
+      const context: AudioContext = new AudioContextCtor();
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 512;
+      context.createMediaStreamSource(stream).connect(analyser);
+      this.voiceAudioContext = context;
+      this.voiceAnalyser = analyser;
+      this.voiceHasSpeech = false;
+      this.voiceLastSpeechAt = 0;
+      const samples = new Uint8Array(analyser.fftSize);
+      const checkActivity = () => {
+        if (!this.listening() || !this.voiceAnalyser) return;
+        analyser.getByteTimeDomainData(samples);
+        let energy = 0;
+        for (const sample of samples) {
+          const value = (sample - 128) / 128;
+          energy += value * value;
+        }
+        const rms = Math.sqrt(energy / samples.length);
+        const now = Date.now();
+        // El valor evita considerar el ruido ambiente normal como una frase.
+        if (rms > 0.018) {
+          this.voiceHasSpeech = true;
+          this.voiceLastSpeechAt = now;
+        }
+        if (this.voiceHasSpeech && now - this.voiceLastSpeechAt > 1400) {
+          this.finishVoiceRecording();
+          return;
+        }
+        this.voiceActivityFrame = window.requestAnimationFrame(checkActivity);
+      };
+      this.voiceActivityFrame = window.requestAnimationFrame(checkActivity);
+    } catch {
+      // La grabación continúa y conserva el botón manual en navegadores que
+      // no permiten analizar el flujo de audio.
+    }
+  }
+  private stopVoiceActivityDetection() {
+    if (this.voiceActivityFrame !== null && typeof window !== 'undefined') {
+      window.cancelAnimationFrame(this.voiceActivityFrame);
+    }
+    this.voiceActivityFrame = null;
+    this.voiceAnalyser = null;
+    const context = this.voiceAudioContext;
+    this.voiceAudioContext = null;
+    if (context && context.state !== 'closed') void context.close().catch(() => undefined);
   }
   private startBrowserTranscript() {
     this.browserTranscript = '';
