@@ -443,6 +443,36 @@ describe('Asistente: contexto compartido de reportes', () => {
     }
   });
 
+  it('muestra una burbuja temporal con el dictado mientras la persona habla', () => {
+    const FakeRecognition = vi.fn().mockImplementation(function (this: any) {
+      this.handlers = {} as Record<string, (e?: any) => void>;
+      this.addEventListener = (ev: string, fn: (e?: any) => void) => (this.handlers[ev] = fn);
+      this.start = vi.fn();
+      this.stop = vi.fn();
+    });
+    const prev = (globalThis as any).SpeechRecognition;
+    (globalThis as any).SpeechRecognition = FakeRecognition;
+    try {
+      const { fixture } = setup();
+      const recognition = (fixture.componentInstance as any).recognition;
+      fixture.componentInstance.toggle();
+      fixture.componentInstance.toggleVoice();
+      recognition.handlers.start();
+      recognition.handlers.result({
+        resultIndex: 0,
+        results: [{ isFinal: false, 0: { transcript: 'quiero ver mis pedidos' } }],
+      });
+      fixture.detectChanges();
+
+      const draft = fixture.nativeElement.querySelector('.ai-msg--voice-draft');
+      expect(draft).not.toBeNull();
+      expect(draft.textContent).toContain('quiero ver mis pedidos');
+      expect(draft.textContent).toContain('00:00');
+    } finally {
+      (globalThis as any).SpeechRecognition = prev;
+    }
+  });
+
   it('mantiene el modo conversación y vuelve a escuchar cuando termina un turno', () => {
     vi.useFakeTimers();
     const FakeRecognition = vi.fn().mockImplementation(function (this: any) {

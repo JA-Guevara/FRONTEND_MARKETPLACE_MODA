@@ -127,7 +127,7 @@ Se revisó vista por vista, no con reglas generales:
 ## 8. Pruebas
 
 ```powershell
-npm run test:ci      # 351 pruebas
+npm run test:ci      # 352 pruebas
 npm run build        # compilación de producción
 ```
 

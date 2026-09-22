@@ -122,6 +122,14 @@ const SUGGESTIONS = [
       animation: ai-dot-blink 1.2s ease-in-out infinite; }
     .ai-msg--typing .ai-dot:nth-child(2) { animation-delay: 0.15s; }
     .ai-msg--typing .ai-dot:nth-child(3) { animation-delay: 0.3s; }
+    .ai-msg--voice-draft { display: flex; align-items: center; gap: 8px; min-width: 168px; }
+    .ai-msg--voice-draft small { margin-left: auto; color: #ffffffc9; font-variant-numeric: tabular-nums; }
+    .ai-voice-wave { display: inline-flex; align-items: center; gap: 2px; height: 18px; }
+    .ai-voice-wave i { width: 3px; height: 6px; border-radius: 999px; background: #fff; animation: ai-voice-wave 0.75s ease-in-out infinite alternate; }
+    .ai-voice-wave i:nth-child(2) { height: 14px; animation-delay: 0.12s; }
+    .ai-voice-wave i:nth-child(3) { height: 9px; animation-delay: 0.25s; }
+    .ai-voice-wave i:nth-child(4) { height: 16px; animation-delay: 0.08s; }
+    .ai-voice-wave i:nth-child(5) { height: 7px; animation-delay: 0.2s; }
     .ai-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
       clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
     @keyframes ai-dot-blink {
@@ -129,6 +137,7 @@ const SUGGESTIONS = [
       30% { opacity: 1; transform: translateY(-3px); }
     }
     @keyframes ai-speak-pulse { 50% { transform: scale(1.06); } }
+    @keyframes ai-voice-wave { from { transform: scaleY(0.45); opacity: 0.65; } to { transform: scaleY(1); opacity: 1; } }
     @media (max-width: 600px) {
       .ai-widget { right: 12px; bottom: 12px; }
       .ai-launcher { width: 54px; height: 54px; }
@@ -189,6 +198,14 @@ const SUGGESTIONS = [
           }
           @for (m of history(); track $index) {
             <p [class]="'ai-msg ai-msg--' + m.from">{{ m.text }}</p>
+          }
+          @if (voiceMode() && !busy() && (listening() || voiceTranscript())) {
+            <p class="ai-msg ai-msg--user ai-msg--voice-draft" aria-live="polite">
+              <fs-icon name="mic" />
+              <span class="ai-voice-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+              <span>{{ voiceTranscript() || 'Escuchando…' }}</span>
+              <small>{{ voiceElapsedLabel() }}</small>
+            </p>
           }
           @for (file of downloads(); track file.url) {
             <a class="button" [href]="file.url" [download]="file.name">Descargar {{ file.name }}</a>
@@ -308,6 +325,9 @@ export class AssistantWidgetComponent implements OnDestroy {
   /** Una sesión conversa por turnos: escucha, envía, responde y vuelve a escuchar. */
   voiceMode = signal(false);
   voiceError = signal('');
+  /** Texto parcial del turno activo; se muestra como una nota de voz temporal. */
+  voiceTranscript = signal('');
+  voiceElapsedSeconds = signal(0);
   history = signal<ChatEntry[]>([]);
   downloads = signal<{ url: string; name: string }[]>([]);
   private lastExport: { reports: ExportReport[]; query: ReportQuery } | null = null;
@@ -329,6 +349,9 @@ export class AssistantWidgetComponent implements OnDestroy {
   private utterance: SpeechSynthesisUtterance | null = null;
   private botTimer: ReturnType<typeof setTimeout> | null = null;
   private voiceRestartTimer: ReturnType<typeof setTimeout> | null = null;
+  private voiceDurationTimer: ReturnType<typeof setInterval> | null = null;
+  private voiceStartedAt = 0;
+  private discardVoiceDraft = false;
   readonly voiceSupported: boolean;
   readonly speechOutputSupported: boolean;
 
@@ -361,38 +384,60 @@ export class AssistantWidgetComponent implements OnDestroy {
     if (SpeechRecognitionCtor) {
       this.recognition = new SpeechRecognitionCtor();
       this.recognition.lang = 'es-BO';
-      this.recognition.interimResults = false;
+      this.recognition.interimResults = true;
       this.recognition.maxAlternatives = 1;
       this.recognition.addEventListener('start', () => {
         this.listening.set(true);
         this.voiceError.set('');
+        this.voiceTranscript.set('');
+        this.startVoiceDuration();
       });
       this.recognition.addEventListener('end', () => {
         this.listening.set(false);
+        this.stopVoiceDuration();
+        const unfinished = this.voiceTranscript().trim();
+        this.voiceTranscript.set('');
+        if (unfinished && !this.discardVoiceDraft && !this.busy()) {
+          // Algunos navegadores cierran el reconocimiento tras el texto
+          // parcial sin emitir uno final. Enviarlo al cerrar evita perder lo
+          // que la persona acaba de decir.
+          void this.send(unfinished);
+          return;
+        }
+        this.discardVoiceDraft = false;
         // El reconocimiento se corta después de una pausa. Mientras el modo
         // de voz siga activo, se prepara el siguiente turno sin pedir otro clic.
         this.scheduleListening();
       });
       this.recognition.addEventListener('error', (event: any) => {
         this.listening.set(false);
+        this.stopVoiceDuration();
         if (event?.error === 'aborted' || event?.error === 'no-speech') return;
         this.voiceMode.set(false);
         this.clearVoiceRestart();
+        this.voiceTranscript.set('');
         this.voiceError.set(this.voiceErrorMessage(event?.error));
       });
       this.recognition.addEventListener('result', (event: any) => {
-        let text = '';
-        for (let i = 0; i < event.results.length; i++) {
+        let finalText = '';
+        let partialText = '';
+        const first = typeof event.resultIndex === 'number' ? event.resultIndex : 0;
+        for (let i = first; i < event.results.length; i++) {
           const result = event.results[i];
-          if (result.isFinal === false) continue;
-          text += result[0]?.transcript ?? '';
+          const transcript = result[0]?.transcript ?? '';
+          if (result.isFinal === false) partialText += transcript;
+          else finalText += transcript;
         }
-        text = text.trim();
-        if (text) {
+        finalText = finalText.trim();
+        partialText = partialText.trim();
+        if (finalText) {
           // Hablar equivale a enviar: la persona no tiene que pulsar el botón
           // otra vez después de que el navegador terminó de transcribir.
-          this.draft = text;
-          void this.send(text);
+          this.voiceTranscript.set('');
+          this.draft = finalText;
+          void this.send(finalText);
+        } else if (partialText) {
+          this.voiceTranscript.set(partialText);
         }
       });
     }
@@ -438,6 +483,9 @@ export class AssistantWidgetComponent implements OnDestroy {
   stopVoice() {
     this.voiceMode.set(false);
     this.clearVoiceRestart();
+    this.discardVoiceDraft = true;
+    this.voiceTranscript.set('');
+    this.stopVoiceDuration();
     if (this.recognition && this.listening()) {
       try {
         // `abort` evita mandar una frase parcial si la persona decide cancelar.
@@ -481,6 +529,7 @@ export class AssistantWidgetComponent implements OnDestroy {
   private startListening() {
     if (!this.recognition || !this.voiceMode() || this.listening() || this.busy() || this.speaking()) return;
     try {
+      this.discardVoiceDraft = false;
       this.recognition.start();
     } catch (error: any) {
       // `InvalidStateError` puede ocurrir mientras el navegador termina de
@@ -501,6 +550,23 @@ export class AssistantWidgetComponent implements OnDestroy {
   private clearVoiceRestart() {
     if (this.voiceRestartTimer) clearTimeout(this.voiceRestartTimer);
     this.voiceRestartTimer = null;
+  }
+  private startVoiceDuration() {
+    this.stopVoiceDuration();
+    this.voiceStartedAt = Date.now();
+    this.voiceElapsedSeconds.set(0);
+    this.voiceDurationTimer = setInterval(() => {
+      this.voiceElapsedSeconds.set(Math.floor((Date.now() - this.voiceStartedAt) / 1000));
+    }, 250);
+  }
+  private stopVoiceDuration() {
+    if (this.voiceDurationTimer) clearInterval(this.voiceDurationTimer);
+    this.voiceDurationTimer = null;
+    this.voiceElapsedSeconds.set(0);
+  }
+  voiceElapsedLabel() {
+    const seconds = this.voiceElapsedSeconds();
+    return `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
   }
   private voiceErrorMessage(code?: string): string {
     if (code === 'not-allowed' || code === 'service-not-allowed') {
