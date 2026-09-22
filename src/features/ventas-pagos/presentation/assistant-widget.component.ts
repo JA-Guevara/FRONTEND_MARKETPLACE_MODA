@@ -103,6 +103,9 @@ const SUGGESTIONS = [
       border-radius: 12px; padding: 9px 12px; font-size: 13.5px; line-height: 1.45;
     }
     .ai-btn--speaker.is-speaking { color: var(--accent); background: #f1e7eb; animation: ai-speak-pulse 1.1s ease-in-out infinite; }
+    .ai-btn--mic.is-voice-mode:not(.is-listening) { color: var(--accent); background: #f1e7eb; }
+    .ai-voice-status { margin: 0; padding: 0 12px 10px; color: var(--muted); font-size: 12px; }
+    .ai-voice-error { margin: 0; padding: 0 12px 10px; color: #9b3c34; font-size: 12px; }
     .ai-chip { color: var(--accent); border: 0; background: none; font-size: 12px; min-height: 0;
       padding: 0; }
     .ai-new { align-self: center; justify-self: end; margin-top: 6px; }
@@ -243,8 +246,11 @@ const SUGGESTIONS = [
               type="button"
               class="ai-btn ai-btn--mic"
               [class.is-listening]="listening()"
+              [class.is-voice-mode]="voiceMode()"
               (click)="toggleVoice()"
-              aria-label="Hablar"
+              [attr.aria-pressed]="voiceMode()"
+              [attr.aria-label]="voiceMode() ? 'Detener conversación por voz' : 'Iniciar conversación por voz'"
+              [attr.title]="voiceMode() ? 'Detener conversación por voz' : 'Hablar con el asistente'"
             >
               <fs-icon name="mic" />
             </button>
@@ -270,6 +276,14 @@ const SUGGESTIONS = [
             <fs-icon name="arrow-right" />
           </button>
         </form>
+        @if (voiceMode()) {
+          <p class="ai-voice-status" role="status">
+            {{ listening() ? 'Te escucho. Tocá el micrófono para terminar la conversación por voz.' : speaking() ? 'Te respondo por voz…' : busy() ? 'Entendí tu mensaje y estoy preparando la respuesta…' : 'Preparando el micrófono…' }}
+          </p>
+        }
+        @if (voiceError()) {
+          <p class="ai-voice-error" role="alert">{{ voiceError() }}</p>
+        }
       </section>
     }
   </div>`,
@@ -291,6 +305,9 @@ export class AssistantWidgetComponent implements OnDestroy {
   listening = signal(false);
   speaking = signal(false);
   voiceOutputEnabled = signal(true);
+  /** Una sesión conversa por turnos: escucha, envía, responde y vuelve a escuchar. */
+  voiceMode = signal(false);
+  voiceError = signal('');
   history = signal<ChatEntry[]>([]);
   downloads = signal<{ url: string; name: string }[]>([]);
   private lastExport: { reports: ExportReport[]; query: ReportQuery } | null = null;
@@ -311,6 +328,7 @@ export class AssistantWidgetComponent implements OnDestroy {
   private recognition: any;
   private utterance: SpeechSynthesisUtterance | null = null;
   private botTimer: ReturnType<typeof setTimeout> | null = null;
+  private voiceRestartTimer: ReturnType<typeof setTimeout> | null = null;
   readonly voiceSupported: boolean;
   readonly speechOutputSupported: boolean;
 
@@ -345,12 +363,30 @@ export class AssistantWidgetComponent implements OnDestroy {
       this.recognition.lang = 'es-BO';
       this.recognition.interimResults = false;
       this.recognition.maxAlternatives = 1;
-      this.recognition.addEventListener('start', () => this.listening.set(true));
-      this.recognition.addEventListener('end', () => this.listening.set(false));
-      this.recognition.addEventListener('error', () => this.listening.set(false));
+      this.recognition.addEventListener('start', () => {
+        this.listening.set(true);
+        this.voiceError.set('');
+      });
+      this.recognition.addEventListener('end', () => {
+        this.listening.set(false);
+        // El reconocimiento se corta después de una pausa. Mientras el modo
+        // de voz siga activo, se prepara el siguiente turno sin pedir otro clic.
+        this.scheduleListening();
+      });
+      this.recognition.addEventListener('error', (event: any) => {
+        this.listening.set(false);
+        if (event?.error === 'aborted' || event?.error === 'no-speech') return;
+        this.voiceMode.set(false);
+        this.clearVoiceRestart();
+        this.voiceError.set(this.voiceErrorMessage(event?.error));
+      });
       this.recognition.addEventListener('result', (event: any) => {
         let text = '';
-        for (let i = 0; i < event.results.length; i++) text += event.results[i][0].transcript;
+        for (let i = 0; i < event.results.length; i++) {
+          const result = event.results[i];
+          if (result.isFinal === false) continue;
+          text += result[0]?.transcript ?? '';
+        }
         text = text.trim();
         if (text) {
           // Hablar equivale a enviar: la persona no tiene que pulsar el botón
@@ -372,11 +408,13 @@ export class AssistantWidgetComponent implements OnDestroy {
   }
   minimize() {
     this.stopVoice();
+    this.stopSpeaking();
     this.open.set(false);
   }
   close() {
     this.conversationVersion++;
     this.stopVoice();
+    this.stopSpeaking();
     this.open.set(false);
     this.history.set([]);
     this.error.set('');
@@ -384,40 +422,52 @@ export class AssistantWidgetComponent implements OnDestroy {
     this.clearDownloads();
   }
   toggleVoice() {
-    if (!this.recognition) return;
-    if (this.listening()) {
-      this.recognition.stop();
+    if (!this.recognition) {
+      this.voiceError.set('El dictado no está disponible en este navegador. Usá Chrome o Edge actualizado y permití el micrófono.');
       return;
     }
-    this.stopSpeaking();
-    try {
-      this.recognition.start();
-    } catch {
-      /* ya estaba iniciado */
+    if (this.voiceMode()) {
+      this.stopVoice();
+      return;
     }
+    this.voiceError.set('');
+    this.voiceMode.set(true);
+    this.stopSpeaking();
+    this.startListening();
   }
   stopVoice() {
+    this.voiceMode.set(false);
+    this.clearVoiceRestart();
     if (this.recognition && this.listening()) {
       try {
-        this.recognition.stop();
+        // `abort` evita mandar una frase parcial si la persona decide cancelar.
+        if (typeof this.recognition.abort === 'function') this.recognition.abort();
+        else this.recognition.stop();
       } catch {
         /* no estaba iniciado */
       }
     }
+    this.listening.set(false);
   }
   toggleVoiceOutput() {
     this.voiceOutputEnabled.update((enabled) => !enabled);
     if (!this.voiceOutputEnabled()) this.stopSpeaking();
   }
   private speak(text: string) {
-    if (!this.speechOutputSupported || !this.voiceOutputEnabled() || !text.trim()) return;
+    if (!this.speechOutputSupported || !this.voiceOutputEnabled() || !text.trim()) {
+      this.scheduleListening();
+      return;
+    }
     this.stopSpeaking();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'es-BO';
     utterance.rate = 1;
     utterance.onstart = () => this.speaking.set(true);
     utterance.onend = utterance.onerror = () => {
-      if (this.utterance === utterance) this.speaking.set(false);
+      if (this.utterance === utterance) {
+        this.speaking.set(false);
+        this.scheduleListening();
+      }
     };
     this.utterance = utterance;
     window.speechSynthesis.speak(utterance);
@@ -427,6 +477,38 @@ export class AssistantWidgetComponent implements OnDestroy {
     window.speechSynthesis.cancel();
     this.utterance = null;
     this.speaking.set(false);
+  }
+  private startListening() {
+    if (!this.recognition || !this.voiceMode() || this.listening() || this.busy() || this.speaking()) return;
+    try {
+      this.recognition.start();
+    } catch (error: any) {
+      // `InvalidStateError` puede ocurrir mientras el navegador termina de
+      // cerrar el turno anterior. El evento `end` volverá a programarlo.
+      if (error?.name !== 'InvalidStateError') {
+        this.voiceMode.set(false);
+        this.voiceError.set(this.voiceErrorMessage(error?.name));
+      }
+    }
+  }
+  private scheduleListening() {
+    if (!this.voiceMode() || this.busy() || this.speaking() || this.listening() || this.voiceRestartTimer) return;
+    this.voiceRestartTimer = setTimeout(() => {
+      this.voiceRestartTimer = null;
+      this.startListening();
+    }, 280);
+  }
+  private clearVoiceRestart() {
+    if (this.voiceRestartTimer) clearTimeout(this.voiceRestartTimer);
+    this.voiceRestartTimer = null;
+  }
+  private voiceErrorMessage(code?: string): string {
+    if (code === 'not-allowed' || code === 'service-not-allowed') {
+      return 'El navegador bloqueó el micrófono. Permitilo para FashionStore y volvé a tocar el botón de voz.';
+    }
+    if (code === 'audio-capture') return 'No encontré un micrófono disponible. Conectá uno e intentá nuevamente.';
+    if (code === 'network') return 'El servicio de dictado no respondió. Revisá tu conexión e intentá nuevamente.';
+    return 'No pude iniciar el dictado. Probá de nuevo con Chrome o Edge y verificá el permiso de micrófono.';
   }
   greetName() {
     const name = this.session.user()?.first_name;

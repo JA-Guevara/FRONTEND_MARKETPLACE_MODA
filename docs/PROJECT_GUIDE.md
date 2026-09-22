@@ -113,6 +113,8 @@ pestañas: **Vender** y **Devolver**.
 
 **Seguimiento del pedido.** `order-progress.ts` traduce `status`, `payment_status` y el historial a etapas con nombre y fecha. Un pedido cancelado o vencido no muestra etapas futuras como pendientes.
 
+**Asistente por voz.** El botón del micrófono abre una conversación por turnos: escucha una frase, la transcribe y la envía sin otro clic; después de responder por voz vuelve a escuchar. El mismo botón detiene la conversación. Si el navegador bloquea el micrófono, no hay dispositivo de audio o falla el dictado, el chat explica la causa y cómo resolverla. Requiere un navegador compatible con reconocimiento de voz, como Chrome o Edge, y permiso de micrófono para el sitio.
+
 ## 7. Adaptación a la pantalla
 
 Se revisó vista por vista, no con reglas generales:
@@ -125,7 +127,7 @@ Se revisó vista por vista, no con reglas generales:
 ## 8. Pruebas
 
 ```powershell
-npm run test:ci      # 229 pruebas
+npm run test:ci      # 351 pruebas
 npm run build        # compilación de producción
 ```
 

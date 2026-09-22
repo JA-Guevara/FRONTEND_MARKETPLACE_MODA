@@ -442,5 +442,63 @@ describe('Asistente: contexto compartido de reportes', () => {
       (globalThis as any).SpeechRecognition = prev;
     }
   });
+
+  it('mantiene el modo conversación y vuelve a escuchar cuando termina un turno', () => {
+    vi.useFakeTimers();
+    const FakeRecognition = vi.fn().mockImplementation(function (this: any) {
+      this.handlers = {} as Record<string, (e?: any) => void>;
+      this.addEventListener = (ev: string, fn: (e?: any) => void) => (this.handlers[ev] = fn);
+      this.start = vi.fn();
+      this.stop = vi.fn();
+      this.abort = vi.fn();
+    });
+    const prev = (globalThis as any).SpeechRecognition;
+    (globalThis as any).SpeechRecognition = FakeRecognition;
+    try {
+      const { fixture } = setup();
+      const recognition = (fixture.componentInstance as any).recognition;
+      fixture.componentInstance.toggleVoice();
+      expect(fixture.componentInstance.voiceMode()).toBe(true);
+      expect(recognition.start).toHaveBeenCalledTimes(1);
+
+      // El navegador cierra el dictado al terminar una frase o una pausa.
+      recognition.handlers.end();
+      vi.advanceTimersByTime(280);
+      expect(recognition.start).toHaveBeenCalledTimes(2);
+
+      // Simula el evento que emite el navegador cuando el segundo turno abre.
+      recognition.handlers.start();
+      fixture.componentInstance.toggleVoice();
+      expect(fixture.componentInstance.voiceMode()).toBe(false);
+      expect(recognition.abort).toHaveBeenCalledTimes(1);
+    } finally {
+      (globalThis as any).SpeechRecognition = prev;
+      vi.useRealTimers();
+    }
+  });
+
+  it('explica el bloqueo del micrófono en vez de fallar en silencio', () => {
+    const FakeRecognition = vi.fn().mockImplementation(function (this: any) {
+      this.handlers = {} as Record<string, (e?: any) => void>;
+      this.addEventListener = (ev: string, fn: (e?: any) => void) => (this.handlers[ev] = fn);
+      this.start = vi.fn();
+      this.stop = vi.fn();
+    });
+    const prev = (globalThis as any).SpeechRecognition;
+    (globalThis as any).SpeechRecognition = FakeRecognition;
+    try {
+      const { fixture } = setup();
+      const recognition = (fixture.componentInstance as any).recognition;
+      fixture.componentInstance.toggle();
+      fixture.componentInstance.toggleVoice();
+      recognition.handlers.error({ error: 'not-allowed' });
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.voiceMode()).toBe(false);
+      expect(fixture.nativeElement.textContent).toContain('El navegador bloqueó el micrófono');
+    } finally {
+      (globalThis as any).SpeechRecognition = prev;
+    }
+  });
 });
 
