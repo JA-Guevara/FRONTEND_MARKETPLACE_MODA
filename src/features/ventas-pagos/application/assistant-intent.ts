@@ -11,10 +11,11 @@ export function commandText(value: string): string {
     .replace(/\s+/g, ' ').trim();
 }
 
-export function assistantIntent(value: string): 'chat' | 'export' | 'apply' | 'draft' | 'explain' {
+export function assistantIntent(value: string): 'chat' | 'export' | 'apply' | 'draft' | 'user_draft' | 'explain' {
   const t = commandText(value);
   if (/\b(como|donde)\b.*\b(export|descarg|registr|crea|filtr)/.test(t)) return 'chat';
   if (/\bmi(s)? (pedido|reserva|carrito)/.test(t)) return 'chat';
+  if (/\b(registr\w*|crea\w*|agrega\w*|alta)\b.*\b(usuario|cuenta|empleado|cliente|administrador|vendedor)a?s?\b/.test(t)) return 'user_draft';
   if (/\b(registr\w*|crea\w*|agrega\w*|alta)\b.*\b(prenda|producto|ropa|polera|camisa|camiseta|remera|pantalon|campera|chaqueta|vestido|falda|short|buzo|casaca)s?\b/.test(t)) return 'draft';
   if (/\b(export\w*|descarg\w*|bajame|enviame|mandame|pasame)\b/.test(t)
       || /\b(quiero|necesito|gener\w*|dame|ahora)\b.*\b(excel|xlsx|pdf|csv)\b/.test(t)) return 'export';

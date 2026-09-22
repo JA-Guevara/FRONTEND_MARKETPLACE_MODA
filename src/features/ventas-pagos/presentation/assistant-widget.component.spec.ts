@@ -9,6 +9,7 @@ import { SessionService } from '../../usuarios-catalogo/application/session.serv
 import { CatalogService } from '../../usuarios-catalogo/infrastructure/catalog.service';
 import { DashboardService } from '../../ia-reportes/infrastructure/dashboard.service';
 import { AssistantContextService } from '../../../shared/assistant-context.service';
+import { ApiService } from '../../../app/core/shared/api.service';
 
 function setup(options: { permissions?: string[] } = {}) {
   const user = signal<{ id: string } | null>(null);
@@ -30,6 +31,7 @@ function setup(options: { permissions?: string[] } = {}) {
     createProduct: vi.fn(),
   };
   const transcribeVoice = vi.fn();
+  const api = { get: vi.fn(), write: vi.fn() };
   const dashboard = { interpret: vi.fn(), explain: vi.fn(), insights: vi.fn(), executeTool: vi.fn() };
   TestBed.configureTestingModule({
     imports: [AssistantWidgetComponent],
@@ -38,13 +40,14 @@ function setup(options: { permissions?: string[] } = {}) {
       { provide: SessionService, useValue: { user, can: (p: string) => (options.permissions ?? []).includes(p) } },
       { provide: CatalogService, useValue: catalog },
       { provide: DashboardService, useValue: dashboard },
+      { provide: ApiService, useValue: api },
       { provide: Router, useValue: { url: '/', navigate: vi.fn().mockResolvedValue(true), events: of(new NavigationEnd(1, '/', '/')) } },
     ],
   });
   const fixture = TestBed.createComponent(AssistantWidgetComponent);
   fixture.detectChanges();
   const ctx = TestBed.inject(AssistantContextService);
-  return { fixture, write, catalog, dashboard, deferreds, ctx, user, transcribeVoice };
+  return { fixture, write, catalog, dashboard, deferreds, ctx, user, transcribeVoice, api };
 }
 
 function installVoiceRecorder(getUserMedia = vi.fn().mockResolvedValue({
@@ -138,6 +141,30 @@ describe('Asistente: indicador de espera con tres puntos', () => {
     expect(catalog.createProduct).toHaveBeenCalledTimes(1);
     expect(fixture.componentInstance.productDraft()).toBeNull();
     expect(fixture.nativeElement.textContent).toContain('Prenda creada:');
+  });
+
+  it('prepara un usuario desde la orden, pero exige contraseña, rol y confirmación', async () => {
+    const { fixture, api, write } = setup({ permissions: ['users.write'] });
+    api.get.mockReturnValue(of([{ id: 'rol-vendedor', name: 'Vendedor' }]));
+    api.write.mockReturnValue(of({ message: 'Usuario creado.', data: { id: 'u-1' } }));
+    fixture.componentInstance.toggle();
+
+    await fixture.componentInstance.send('creá un usuario para Ana Pérez con correo ana@ejemplo.com');
+    fixture.detectChanges();
+
+    const draft = fixture.componentInstance.userDraft();
+    expect(draft).toMatchObject({ email: 'ana@ejemplo.com', first_name: 'Ana', last_name: 'Pérez' });
+    expect(api.write).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
+
+    draft!.password = 'ClaveSegura#2026';
+    draft!.role_ids = ['rol-vendedor'];
+    await fixture.componentInstance.confirmUserDraft();
+
+    expect(api.write).toHaveBeenCalledWith('POST', '/users', expect.objectContaining({
+      email: 'ana@ejemplo.com', role_ids: ['rol-vendedor'], password: 'ClaveSegura#2026',
+    }));
+    expect(fixture.componentInstance.userDraft()).toBeNull();
   });
 
   it('muestra tres puntos sin robot en el mensaje de espera y desaparecen al responder', async () => {

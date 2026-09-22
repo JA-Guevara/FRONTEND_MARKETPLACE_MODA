@@ -12,7 +12,10 @@ import { IconComponent } from '../../../shared/icon.component';
 import { BotAvatarComponent, BotState } from '../../../shared/bot-avatar.component';
 import { AssistantContextService } from '../../../shared/assistant-context.service';
 import { errorMessage } from '../../../shared/errors';
+import { ApiService } from '../../../app/core/shared/api.service';
 import { assistantIntent, clearsFilter, commandText, queryForCommand, requestedReports } from '../application/assistant-intent';
+import { AssistantAction, ParsedAction, resolveAction } from '../application/assistant-actions';
+import { Page } from '../../../shared/models';
 
 const EXPORT_REPORT_LABEL: Record<ExportReport, string> = {
   ventas: 'ventas', pedidos: 'pedidos', pagos: 'pagos',
@@ -46,6 +49,46 @@ interface ChatEntry {
   from: 'user' | 'assistant';
   text: string;
 }
+
+interface UserDraft {
+  email: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  document_number: string;
+  password: string;
+  role_ids: string[];
+  is_verified: boolean;
+}
+
+/** Tarjeta de confirmación visible: la acción muta solo con el botón Confirmar.
+ * `restricted` exige teclear `requiredText` para poder confirmar. */
+interface ConfirmCard {
+  actionId: string;
+  title: string;
+  lines: string[];
+  confirmLabel: string;
+  restricted: boolean;
+  requiredText: string;
+  detailUrl?: string;
+  handleConfirm: () => Promise<void>;
+}
+
+/** Borrador simple (categoría, proveedor, promoción): campos editables en el
+ * chat y un solo botón de confirmación que llama al endpoint existente. */
+interface SimpleDraftField {
+  key: string;
+  label: string;
+  required: boolean;
+  type?: 'text' | 'number';
+}
+
+interface SimpleDraft {
+  title: string;
+  fields: SimpleDraftField[];
+  values: Record<string, string>;
+}
+
 
 const MODULE_LABELS: { prefix: string; label: string }[] = [
   { prefix: '/admin/reservas', label: 'Reservas (gestión)' },
@@ -116,6 +159,12 @@ const SUGGESTIONS = [
     .ai-draft input, .ai-draft select, .ai-draft textarea { font-size: 13px; padding: 7px 9px; }
     .ai-draft__actions { display: flex; gap: 8px; }
     .ai-draft__actions button { flex: 1; min-height: 34px; }
+    .ai-confirm { display: grid; gap: 8px; background: white; border: 1px solid var(--line);
+      border-radius: 12px; padding: 12px; font-size: 13px; box-shadow: 0 2px 10px #0000001a; }
+    .ai-confirm__line { margin: 0; line-height: 1.5; }
+    .ai-confirm__key { gap: 3px; font-size: 12px; }
+    .ai-confirm__key input { font-size: 13px; padding: 7px 9px; }
+    .ai-confirm__chip { justify-self: start; padding: 0; }
     .ai-msg--assistant .button-text { font-size: inherit; }
     .ai-msg--typing { display: inline-flex; align-items: center; gap: 5px; }
     .ai-msg--typing .ai-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
@@ -228,6 +277,65 @@ const SUGGESTIONS = [
               </div>
             </form>
           }
+          @if (userDraft(); as d) {
+            <form class="ai-draft" (ngSubmit)="confirmUserDraft()">
+              <p class="ai-draft__title">Usuario a registrar — revisá antes de crear</p>
+              <label>Correo<input name="userEmail" type="email" [(ngModel)]="d.email" required maxlength="254" /></label>
+              <label>Nombres<input name="userFirstName" [(ngModel)]="d.first_name" required minlength="2" maxlength="100" /></label>
+              <label>Apellidos<input name="userLastName" [(ngModel)]="d.last_name" required minlength="2" maxlength="100" /></label>
+              <label>Teléfono<input name="userPhone" [(ngModel)]="d.phone" maxlength="30" /></label>
+              <label>Documento<input name="userDocument" [(ngModel)]="d.document_number" maxlength="50" /></label>
+              <label>Contraseña inicial<input name="userPassword" type="password" [(ngModel)]="d.password" required minlength="12" maxlength="128" autocomplete="new-password" />
+                <small>Ingresala manualmente; no se toma del chat ni de la voz.</small>
+              </label>
+              <label>Roles
+                <select name="userRoles" [(ngModel)]="d.role_ids" required multiple size="3">
+                  @for (role of draftRoles(); track role.id) { <option [value]="role.id">{{ role['name'] }}</option> }
+                </select>
+              </label>
+              <label class="check"><input name="userVerified" type="checkbox" [(ngModel)]="d.is_verified" />Correo ya verificado</label>
+              <div class="ai-draft__actions">
+                <button type="submit" class="primary" [disabled]="draftBusy()">{{ draftBusy() ? 'Creando…' : 'Crear usuario' }}</button>
+                <button type="button" (click)="discardUserDraft()" [disabled]="draftBusy()">Descartar</button>
+              </div>
+            </form>
+          }
+          @if (simpleDraft(); as d) {
+            <form class="ai-draft" (ngSubmit)="confirmSimpleDraft()">
+              <p class="ai-draft__title">{{ d.title }}</p>
+              @for (f of d.fields; track f.key) {
+                <label>{{ f.label }}
+                  <input [name]="f.key" [type]="f.type || 'text'" [(ngModel)]="d.values[f.key]" [required]="f.required" />
+                </label>
+              }
+              <div class="ai-draft__actions">
+                <button type="submit" class="primary" [disabled]="simpleBusy()">{{ simpleBusy() ? 'Creando…' : 'Confirmar y crear' }}</button>
+                <button type="button" (click)="simpleDraft.set(null)" [disabled]="simpleBusy()">Descartar</button>
+              </div>
+            </form>
+          }
+          @if (confirmCard(); as c) {
+            <div class="ai-confirm" role="alertdialog" aria-label="Confirmación de acción">
+              <p class="ai-draft__title">{{ c.title }}</p>
+              @for (line of c.lines; track line) {
+                <p class="ai-confirm__line">{{ line }}</p>
+              }
+              @if (c.detailUrl) {
+                <button type="button" class="ai-chip ai-confirm__chip" (click)="openDetail(c)">Ver detalle</button>
+              }
+              @if (c.restricted) {
+                <label class="ai-confirm__key">Escribí «{{ c.requiredText }}» para confirmar
+                  <input [(ngModel)]="confirmInput" [attr.placeholder]="c.requiredText" autocomplete="off" spellcheck="false" />
+                </label>
+              }
+              <div class="ai-draft__actions">
+                <button type="button" class="primary" [disabled]="confirmBusy() || (c.restricted && confirmInput() !== c.requiredText)"
+                  (click)="runConfirmation()">{{ confirmBusy() ? 'Confirmando…' : c.confirmLabel }}</button>
+                <button type="button" (click)="editConfirmation()" [disabled]="confirmBusy()">Editar</button>
+                <button type="button" (click)="dismissConfirmation()" [disabled]="confirmBusy()">Cancelar</button>
+              </div>
+            </div>
+          }
           @if (busy()) {
             <p class="ai-msg ai-msg--assistant ai-msg--typing" role="status">
               <span class="ai-dot" aria-hidden="true"></span>
@@ -309,6 +417,7 @@ export class AssistantWidgetComponent implements OnDestroy {
   private commerce = inject(CommerceService);
   private session = inject(SessionService);
   private catalog = inject(CatalogService);
+  private api = inject(ApiService);
   private dashboard = inject(DashboardService);
   private router = inject(Router);
   private assistantContext = inject(AssistantContextService);
@@ -335,16 +444,29 @@ export class AssistantWidgetComponent implements OnDestroy {
   showNew = signal(false);
   /** Borrador de prenda pendiente de revisión (null = no hay ninguno abierto). */
   productDraft = signal<ProductDraftInput | null>(null);
+  /** Los datos sensibles del usuario (en especial la contraseña) nunca se
+   * deducen ni se conservan en el mensaje del asistente. */
+  userDraft = signal<UserDraft | null>(null);
+  draftRoles = signal<Entity[]>([]);
   draftCategories = signal<Entity[]>([]);
   draftBusy = signal(false);
+  /** Borrador simple de gestión (categoría, proveedor o promoción). */
+  simpleDraft = signal<SimpleDraft | null>(null);
+  simpleBusy = signal(false);
+  /** Acción mutadora pendiente de confirmación visible. */
+  confirmCard = signal<ConfirmCard | null>(null);
+  confirmInput = signal('');
+  confirmBusy = signal(false);
   currentModule = signal(this.resolveModule(this.router.url));
-  private lastUserText = '';
+private lastUserText = '';
   private conversationVersion = 0;
   private sessionUserId = this.session.user()?.id ?? null;
   /** A qué handler reintentar: los pedidos de reporte y el borrador de prenda
    * usan flujos distintos al chat general, y "Reintentar" debe repetir el
    * mismo y no caer en el chat general. */
-  private lastIntent: 'chat' | 'draft' | 'export' | 'explain' | 'apply' = 'chat';
+  private lastIntent: 'chat' | 'draft' | 'user_draft' | 'export' | 'explain' | 'apply' | 'action' = 'chat';
+  /** Última acción del registro central, para reintentar el mismo camino. */
+  private lastActionCall: { action: AssistantAction; parsed: ParsedAction; text: string } | null = null;
   botState = signal<BotState>('idle');
   /** Reconocimiento local opcional: sólo da texto visible en tiempo real.
    * La transcripción del backend sigue siendo el respaldo confiable. */
@@ -436,6 +558,7 @@ export class AssistantWidgetComponent implements OnDestroy {
     this.history.set([]);
     this.error.set('');
     this.productDraft.set(null);
+    this.userDraft.set(null);
     this.clearDownloads();
   }
   async toggleVoice() {
@@ -700,6 +823,9 @@ export class AssistantWidgetComponent implements OnDestroy {
     if (this.session.can('catalog.write')) {
       list.push('Registrame una campera de cuero negra a 450 Bs');
     }
+    if (this.session.can('users.write')) {
+      list.push('Creá un usuario para Ana Pérez con correo ana@ejemplo.com');
+    }
     return list;
   }
   private resolveModule(url: string): string {
@@ -750,8 +876,33 @@ export class AssistantWidgetComponent implements OnDestroy {
     this.lastUserText = text;
     this.history.update((h) => [...h, { from: 'user', text }]);
     this.scrollToBottom();
+    // El registro central resuelve la orden: primer chequeo de permiso con el
+    // catálogo de permisos del backend; el backend valida de nuevo al ejecutar.
+    const registered = resolveAction(text);
+    if (registered) {
+      if (registered.action.permission && !this.session.can(registered.action.permission)) {
+        this.history.update((h) => [
+          ...h,
+          {
+            from: 'assistant',
+            text: `Necesitás el permiso "${registered.action.permission}" para ${registered.action.module}. Pedile a un administrador que lo active en tu cuenta o pedime un reporte autorizado.`,
+          },
+        ]);
+        return;
+      }
+      this.lastIntent = 'action';
+      this.lastActionCall = { action: registered.action, parsed: registered.parsed, text };
+      await this.handleAction(registered.action, registered.parsed, text);
+      return;
+    }
     const intent = assistantIntent(text);
-    const required = intent === 'draft' ? 'catalog.write' : intent !== 'chat' ? 'dashboard.read' : null;
+    const required = intent === 'draft'
+      ? 'catalog.write'
+      : intent === 'user_draft'
+        ? 'users.write'
+        : intent !== 'chat'
+          ? 'dashboard.read'
+          : null;
     if (required && !this.session.can(required)) {
       this.history.update(h => [...h, { from: 'assistant', text: 'Tu cuenta no tiene permiso para realizar esa operación. Iniciá sesión con una cuenta autorizada.' }]);
       return;
@@ -759,6 +910,9 @@ export class AssistantWidgetComponent implements OnDestroy {
     if (intent === 'draft') {
       this.lastIntent = 'draft';
       await this.requestProductDraft(text);
+    } else if (intent === 'user_draft') {
+      this.lastIntent = 'user_draft';
+      await this.requestUserDraft(text);
     } else if (intent === 'export') {
       this.lastIntent = 'export';
       await this.requestExport(text);
@@ -851,17 +1005,1105 @@ export class AssistantWidgetComponent implements OnDestroy {
   discardDraft() {
     this.productDraft.set(null);
   }
-  async retry() {
+  /** Prepara el alta desde texto o voz. La contraseña y los roles requieren
+   * revisión humana: no se extraen de una conversación ni se crean sin el
+   * botón de confirmación. */
+  private async requestUserDraft(text: string) {
+    this.busy.set(true);
+    this.setBot('processing');
+    try {
+      if (!this.draftRoles().length) this.draftRoles.set(await firstValueFrom(this.api.get<Entity[]>('/roles')));
+      const email = text.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i)?.[0]?.toLowerCase() ?? '';
+      const namePart = text.match(/(?:usuario|cuenta|empleado|cliente|administrador|vendedor)\s+(?:para\s+)?([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+){0,2}?)(?=\s+(?:con\s+)?(?:correo|email|tel[eé]fono|documento)\b|$)/i)?.[1] ?? '';
+      const names = namePart.split(/\s+/).filter(Boolean);
+      this.userDraft.set({
+        email,
+        first_name: names[0] ?? '',
+        last_name: names.slice(1).join(' '),
+        phone: '',
+        document_number: '',
+        password: '',
+        role_ids: [],
+        is_verified: false,
+      });
+      this.history.update((h) => [...h, {
+        from: 'assistant',
+        text: 'Preparé el alta. Completá los datos, elegí al menos un rol e ingresá la contraseña inicial manualmente antes de confirmar.',
+      }]);
+      this.setBot('success');
+    } catch (e) {
+      this.setBot('error');
+      this.error.set(errorMessage(e));
+    } finally {
+      this.busy.set(false);
+      this.scrollToBottom();
+    }
+  }
+  async confirmUserDraft() {
+    const d = this.userDraft();
+    if (!d || this.draftBusy()) return;
+    if (!d.role_ids.length) {
+      this.error.set('Elegí al menos un rol antes de crear el usuario.');
+      return;
+    }
+    if (d.password.length < 12) {
+      this.error.set('La contraseña inicial debe tener al menos 12 caracteres.');
+      return;
+    }
+    this.draftBusy.set(true);
+    this.error.set('');
+    try {
+      await firstValueFrom(this.api.write('POST', '/users', {
+        email: d.email.trim().toLowerCase(),
+        first_name: d.first_name.trim(),
+        last_name: d.last_name.trim(),
+        phone: d.phone.trim() || null,
+        document_number: d.document_number.trim() || null,
+        password: d.password,
+        role_ids: d.role_ids,
+        is_verified: d.is_verified,
+      }));
+      this.userDraft.set(null);
+      this.history.update((h) => [...h, { from: 'assistant', text: `Usuario creado: ${d.email.trim().toLowerCase()}.` }]);
+      this.setBot('success');
+    } catch (e) {
+      this.error.set(errorMessage(e));
+      this.setBot('error');
+    } finally {
+      this.draftBusy.set(false);
+      this.scrollToBottom();
+    }
+  }
+  discardUserDraft() {
+    this.userDraft.set(null);
+  }
+async retry() {
     if (!this.lastUserText || this.busy()) return;
     // Reintento: no se agrega de nuevo el mensaje del usuario, y repite el
     // mismo tipo de pedido (borrador de prenda, chat, exportar o explicar).
     this.error.set('');
-    if (this.lastIntent === 'export') await this.requestExport(this.lastUserText);
+    if (this.lastIntent === 'action' && this.lastActionCall) {
+      const call = this.lastActionCall;
+      await this.handleAction(call.action, call.parsed, call.text);
+    } else if (this.lastIntent === 'export') await this.requestExport(this.lastUserText);
     else if (this.lastIntent === 'explain') await this.requestExplain(this.lastUserText);
     else if (this.lastIntent === 'apply') await this.requestApply(this.lastUserText);
     else if (this.lastIntent === 'draft') await this.requestProductDraft(this.lastUserText);
+    else if (this.lastIntent === 'user_draft') await this.requestUserDraft(this.lastUserText);
     else await this.sendToBackend();
   }
+  /**
+   * Ejecuta una acción declarada del registro central. Las de lectura resumen
+   * en el chat; las de draft abren un borrador editable; las confirm/restricted
+   * preparan la tarjeta de confirmación visible antes de tocar datos.
+   */
+  private async handleAction(action: AssistantAction, parsed: ParsedAction, text: string) {
+    switch (action.id) {
+      case 'report.export':
+        return this.requestExport(text);
+      case 'report.explain':
+        return this.requestExplain(text);
+      case 'report.apply':
+      case 'report.clear_filters':
+        return this.requestApply(text);
+      case 'product.create':
+        return this.requestProductDraft(text);
+      case 'user.create':
+        return this.requestUserDraft(text);
+      case 'product.bulk':
+      case 'branch.create':
+      case 'vestidor.review':
+        return this.openManagementPage(action.id);
+      case 'reservation.create':
+        return this.openReservationForm();
+      case 'product.open':
+        return this.openProduct(parsed);
+      case 'category.create':
+        return this.openCategoryDraft(parsed);
+      case 'supplier.create':
+        return this.openSupplierDraft(parsed);
+      case 'promotion.create':
+        return this.openPromotionDraft(parsed);
+      default:
+        if (action.risk === 'read') return this.runReadAction(action, parsed);
+        return this.startConfirm(action, parsed);
+    }
+  }
+
+  private async openManagementPage(actionId: string) {
+    const guide: Record<string, string> = {
+      'product.bulk': '/admin/products',
+      'branch.create': '/admin/branches',
+      'vestidor.review': '/admin/probador',
+    };
+    const messages: Record<string, string> = {
+      'product.bulk': 'Te dejo en la carga masiva de prendas: prepará el archivo Excel y revisá la vista previa antes de importar.',
+      'branch.create': 'Te dejo en el alta de sucursales, donde el formulario valida igual que el backend.',
+      'vestidor.review': 'Te dejo en la bandeja de revisión humana del vestidor virtual.',
+    };
+    this.confirmCard.set(null);
+    try {
+      await this.router.navigate([guide[actionId]]);
+      this.history.update((h) => [...h, { from: 'assistant', text: messages[actionId] }]);
+    } catch {
+      this.history.update((h) => [...h, { from: 'assistant', text: 'No pude abrir esa pantalla; intentá desde el menú.' }]);
+    }
+  }
+
+  private async openReservationForm() {
+    this.confirmCard.set(null);
+    this.history.update((h) => [
+      ...h,
+      {
+        from: 'assistant',
+        text: 'Reservar se decide en el formulario de reservas: te dejo ahí para completar fecha, sucursal, prendas y hora antes de confirmar.',
+      },
+    ]);
+    try {
+      await this.router.navigate(['/reservar']);
+    } catch {
+      /* ya estás en el formulario */
+    }
+  }
+
+  private async openProduct(parsed: ParsedAction) {
+    const name = parsed.data['name'];
+    this.confirmCard.set(null);
+    try {
+      if (typeof name === 'string' && name) {
+        const page = await firstValueFrom(this.catalog.products({ search: name, page_size: 5 }));
+        const first = page.items?.[0];
+        if (first && typeof (first as any).slug === 'string') {
+          this.history.update((h) => [
+            ...h,
+            { from: 'assistant', text: `Encontré «${(first as any).name}». Te dejo en su ficha para verla o editarla.` },
+          ]);
+          await this.router.navigate(['/prendas', (first as any).slug]);
+          return;
+        }
+      }
+      this.history.update((h) => [
+        ...h,
+        { from: 'assistant', text: 'No encontré esa prenda por nombre; te dejo en la gestión de prendas para buscarla.' },
+      ]);
+      await this.router.navigate(['/admin/products']);
+    } catch (e) {
+      this.error.set(errorMessage(e));
+      this.setBot('error');
+    }
+  }
+
+  private openCategoryDraft(parsed: ParsedAction) {
+    this.confirmCard.set(null);
+    this.simpleDraft.set({
+      title: 'Categoría a crear — revisá antes de confirmar',
+      fields: [
+        { key: 'name', label: 'Nombre', required: true },
+        { key: 'slug', label: 'Enlace (opcional)', required: false },
+      ],
+      values: { name: String(parsed.data['name'] ?? ''), slug: '' },
+    });
+  }
+
+  private openSupplierDraft(parsed: ParsedAction) {
+    this.confirmCard.set(null);
+    this.simpleDraft.set({
+      title: 'Proveedor a crear — revisá antes de confirmar',
+      fields: [
+        { key: 'business_name', label: 'Razón social', required: true },
+        { key: 'tax_id', label: 'NIT / RUC', required: true },
+        { key: 'phone', label: 'Teléfono (opcional)', required: false },
+        { key: 'city', label: 'Ciudad (opcional)', required: false },
+      ],
+      values: {
+        business_name: String(parsed.data['business_name'] ?? ''),
+        tax_id: '',
+        phone: '',
+        city: '',
+      },
+    });
+  }
+
+  private openPromotionDraft(parsed: ParsedAction) {
+    const code = String(parsed.data['code'] ?? '');
+    const percent = parsed.data['percent'];
+    this.confirmCard.set(null);
+    this.simpleDraft.set({
+      title: 'Promoción a crear — revisá antes de confirmar',
+      fields: [
+        { key: 'name', label: 'Nombre de la promoción', required: true },
+        { key: 'code', label: 'Código del cupón', required: true },
+        { key: 'percent', label: 'Descuento (%)', required: true, type: 'number' },
+      ],
+      values: {
+        name: code ? `Cupón ${code}` : '',
+        code: code,
+        percent: percent != null ? String(percent) : '10',
+      },
+    });
+  }
+
+  async confirmSimpleDraft() {
+    const draft = this.simpleDraft();
+    if (!draft || this.simpleBusy()) return;
+    for (const field of draft.fields) {
+      const value = draft.values[field.key] ?? '';
+      if (field.required && !`${value}`.trim()) {
+        this.error.set('Completá los campos obligatorios antes de confirmar.');
+        return;
+      }
+    }
+    this.simpleBusy.set(true);
+    this.error.set('');
+    const values = Object.fromEntries(
+      Object.entries(draft.values).map(([k, v]) => [k, `${v}`.trim()]),
+    ) as Record<string, string>;
+    try {
+      if (draft.title.includes('Categoría')) {
+        await firstValueFrom(
+          this.api.write('POST', '/catalog/admin/categories', {
+            name: values['name'],
+            slug: values['slug'] || null,
+          }),
+        );
+        this.history.update((h) => [...h, { from: 'assistant', text: `Categoría creada: ${values['name']}.` }]);
+      } else if (draft.title.includes('Proveedor')) {
+        await firstValueFrom(
+          this.api.write('POST', '/organization/suppliers', {
+            business_name: values['business_name'],
+            tax_id: values['tax_id'].toUpperCase(),
+            phone: values['phone'] || null,
+            city: values['city'] || null,
+          }),
+        );
+        this.history.update((h) => [...h, { from: 'assistant', text: `Proveedor creado: ${values['business_name']}.` }]);
+      } else {
+        await this.commerce.write('POST', '/admin/promotions', {
+          name: values['name'],
+          code: values['code'],
+          discount_type: 'percent',
+          discount_value: Number(values['percent'] || 0),
+          description: 'Creada desde el asistente.',
+        });
+        this.history.update((h) => [...h, { from: 'assistant', text: `Promoción creada: ${values['code'].toUpperCase()}.` }]);
+      }
+      this.simpleDraft.set(null);
+      this.setBot('success');
+    } catch (e) {
+      this.error.set(errorMessage(e));
+      this.setBot('error');
+    } finally {
+      this.simpleBusy.set(false);
+      this.scrollToBottom();
+    }
+  }
+
+  /** Lecturas: consultan los endpoints existentes (mismos permisos que la
+   * pantalla) y resumen en el chat, sin crear ni modificar nada. */
+  private async runReadAction(action: AssistantAction, parsed: ParsedAction) {
+    const version = this.conversationVersion;
+    this.busy.set(true);
+    this.setBot('processing');
+    try {
+      let reply = '';
+      const d = parsed.data as any;
+      switch (action.id) {
+        case 'user.search': {
+          const q = String(d.email ?? d.name ?? '');
+          const page = await firstValueFrom(
+            this.api.get<Page<any>>('/users', { search: q, page_size: 5 }),
+          );
+          reply = this.listReply(
+            'Usuarios encontrados',
+            page.items ?? [],
+            (u: any) => `${u.email} — ${(u.roles ?? []).map((r: any) => r.code || r.name).join(', ') || 'sin roles'}`,
+          );
+          break;
+        }
+        case 'user.show_inactive': {
+          const page = await firstValueFrom(
+            this.api.get<Page<any>>('/users', { is_active: false, page_size: 10 }),
+          );
+          reply = this.listReply('Usuarios inactivos', page.items ?? [], (u: any) => `${u.email} — ${u.first_name ?? ''} ${u.last_name ?? ''}`);
+          break;
+        }
+        case 'supplier.inactive': {
+          const rows = await firstValueFrom(
+            this.api.get<any[]>('/organization/suppliers', { include_inactive: true }),
+          );
+          const inactive = rows.filter((s: any) => s.is_active === false);
+          reply = this.listReply('Proveedores inactivos', inactive as any[], (s: any) => s.business_name || s.trade_name || s.tax_id);
+          break;
+        }
+        case 'stock.low': {
+          const max = Number(d.max ?? 5);
+          const dash = await firstValueFrom(this.dashboard.load({ low_stock_lt: max }));
+          const rows = dash.low_stock_variants ?? [];
+          reply = rows.length
+            ? `Prendas con stock menor a ${max} (${rows.length}):\n${rows.slice(0, 10).map((v: any) => `· ${v.name} ${v.size} ${v.color} — ${v.quantity} en ${v.branch}`).join('\n')}`
+            : `No hay prendas con stock menor a ${max}.`;
+          break;
+        }
+        case 'reservation.pending_today': {
+          const today = new Date().toISOString().slice(0, 10);
+          const page = await firstValueFrom(
+            this.api.get<Page<any>>('/reservations/admin/all', {
+              status: 'pending',
+              date_from: today,
+              date_to: today,
+              page_size: 10,
+            }),
+          );
+          reply = this.listReply(
+            'Reservas pendientes de hoy',
+            page.items ?? [],
+            (r: any) => `${r.user_email || r.client_name || '—'} — ${r.scheduled_at}${r.branch_name ? ` (${r.branch_name})` : ''}`,
+          );
+          break;
+        }
+        case 'reservation.by_branch': {
+          const wanted = String(d.branch_name ?? '').toLowerCase();
+          const branches = await this.commerce.branches();
+          const branch = branches.find((b: any) => String(b.name).toLowerCase().includes(wanted));
+          if (!branch) {
+            reply = `No encontré la sucursal «${wanted}». Sucursales: ${branches.map((b: any) => b.name).join(', ')}.`;
+            break;
+          }
+          const page = await firstValueFrom(
+            this.api.get<Page<any>>('/reservations/admin/all', { branch_id: branch.id, page_size: 10 }),
+          );
+          reply = this.listReply(
+            `Reservas de ${branch.name}`,
+            page.items ?? [],
+            (r: any) => `${r.user_email || r.client_name || '—'} — ${r.scheduled_at} (${r.status})`,
+          );
+          break;
+        }
+        case 'order.pending_payment':
+        case 'order.delivered':
+        case 'payment.rejected': {
+          const status =
+            action.id === 'order.pending_payment'
+              ? 'pending_payment'
+              : action.id === 'order.delivered'
+                ? 'delivered'
+                : 'expired';
+          const rows = await this.commerce.get<any[]>('/admin/orders', { status, limit: 6 });
+          const title =
+            action.id === 'payment.rejected' ? 'Pagos rechazados o expirados' :
+              action.id === 'order.delivered' ? 'Pedidos entregados' : 'Pedidos pendientes de pago';
+          reply =
+            this.listReply(title, rows as any[], (o: any) => `${o.number}${o.total ? ` — Bs ${o.total}` : ''} ${o.customer_email ?? ''}`) +
+            (action.id === 'payment.rejected'
+              ? '\n\nLos pagos que el proveedor dejó sin completar quedan como "expirados" y liberan las existencias reservadas; el sistema no guarda otro estado "rechazado".'
+              : '');
+          break;
+        }
+        case 'promotion.expired': {
+          const rows = await this.commerce.get<any[]>('/admin/promotions');
+          const now = Date.now();
+          const expired = rows.filter(
+            (p: any) => p.is_active && p.ends_at && new Date(p.ends_at).getTime() < now,
+          );
+          reply = this.listReply('Promociones vencidas', expired as any[], (p: any) => `${p.name || p.code} (${p.discount_type} ${p.discount_value ?? ''})`);
+          break;
+        }
+        case 'vestidor.pending': {
+          const assets = await firstValueFrom(
+            this.api.get<any[]>('/vestidor/admin/assets', {}),
+          );
+          const review = assets.filter((a: any) => a.ai_status === 'review');
+          const failed = assets.filter((a: any) => a.ai_status === 'failed');
+          reply =
+            `Vestidor virtual: ${review.length} recursos en revisión humana y ${failed.length} fallidos.` +
+            (review.length
+              ? `\nEn revisión:\n${review.slice(0, 10).map((a: any) => `· ${a.product_name || a.id}`).join('\n')}`
+              : '');
+          break;
+        }
+        default:
+          reply = 'No pude consultar esa lista con los datos disponibles.';
+      }
+      if (version !== this.conversationVersion) return;
+      this.history.update((h) => [...h, { from: 'assistant', text: reply }]);
+      this.setBot('success');
+    } catch (e) {
+      this.setBot('error');
+      this.error.set(errorMessage(e));
+    } finally {
+      this.busy.set(false);
+      const el = this.logRef?.nativeElement;
+      if (el && el.scrollHeight - el.scrollTop - el.clientHeight > 64) this.showNew.set(true);
+      else this.scrollToBottom();
+    }
+  }
+
+  private listReply(title: string, rows: any[], render: (row: any) => string): string {
+    return rows.length
+      ? `${title} (${rows.length}):\n` + rows.slice(0, 10).map((row) => `· ${render(row)}`).join('\n')
+      : `${title}: no hay resultados.`;
+  }
+
+  /** Mutaciones: resuelve la entidad y muestra la tarjeta de confirmación. */
+  private async startConfirm(action: AssistantAction, parsed: ParsedAction) {
+    const version = this.conversationVersion;
+    this.busy.set(true);
+    this.setBot('processing');
+    try {
+      switch (action.id) {
+        case 'user.deactivate':
+        case 'user.activate':
+        case 'user.unlock':
+        case 'user.change_role':
+        case 'user.deleted':
+          await this.confirmUser(action, parsed, version);
+          break;
+        case 'product.deactivate':
+          await this.confirmProduct(action, parsed, version);
+          break;
+        case 'stock.receipt':
+        case 'stock.adjustment':
+        case 'stock.transfer':
+          await this.confirmStock(action, parsed, version);
+          break;
+        case 'reservation.confirm':
+        case 'reservation.cancel':
+        case 'reservation.arrived':
+          await this.confirmReservation(action, parsed, version);
+          break;
+        case 'order.change_status':
+        case 'order.carrier':
+        case 'order.register_return':
+          await this.confirmOrder(action, parsed, version);
+          break;
+        case 'promotion.deactivate':
+          await this.confirmPromotion(action, parsed, version);
+          break;
+        case 'vestidor.retry':
+          await this.confirmVestidor(action, parsed, version);
+          break;
+        default:
+          this.needMore(action, 'No pude preparar esa operación con los datos disponibles.', version);
+      }
+    } catch (e) {
+      this.setBot('error');
+      this.error.set(errorMessage(e));
+    } finally {
+      this.busy.set(false);
+      const el = this.logRef?.nativeElement;
+      if (el && el.scrollHeight - el.scrollTop - el.clientHeight > 64) this.showNew.set(true);
+      else this.scrollToBottom();
+    }
+  }
+
+  private needMore(action: AssistantAction, question: string, version: number) {
+    if (version !== this.conversationVersion) return;
+    this.history.update((h) => [
+      ...h,
+      { from: 'assistant', text: `${question} Nada se modificó todavía.` },
+    ]);
+    this.setBot('idle');
+  }
+
+  private requireConfirm(input: {
+    actionId: string;
+    title: string;
+    lines: string[];
+    confirmLabel: string;
+    restricted?: boolean;
+    requiredText?: string;
+    detailUrl?: string;
+    handleConfirm: () => Promise<void>;
+  }) {
+    this.confirmInput.set('');
+    this.confirmCard.set({
+      actionId: input.actionId,
+      title: input.title,
+      lines: input.lines,
+      confirmLabel: input.confirmLabel,
+      restricted: input.restricted ?? false,
+      requiredText: input.requiredText ?? '',
+      detailUrl: input.detailUrl,
+      handleConfirm: input.handleConfirm,
+    });
+    this.history.update((h) => [
+      ...h,
+      {
+        from: 'assistant',
+        text: `Preparé la operación: revisala en la tarjeta y confirmá solo si estás de acuerdo. Nada se ejecutó todavía.`,
+      },
+    ]);
+  }
+
+  async runConfirmation() {
+    const card = this.confirmCard();
+    if (!card || this.confirmBusy()) return;
+    if (card.restricted && this.confirmInput().trim().toLowerCase() !== card.requiredText.toLowerCase()) {
+      this.error.set(`Para confirmar esta operación ingresá exactamente «${card.requiredText}».`);
+      return;
+    }
+    this.confirmBusy.set(true);
+    this.error.set('');
+    try {
+      await card.handleConfirm();
+      this.setBot('success');
+    } catch (e) {
+      this.error.set(errorMessage(e));
+      this.setBot('error');
+    } finally {
+      this.confirmBusy.set(false);
+      this.confirmCard.set(null);
+      this.confirmInput.set('');
+      this.scrollToBottom();
+    }
+  }
+
+  editConfirmation() {
+    const card = this.confirmCard();
+    if (!card || this.confirmBusy()) return;
+    this.confirmCard.set(null);
+    const url = this.confirmDetailUrl(card.actionId);
+    void (url ? this.router.navigateByUrl(url) : Promise.resolve());
+    this.history.update((h) => [
+      ...h,
+      { from: 'assistant', text: 'Cerraste la tarjeta. Te dejo en la pantalla para hacerlo manualmente; no se modificó nada.' },
+    ]);
+  }
+
+  dismissConfirmation() {
+    if (this.confirmBusy()) return;
+    const card = this.confirmCard();
+    this.confirmCard.set(null);
+    this.confirmInput.set('');
+    this.setBot('idle');
+    if (card) {
+      this.history.update((h) => [
+        ...h,
+        { from: 'assistant', text: 'Cancelé la operación; no se modificó nada.' },
+      ]);
+    }
+  }
+
+  openDetail(card: ConfirmCard) {
+    if (!card.detailUrl) return;
+    this.confirmCard.set(null);
+    void this.router.navigateByUrl(card.detailUrl);
+  }
+
+  private confirmDetailUrl(actionId: string): string | null {
+    const map: Record<string, string> = {
+      'user.deactivate': '/admin/users',
+      'user.activate': '/admin/users',
+      'user.unlock': '/admin/users',
+      'user.change_role': '/admin/users',
+      'user.deleted': '/admin/users',
+      'product.deactivate': '/admin/products',
+      'stock.receipt': '/admin/stock',
+      'stock.adjustment': '/admin/stock',
+      'stock.transfer': '/admin/stock',
+      'reservation.confirm': '/admin/reservas',
+      'reservation.cancel': '/admin/reservas',
+      'reservation.arrived': '/admin/reservas',
+      'order.change_status': '/admin/pedidos',
+      'order.carrier': '/admin/pedidos',
+      'order.register_return': '/admin/devoluciones',
+      'promotion.deactivate': '/admin/promociones',
+      'vestidor.retry': '/admin/probador',
+    };
+    return map[actionId] ?? null;
+  }
+
+  private async confirmUser(action: AssistantAction, parsed: ParsedAction, version: number) {
+    const d = parsed.data as any;
+    const q = String(d.email ?? d.target ?? '').trim();
+    if (!q) return this.needMore(action, 'Decime el usuario por su correo o su nombre para preparar la operación.', version);
+    const page = await firstValueFrom(
+      this.api.get<Page<any>>('/users', { search: q, page_size: 3, include_deleted: true }),
+    );
+    if (version !== this.conversationVersion) return;
+    const items = page.items ?? [];
+    if (!items.length) return this.needMore(action, `No encontré un usuario con «${q}».`, version);
+    if (items.length > 1) {
+      return this.needMore(action, `Encontré ${items.length} usuarios con «${q}». Repetí el pedido con el correo exacto para desambiguar.`, version);
+    }
+    const user: any = items[0];
+    const label = `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() || user.email;
+    const roles = (user.roles ?? []).map((r: any) => r.code || r.name).join(', ');
+    const verbs: Record<string, string> = {
+      'user.deactivate': 'Desactivar',
+      'user.activate': 'Activar',
+      'user.unlock': 'Desbloquear',
+      'user.deleted': 'Eliminar definitivamente',
+    };
+    const restricted = action.id === 'user.deleted';
+    const verb = verbs[action.id] ?? 'Modificar';
+    const lines = [`Usuario: ${label} (${user.email})`, roles ? `Roles actuales: ${roles}` : ''].filter(Boolean);
+
+    if (action.id === 'user.change_role') {
+      const roleName = String(d.role ?? '').trim();
+      if (!roleName) {
+        return this.needMore(action, `¿A qué rol lo pasás? Decílo junto al usuario.`, version);
+      }
+      const rolesList = await firstValueFrom(this.api.get<any[]>('/roles'));
+      if (version !== this.conversationVersion) return;
+      const role = rolesList.find(
+        (r: any) =>
+          String(r.code).toLowerCase() === roleName.toLowerCase() ||
+          String(r.name).toLowerCase().includes(roleName.toLowerCase()),
+      );
+      if (!role) {
+        return this.needMore(
+          action,
+          `No encontré el rol «${roleName}». Roles disponibles: ${rolesList.map((r: any) => r.code).join(', ')}.`,
+          version,
+        );
+      }
+      if (Array.isArray(user.roles) && user.roles.some((r: any) => r.id === role.id)) {
+        return this.needMore(action, `${label} ya tiene el rol ${role.name || role.code}.`, version);
+      }
+      const roleIds = [...(user.roles ?? []).map((r: any) => r.id), role.id];
+      lines.push(`Nuevo rol: ${role.name || role.code}`);
+      this.requireConfirm({
+        actionId: action.id,
+        title: `Cambiar rol de la cuenta`,
+        lines,
+        confirmLabel: 'Cambiar rol',
+        detailUrl: '/admin/users',
+        handleConfirm: async () => {
+          await firstValueFrom(this.api.write('PUT', `/users/${user.id}/roles`, { role_ids: roleIds }));
+          this.history.update((h) => [
+            ...h,
+            { from: 'assistant', text: `Rol asignado: ${label} ahora es ${role.name || role.code}. Quedó en la bitácora.` },
+          ]);
+        },
+      });
+      return;
+    }
+
+    this.requireConfirm({
+      actionId: action.id,
+      title: `${verb} la cuenta`,
+      lines,
+      confirmLabel: verb,
+      restricted,
+      requiredText: restricted ? user.email : '',
+      detailUrl: '/admin/users',
+      handleConfirm: async () => {
+        if (action.id === 'user.deleted') {
+          await firstValueFrom(this.api.write('DELETE', `/users/${user.id}`));
+        } else if (action.id === 'user.unlock') {
+          await firstValueFrom(this.api.write('POST', `/users/${user.id}/unlock`));
+        } else if (action.id === 'user.activate') {
+          await firstValueFrom(this.api.write('POST', `/users/${user.id}/activate`));
+        } else {
+          await firstValueFrom(this.api.write('POST', `/users/${user.id}/deactivate`));
+        }
+        this.history.update((h) => [
+          ...h,
+          { from: 'assistant', text: `${verb.toLowerCase()} de ${user.email} ejecutado. Quedó registrado en la bitácora.` },
+        ]);
+      },
+    });
+  }
+
+  private async confirmProduct(action: AssistantAction, parsed: ParsedAction, version: number) {
+    const name = String(parsed.data['name'] ?? '').trim();
+    if (!name) return this.needMore(action, 'Decime el nombre de la prenda para preparar la operación.', version);
+    const page = await firstValueFrom(this.catalog.products({ search: name, page_size: 5 }));
+    if (version !== this.conversationVersion) return;
+    const items = page.items ?? [];
+    if (!items.length) return this.needMore(action, `No encontré la prenda «${name}».`, version);
+    const exact = items.some((p: any) => String(p.name).toLowerCase() === name.toLowerCase());
+    if (items.length > 1 && !exact) {
+      return this.needMore(
+        action,
+        `Encontré ${items.length} prendas parecidas (${items.slice(0, 5).map((p: any) => p.name).join(', ')}). Repetí el pedido con el nombre completo.`,
+        version,
+      );
+    }
+    const product: any = exact ? items.find((p: any) => String(p.name).toLowerCase() === name.toLowerCase()) : items[0];
+    this.requireConfirm({
+      actionId: action.id,
+      title: 'Desactivar la prenda',
+      lines: [
+        `Prenda: ${product.name}`,
+        product.category?.name ? `Categoría: ${product.category.name}` : '',
+        'Dejará de verse en el catálogo y en el vestidor. Se puede volver a activar desde Prendas.',
+      ].filter(Boolean),
+      confirmLabel: 'Desactivar',
+      detailUrl: '/admin/products',
+      handleConfirm: async () => {
+        await firstValueFrom(this.api.write('POST', `/catalog/admin/products/${product.id}/deactivate`));
+        this.history.update((h) => [
+          ...h,
+          { from: 'assistant', text: `Prenda desactivada: ${product.name}. Quedó en la bitácora.` },
+        ]);
+      },
+    });
+  }
+
+  private async confirmStock(action: AssistantAction, parsed: ParsedAction, version: number) {
+    const d = parsed.data as any;
+    const name = String(d.variant ?? '').trim();
+    if (!name) return this.needMore(action, 'Decime la prenda o variante (talle/color) para preparar el movimiento.', version);
+    const page = await firstValueFrom(this.catalog.products({ search: name, page_size: 5 }));
+    if (version !== this.conversationVersion) return;
+    const items = page.items ?? [];
+    const product: any = items[0];
+    if (!product) return this.needMore(action, `No encontré la prenda «${name}».`, version);
+    const variant: any = (product.variants ?? [])[0];
+    if (!variant) return this.needMore(action, `La prenda «${product.name}» no tiene unidades (talles/colores) para mover.`, version);
+    const branches = await this.commerce.branches();
+    if (version !== this.conversationVersion) return;
+    if (!branches.length) return this.needMore(action, 'No hay sucursales configuradas para registrar el movimiento.', version);
+    const findBranch = (wanted?: unknown): any => {
+      const w = String(wanted ?? '').toLowerCase();
+      if (!w) return null;
+      return branches.find((b: any) => String(b.name).toLowerCase().includes(w)) ?? null;
+    };
+
+    if (action.id === 'stock.transfer') {
+      const fromBranch = findBranch(d.from);
+      const toBranch = findBranch(d.to);
+      const quantity = Number(d.quantity ?? 0);
+      if (!fromBranch || !toBranch) {
+        return this.needMore(
+          action,
+          `No pude resolver las sucursales (origen «${d.from ?? '?'}», destino «${d.to ?? '?'}»). Sucursales: ${branches.map((b: any) => b.name).join(', ')}.`,
+          version,
+        );
+      }
+      if (!quantity) return this.needMore(action, 'Indicá cuántas unidades transferir, por ejemplo "10 unidades".', version);
+      this.requireConfirm({
+        actionId: action.id,
+        title: 'Transferir existencias',
+        lines: [
+          `Prenda: ${product.name} (${variant.size ?? ''} ${variant.color ?? ''})`,
+          `Unidades: ${quantity}`,
+          `De: ${fromBranch.name}`,
+          `A: ${toBranch.name}`,
+          'Se registran dos movimientos de inventario (salida y entrada) en la bitácora.',
+        ],
+        confirmLabel: 'Transferir',
+        detailUrl: '/admin/stock',
+        handleConfirm: async () => {
+          const reason = 'Transferencia entre sucursales';
+          await this.commerce.write('POST', `/admin/stock/${variant.id}/movements`, {
+            branch_id: fromBranch.id, kind: 'issue', quantity, reason, reference: 'transferencia',
+          });
+          await this.commerce.write('POST', `/admin/stock/${variant.id}/movements`, {
+            branch_id: toBranch.id, kind: 'receipt', quantity, reason, reference: 'transferencia',
+          });
+          this.history.update((h) => [
+            ...h,
+            { from: 'assistant', text: `Transferencia registrada: ${quantity} u. de ${fromBranch.name} a ${toBranch.name}.` },
+          ]);
+        },
+      });
+      return;
+    }
+
+    const branchWanted = d.branch;
+    const branch = findBranch(branchWanted) ?? (branches.length === 1 ? branches[0] : null);
+    if (!branch) {
+      return this.needMore(
+        action,
+        `Elegí la sucursal del movimiento. Sucursales: ${branches.map((b: any) => b.name).join(', ')}.`,
+        version,
+      );
+    }
+    if (action.id === 'stock.receipt') {
+      const quantity = Number(d.quantity ?? 0);
+      if (!quantity) return this.needMore(action, 'Indicá cuántas unidades ingresan, por ejemplo "entrada de 20 unidades".', version);
+      const reason = String(d.reason ?? 'Entrada de mercadería');
+      this.requireConfirm({
+        actionId: action.id,
+        title: 'Registrar entrada de existencias',
+        lines: [
+          `Prenda: ${product.name} (${variant.size ?? ''} ${variant.color ?? ''})`,
+          `Unidades: ${quantity}`,
+          `Sucursal: ${branch.name}`,
+          `Motivo: ${reason}`,
+        ],
+        confirmLabel: 'Registrar entrada',
+        detailUrl: '/admin/stock',
+        handleConfirm: async () => {
+          await this.commerce.write('POST', `/admin/stock/${variant.id}/movements`, {
+            branch_id: branch.id, kind: 'receipt', quantity, reason,
+          });
+          this.history.update((h) => [
+            ...h,
+            { from: 'assistant', text: `Entrada registrada: +${quantity} u. de ${product.name} en ${branch.name}.` },
+          ]);
+        },
+      });
+      return;
+    }
+    // Ajuste: deja las unidades en el valor indicado (no suma).
+    const quantity = Number(d.quantity ?? 0);
+    if (!quantity) return this.needMore(action, 'Indicá las existencias finales tras el ajuste (por ejemplo "ajuste de stock a 40").', version);
+    const reason = String(d.reason ?? 'Ajuste de inventario');
+    this.requireConfirm({
+      actionId: action.id,
+      title: 'Ajustar existencias',
+      lines: [
+        `Prenda: ${product.name} (${variant.size ?? ''} ${variant.color ?? ''})`,
+        `Existencias finales en ${branch.name}: ${quantity}`,
+        `Motivo: ${reason}`,
+      ],
+      confirmLabel: 'Ajustar',
+      detailUrl: '/admin/stock',
+      handleConfirm: async () => {
+        await this.commerce.write('PUT', `/admin/stock/${variant.id}`, {
+          branch_id: branch.id, quantity, reason,
+        });
+        this.history.update((h) => [
+          ...h,
+          { from: 'assistant', text: `Ajuste registrado: ${product.name} queda con ${quantity} u. en ${branch.name}.` },
+        ]);
+      },
+    });
+  }
+
+  private async confirmReservation(action: AssistantAction, parsed: ParsedAction, version: number) {
+    const page = await firstValueFrom(
+      this.api.get<Page<any>>('/reservations/admin/all', { status: 'pending', page_size: 20 }),
+    );
+    if (version !== this.conversationVersion) return;
+    const list = page.items ?? [];
+    if (!list.length) return this.needMore(action, 'No hay reservas pendientes para esa acción.', version);
+    if (list.length > 1) {
+      return this.needMore(
+        action,
+        `Hay ${list.length} reservas pendientes (${list.map((r: any) => `${r.scheduled_at ?? ''} ${r.branch_name ?? ''}`).join(', ')}). Indicá la sucursal o el horario exacto y repetí la orden.`,
+        version,
+      );
+    }
+    const reservation: any = list[0];
+    const labels: Record<string, string> = {
+      'reservation.confirm': 'Confirmar',
+      'reservation.cancel': 'Cancelar',
+      'reservation.arrived': 'Marcar cliente llegado',
+    };
+    const statuses: Record<string, string> = {
+      'reservation.confirm': 'confirmed',
+      'reservation.cancel': 'cancelled',
+      'reservation.arrived': 'attended',
+    };
+    const label = labels[action.id] ?? 'Aplicar';
+    this.requireConfirm({
+      actionId: action.id,
+      title: `${label} la reserva`,
+      lines: [
+        `Reserva: ${reservation.user_email || reservation.client_name || '—'} — ${reservation.scheduled_at ?? ''}`,
+        reservation.branch_name ? `Sucursal: ${reservation.branch_name}` : '',
+      ].filter(Boolean),
+      confirmLabel: label,
+      detailUrl: '/admin/reservas',
+      handleConfirm: async () => {
+        await firstValueFrom(
+          this.api.write('PATCH', `/reservations/admin/${reservation.id}/status`, {
+            status: statuses[action.id],
+            note: 'Actualizada desde el asistente.',
+          }),
+        );
+        this.history.update((h) => [
+          ...h,
+          { from: 'assistant', text: `Reserva ${statuses[action.id]} (${reservation.scheduled_at ?? ''}). Quedó en la bitácora.` },
+        ]);
+      },
+    });
+  }
+
+  private async confirmOrder(action: AssistantAction, parsed: ParsedAction, version: number) {
+    const d = parsed.data as any;
+    const number = String(d.order_number ?? '').trim();
+    if (!number) return this.needMore(action, 'Indicá el número del pedido, por ejemplo FS-123.', version);
+    const rows = await this.commerce.get<any[]>('/admin/orders', { q: number, limit: 20 });
+    if (version !== this.conversationVersion) return;
+    const orderKey = (value: unknown) => String(value ?? '').replace(/[^a-z0-9]/gi, '').toUpperCase();
+    const requestedKey = orderKey(number);
+    const order: any = (rows as any[]).find((o) => orderKey(o.number) === requestedKey);
+    if (!order) return this.needMore(action, `No encontré el pedido «${number}».`, version);
+
+    if (action.id === 'order.register_return') {
+      this.requireConfirm({
+        actionId: action.id,
+        title: 'Registrar una devolución',
+        lines: [
+          `Pedido: ${order.number} — ${order.customer_email ?? ''}`,
+          'La devolución se registra en la bandeja de Devoluciones con las prendas concretas que se reciben; el backend reintegra el stock y audita el movimiento.',
+        ],
+        confirmLabel: 'Abrir devoluciones',
+        restricted: true,
+        requiredText: order.number,
+        detailUrl: '/admin/devoluciones',
+        handleConfirm: async () => {
+          this.history.update((h) => [
+            ...h,
+            { from: 'assistant', text: `Abrí la bandeja de devoluciones para el pedido ${order.number}: completá las prendas y el motivo allí mismo. Nada se modificó todavía.` },
+          ]);
+          void this.router.navigateByUrl('/admin/devoluciones');
+        },
+      });
+      return;
+    }
+
+    if (action.id === 'order.change_status') {
+      const newStatus = String(d.new_status ?? '');
+      const labels: Record<string, string> = {
+        processing: 'En preparación',
+        shipped: 'Enviado',
+        delivered: 'Entregado',
+      };
+      this.requireConfirm({
+        actionId: action.id,
+        title: 'Cambiar el estado del pedido',
+        lines: [
+          `Pedido: ${order.number} — ${order.customer_email ?? ''}`,
+          `Estado actual: ${order.status ?? '—'}`,
+          `Nuevo estado: ${labels[newStatus] ?? newStatus}`,
+        ],
+        confirmLabel: 'Cambiar estado',
+        detailUrl: '/admin/pedidos',
+        handleConfirm: async () => {
+          await firstValueFrom(
+            this.api.write('PATCH', `/commerce/admin/orders/${order.id}/tracking`, {
+              status: newStatus,
+              note: 'Actualizado desde el asistente.',
+            }),
+          );
+          this.history.update((h) => [
+            ...h,
+            { from: 'assistant', text: `Pedido ${order.number} → ${labels[newStatus] ?? newStatus}. Quedó en la bitácora.` },
+          ]);
+        },
+      });
+      return;
+    }
+
+    // Asignar transportista = marcar como enviado con el transportista.
+    const carrier = String(d.carrier ?? '').trim();
+    if (!carrier) return this.needMore(action, 'Decime qué transportista asignar (ejemplo: "Correos").', version);
+    if (order.status !== 'processing') {
+      return this.needMore(
+        action,
+        `El pedido ${order.number} está en «${order.status ?? '—'}»: asignar transportista lo marca como enviado. Hacelo desde Pedidos o pasá primero el pedido a «En preparación».`,
+        version,
+      );
+    }
+    this.requireConfirm({
+      actionId: action.id,
+      title: 'Marcar enviado y asignar transportista',
+      lines: [
+        `Pedido: ${order.number} — ${order.customer_email ?? ''}`,
+        `Transportista: ${carrier}`,
+        'El estado pasará a «Enviado» y el transportista quedará registrado.',
+      ],
+      confirmLabel: 'Asignar transportista',
+      detailUrl: '/admin/pedidos',
+      handleConfirm: async () => {
+        await firstValueFrom(
+          this.api.write('PATCH', `/commerce/admin/orders/${order.id}/tracking`, {
+            status: 'shipped',
+            carrier,
+            note: 'Transportista asignado: ' + carrier,
+          }),
+        );
+        this.history.update((h) => [
+          ...h,
+          { from: 'assistant', text: `Pedido ${order.number} enviado con ${carrier}. Quedó en la bitácora.` },
+        ]);
+      },
+    });
+  }
+
+  private async confirmPromotion(action: AssistantAction, parsed: ParsedAction, version: number) {
+    const d = parsed.data as any;
+    const code = String(d.code ?? '').toUpperCase().trim();
+    if (!code) return this.needMore(action, 'Decime el código del cupón o promoción a desactivar.', version);
+    const rows = await this.commerce.get<any[]>('/admin/promotions', {});
+    if (version !== this.conversationVersion) return;
+    const promo = rows.find((p: any) => String(p.code ?? '').toUpperCase() === code);
+    if (!promo) {
+      const codes = rows.filter((p: any) => p.is_active).map((p: any) => p.code).join(', ');
+      return this.needMore(action, `No encontré el cupón «${code}». Activos: ${codes || 'ninguno'}.`, version);
+    }
+    if (!promo.is_active) return this.needMore(action, `El cupón «${code}» ya está desactivado.`, version);
+    this.requireConfirm({
+      actionId: action.id,
+      title: 'Desactivar la promoción',
+      lines: [
+        `Promoción: ${promo.name || promo.code} (${promo.discount_type} ${promo.discount_value ?? ''})`,
+        'Dejará de aplicarse en el carrito. Se puede reactivar desde Cupones.',
+      ],
+      confirmLabel: 'Desactivar',
+      detailUrl: '/admin/promociones',
+      handleConfirm: async () => {
+        await firstValueFrom(
+          this.api.write('PATCH', `/commerce/admin/promotions/${promo.id}`, { is_active: false }),
+        );
+        this.history.update((h) => [
+          ...h,
+          { from: 'assistant', text: `Promoción desactivada: ${promo.name || promo.code}. Quedó en la bitácora.` },
+        ]);
+      },
+    });
+  }
+
+  private async confirmVestidor(action: AssistantAction, parsed: ParsedAction, version: number) {
+    const d = parsed.data as any;
+    if (typeof d.name === 'string' && d.name) {
+      const page = await firstValueFrom(this.catalog.products({ search: d.name, page_size: 3 }));
+      const product: any = page.items?.[0];
+      if (product) {
+        const assets = await firstValueFrom(
+          this.api.get<any[]>('/vestidor/admin/assets', { product_id: product.id }),
+        );
+        const failed = assets.filter((a: any) => a.ai_status === 'failed');
+        const review = assets.filter((a: any) => a.ai_status === 'review');
+        if (failed.length || review.length) {
+          const target = failed[0] ?? review[0];
+          return this.buildVestidorCard(action, product.name, target, version);
+        }
+        return this.needMore(action, `La prenda «${product.name}» no tiene recursos fallidos ni en revisión.`, version);
+      }
+      return this.needMore(action, `No encontré la prenda «${d.name}».`, version);
+    }
+    const assets = await firstValueFrom(
+      this.api.get<any[]>('/vestidor/admin/assets', {}),
+    );
+    if (version !== this.conversationVersion) return;
+    const failed = assets.filter((a: any) => a.ai_status === 'failed');
+    const review = assets.filter((a: any) => a.ai_status === 'review');
+    if (!failed.length && !review.length) return this.needMore(action, 'No hay recursos del vestidor fallidos ni en revisión.', version);
+    const target = failed[0] ?? review[0];
+    const name = target.product_name ?? target.id;
+    this.buildVestidorCard(action, name, target, version);
+  }
+
+  private buildVestidorCard(action: AssistantAction, label: string, asset: any, version: number) {
+    if (version !== this.conversationVersion) return;
+    this.requireConfirm({
+      actionId: action.id,
+      title: 'Reintentar el recurso del vestidor',
+      lines: [
+        `Recurso: ${label}`,
+        `Estado actual: ${asset.ai_status}`,
+        'Se vuelve a analizar la foto de catálogo; no borra nada.',
+      ],
+      confirmLabel: 'Reintentar',
+      detailUrl: '/admin/probador',
+      handleConfirm: async () => {
+        await firstValueFrom(this.api.write('POST', `/vestidor/admin/assets/${asset.id}/retry`));
+        this.history.update((h) => [
+          ...h,
+          { from: 'assistant', text: `Reintento de ${label} disparado. Revisalo en el probador.` },
+        ]);
+      },
+    });
+  }
+
   /** CU: "exportame el reporte de ventas del último mes" o "exportá esto" —
    * interpreta la consulta con el mismo motor determinista del dashboard y lo
    * combina con el contexto visible (el filtro que el dashboard está
