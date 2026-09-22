@@ -453,6 +453,9 @@ describe('Asistente: contexto compartido de reportes', () => {
       fixture.componentInstance.toggle();
       await fixture.componentInstance.toggleVoice();
       fixture.componentInstance.toggleVoice();
+      // La interfaz da una breve oportunidad al reconocimiento local para
+      // completar su texto antes de usar la transcripción del servidor.
+      await new Promise(resolve => setTimeout(resolve, 260));
       await fixture.whenStable();
       fixture.detectChanges();
 

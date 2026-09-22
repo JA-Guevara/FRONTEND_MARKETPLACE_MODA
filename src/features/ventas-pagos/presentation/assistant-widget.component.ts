@@ -346,6 +346,10 @@ export class AssistantWidgetComponent implements OnDestroy {
    * mismo y no caer en el chat general. */
   private lastIntent: 'chat' | 'draft' | 'export' | 'explain' | 'apply' = 'chat';
   botState = signal<BotState>('idle');
+  /** Reconocimiento local opcional: sólo da texto visible en tiempo real.
+   * La transcripción del backend sigue siendo el respaldo confiable. */
+  private recognition: any;
+  private browserTranscript = '';
   private mediaRecorder: MediaRecorder | null = null;
   private mediaStream: MediaStream | null = null;
   private audioChunks: BlobPart[] = [];
@@ -384,6 +388,24 @@ export class AssistantWidgetComponent implements OnDestroy {
     this.router.events
       .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
       .subscribe((e) => this.currentModule.set(this.resolveModule(e.urlAfterRedirects)));
+    const SpeechRecognitionCtor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognitionCtor) {
+      this.recognition = new SpeechRecognitionCtor();
+      // `es-ES` es la variante más ampliamente atendida por los motores de
+      // navegador; el backend sigue recibiendo español sin depender de esto.
+      this.recognition.lang = 'es-ES';
+      this.recognition.interimResults = true;
+      this.recognition.maxAlternatives = 1;
+      this.recognition.addEventListener('result', (event: any) => {
+        const text = Array.from(event.results as any[])
+          .map((result: any) => result[0]?.transcript ?? '')
+          .join(' ')
+          .trim();
+        if (!text || !this.voiceMode()) return;
+        this.browserTranscript = text;
+        this.voiceTranscript.set(text);
+      });
+    }
     this.destroyRef.onDestroy(() => this.stopVoice());
   }
 
@@ -426,6 +448,7 @@ export class AssistantWidgetComponent implements OnDestroy {
   stopVoice() {
     this.voiceMode.set(false);
     this.voiceTranscribing.set(false);
+    this.stopBrowserTranscript();
     this.voiceTranscript.set('');
     this.stopVoiceDuration();
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
@@ -486,6 +509,7 @@ export class AssistantWidgetComponent implements OnDestroy {
       recorder.start(250);
       this.listening.set(true);
       this.startVoiceDuration();
+      this.startBrowserTranscript();
     } catch (error: any) {
       this.voiceMode.set(false);
       this.voiceTranscript.set('');
@@ -497,9 +521,11 @@ export class AssistantWidgetComponent implements OnDestroy {
     const recorder = this.mediaRecorder;
     if (!recorder || recorder.state === 'inactive') return;
     this.listening.set(false);
-    this.stopVoiceDuration();
+    // Conserva la duración en pantalla mientras se transcribe el audio.
+    this.stopVoiceDuration(false);
     this.voiceTranscribing.set(true);
     this.voiceTranscript.set('Transcribiendo tu audio…');
+    this.stopBrowserTranscript();
     recorder.stop();
   }
   private async onVoiceRecordingStopped() {
@@ -510,19 +536,32 @@ export class AssistantWidgetComponent implements OnDestroy {
     this.audioChunks = [];
     this.releaseVoiceStream();
     if (!shouldTranscribe) return;
+    // Espera el resultado final del reconocimiento local si está disponible.
+    await new Promise(resolve => setTimeout(resolve, 240));
     if (audio.size < 400) {
       this.voiceMode.set(false);
       this.voiceTranscribing.set(false);
       this.voiceTranscript.set('');
+      this.stopVoiceDuration();
       this.voiceError.set('El audio fue demasiado corto. Mantené el micrófono activo mientras decís tu indicación.');
       return;
     }
     try {
+      const localText = this.browserTranscript.trim();
+      if (localText) {
+        this.voiceMode.set(false);
+        this.voiceTranscribing.set(false);
+        this.voiceTranscript.set('');
+        this.stopVoiceDuration();
+        await this.send(localText);
+        return;
+      }
       const result = await this.commerce.transcribeVoice(audio);
       if (!this.voiceMode()) return;
       this.voiceMode.set(false);
       this.voiceTranscribing.set(false);
       this.voiceTranscript.set('');
+      this.stopVoiceDuration();
       const text = result.text?.trim();
       if (!result.available || !text) throw new Error(result.message || 'No pude entender el audio.');
       await this.send(text);
@@ -530,6 +569,7 @@ export class AssistantWidgetComponent implements OnDestroy {
       this.voiceMode.set(false);
       this.voiceTranscribing.set(false);
       this.voiceTranscript.set('');
+      this.stopVoiceDuration();
       this.voiceError.set(errorMessage(error));
     }
   }
@@ -545,10 +585,27 @@ export class AssistantWidgetComponent implements OnDestroy {
       this.voiceElapsedSeconds.set(Math.floor((Date.now() - this.voiceStartedAt) / 1000));
     }, 250);
   }
-  private stopVoiceDuration() {
+  private stopVoiceDuration(reset = true) {
     if (this.voiceDurationTimer) clearInterval(this.voiceDurationTimer);
     this.voiceDurationTimer = null;
-    this.voiceElapsedSeconds.set(0);
+    if (reset) this.voiceElapsedSeconds.set(0);
+  }
+  private startBrowserTranscript() {
+    this.browserTranscript = '';
+    if (!this.recognition) return;
+    try {
+      this.recognition.start();
+    } catch {
+      // Si el motor no está disponible, el audio grabado igual se transcribe.
+    }
+  }
+  private stopBrowserTranscript() {
+    if (!this.recognition) return;
+    try {
+      this.recognition.stop();
+    } catch {
+      /* ya se había detenido */
+    }
   }
   voiceElapsedLabel() {
     const seconds = this.voiceElapsedSeconds();
