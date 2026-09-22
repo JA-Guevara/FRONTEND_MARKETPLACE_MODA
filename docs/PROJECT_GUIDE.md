@@ -78,6 +78,13 @@ Cada ruta administrativa declara su permiso en `data.permission` y el guardia lo
 
 **Fechas locales.** Un `datetime-local` trabaja en hora local; `toISOString()` devuelve UTC. Mezclarlos corría el horario mínimo de una reserva cuatro horas en Bolivia. Las fechas de formulario se ajustan con el desfase del navegador.
 
+**Asistente por voz.** Lo dictado se transcribe en el servidor y se enruta con el mismo detector de
+intención que lo escrito (`assistant-intent.ts`): «exportame un reporte en PDF» dispara la
+exportación, y «cómo exporto un reporte» sigue siendo una pregunta. El detector ya toleraba las
+variantes del dictado; lo que fallaba era la transcripción, que ante silencio devolvía una frase
+inventada por el modelo y el asistente la respondía como si fuera un mensaje. Ese filtro vive en el
+backend, y acá se muestra el aviso.
+
 **Probador virtual: la prenda se deforma, no se pega.** La foto preparada del catálogo no se
 superpone como imagen: se usa como **relleno del polígono** que ya seguía hombros, codos, muñecas y
 caderas. La foto se reparte en una malla de 4×6 celdas y cada celda se estira, triángulo a
