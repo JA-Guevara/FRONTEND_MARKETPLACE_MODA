@@ -1,10 +1,14 @@
 import { Injectable, inject } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom, map } from 'rxjs';
 import { ApiService } from '../../../app/core/shared/api.service';
+import { ApiResponse } from '../../../shared/models';
+import { environment } from '../../../environments/environment';
 import { Branch, Cart, CashPoint, Order, OrderReturn, PosLookup, ReturnAvailability } from '../domain/commerce.models';
 @Injectable({ providedIn: 'root' })
 export class CommerceService {
   private api = inject(ApiService);
+  private http = inject(HttpClient);
   branches() {
     return firstValueFrom(this.api.get<Branch[]>('/commerce/branches'));
   }
@@ -77,5 +81,20 @@ export class CommerceService {
 
   verifyPayment(id: string, admin = false) {
     return this.write<Order>('POST', (admin ? '/admin/orders/' : '/orders/') + id + '/payment-status');
+  }
+
+  /** Sube una nota de voz efímera para que el backend la transcriba. El audio
+   * no se guarda: el componente usa el texto recibido como un mensaje normal. */
+  transcribeVoice(audio: Blob): Promise<{ available: boolean; text: string; message?: string }> {
+    const body = new FormData();
+    body.append('audio', audio, 'consulta.webm');
+    return firstValueFrom(
+      this.http
+        .post<ApiResponse<{ available: boolean; text: string; message?: string }>>(
+          environment.apiUrl + '/commerce/assistant/transcribe',
+          body,
+        )
+        .pipe(map((response) => response.data)),
+    );
   }
 }

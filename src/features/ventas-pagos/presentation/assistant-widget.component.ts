@@ -295,7 +295,7 @@ const SUGGESTIONS = [
         </form>
         @if (voiceMode()) {
           <p class="ai-voice-status" role="status">
-            {{ listening() ? 'Te escucho. Tocá el micrófono para terminar la conversación por voz.' : speaking() ? 'Te respondo por voz…' : busy() ? 'Entendí tu mensaje y estoy preparando la respuesta…' : 'Preparando el micrófono…' }}
+            {{ voiceTranscribing() ? 'Transcribiendo tu audio…' : listening() ? 'Grabando. Tocá el micrófono para enviar tu mensaje.' : speaking() ? 'Te respondo por voz…' : busy() ? 'Entendí tu mensaje y estoy preparando la respuesta…' : 'Preparando el micrófono…' }}
           </p>
         }
         @if (voiceError()) {
@@ -328,6 +328,7 @@ export class AssistantWidgetComponent implements OnDestroy {
   /** Texto parcial del turno activo; se muestra como una nota de voz temporal. */
   voiceTranscript = signal('');
   voiceElapsedSeconds = signal(0);
+  voiceTranscribing = signal(false);
   history = signal<ChatEntry[]>([]);
   downloads = signal<{ url: string; name: string }[]>([]);
   private lastExport: { reports: ExportReport[]; query: ReportQuery } | null = null;
@@ -345,19 +346,21 @@ export class AssistantWidgetComponent implements OnDestroy {
    * mismo y no caer en el chat general. */
   private lastIntent: 'chat' | 'draft' | 'export' | 'explain' | 'apply' = 'chat';
   botState = signal<BotState>('idle');
-  private recognition: any;
+  private mediaRecorder: MediaRecorder | null = null;
+  private mediaStream: MediaStream | null = null;
+  private audioChunks: BlobPart[] = [];
   private utterance: SpeechSynthesisUtterance | null = null;
   private botTimer: ReturnType<typeof setTimeout> | null = null;
-  private voiceRestartTimer: ReturnType<typeof setTimeout> | null = null;
   private voiceDurationTimer: ReturnType<typeof setInterval> | null = null;
   private voiceStartedAt = 0;
-  private discardVoiceDraft = false;
   readonly voiceSupported: boolean;
   readonly speechOutputSupported: boolean;
 
   constructor() {
-    const SpeechRecognitionCtor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    this.voiceSupported = !!SpeechRecognitionCtor;
+    this.voiceSupported =
+      typeof window !== 'undefined' &&
+      !!navigator.mediaDevices?.getUserMedia &&
+      typeof MediaRecorder !== 'undefined';
     this.speechOutputSupported =
       typeof window !== 'undefined' && 'speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined';
     // Toda respuesta nueva se puede oír. Se cancela la anterior para que el
@@ -381,66 +384,6 @@ export class AssistantWidgetComponent implements OnDestroy {
     this.router.events
       .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
       .subscribe((e) => this.currentModule.set(this.resolveModule(e.urlAfterRedirects)));
-    if (SpeechRecognitionCtor) {
-      this.recognition = new SpeechRecognitionCtor();
-      this.recognition.lang = 'es-BO';
-      this.recognition.interimResults = true;
-      this.recognition.maxAlternatives = 1;
-      this.recognition.addEventListener('start', () => {
-        this.listening.set(true);
-        this.voiceError.set('');
-        this.voiceTranscript.set('');
-        this.startVoiceDuration();
-      });
-      this.recognition.addEventListener('end', () => {
-        this.listening.set(false);
-        this.stopVoiceDuration();
-        const unfinished = this.voiceTranscript().trim();
-        this.voiceTranscript.set('');
-        if (unfinished && !this.discardVoiceDraft && !this.busy()) {
-          // Algunos navegadores cierran el reconocimiento tras el texto
-          // parcial sin emitir uno final. Enviarlo al cerrar evita perder lo
-          // que la persona acaba de decir.
-          void this.send(unfinished);
-          return;
-        }
-        this.discardVoiceDraft = false;
-        // El reconocimiento se corta después de una pausa. Mientras el modo
-        // de voz siga activo, se prepara el siguiente turno sin pedir otro clic.
-        this.scheduleListening();
-      });
-      this.recognition.addEventListener('error', (event: any) => {
-        this.listening.set(false);
-        this.stopVoiceDuration();
-        if (event?.error === 'aborted' || event?.error === 'no-speech') return;
-        this.voiceMode.set(false);
-        this.clearVoiceRestart();
-        this.voiceTranscript.set('');
-        this.voiceError.set(this.voiceErrorMessage(event?.error));
-      });
-      this.recognition.addEventListener('result', (event: any) => {
-        let finalText = '';
-        let partialText = '';
-        const first = typeof event.resultIndex === 'number' ? event.resultIndex : 0;
-        for (let i = first; i < event.results.length; i++) {
-          const result = event.results[i];
-          const transcript = result[0]?.transcript ?? '';
-          if (result.isFinal === false) partialText += transcript;
-          else finalText += transcript;
-        }
-        finalText = finalText.trim();
-        partialText = partialText.trim();
-        if (finalText) {
-          // Hablar equivale a enviar: la persona no tiene que pulsar el botón
-          // otra vez después de que el navegador terminó de transcribir.
-          this.voiceTranscript.set('');
-          this.draft = finalText;
-          void this.send(finalText);
-        } else if (partialText) {
-          this.voiceTranscript.set(partialText);
-        }
-      });
-    }
     this.destroyRef.onDestroy(() => this.stopVoice());
   }
 
@@ -466,35 +409,33 @@ export class AssistantWidgetComponent implements OnDestroy {
     this.productDraft.set(null);
     this.clearDownloads();
   }
-  toggleVoice() {
-    if (!this.recognition) {
-      this.voiceError.set('El dictado no está disponible en este navegador. Usá Chrome o Edge actualizado y permití el micrófono.');
+  async toggleVoice() {
+    if (!this.voiceSupported) {
+      this.voiceError.set('La grabación no está disponible en este navegador. Usá Chrome, Edge o Safari actualizado y permití el micrófono.');
       return;
     }
-    if (this.voiceMode()) {
-      this.stopVoice();
+    if (this.listening()) {
+      this.finishVoiceRecording();
       return;
     }
+    if (this.voiceTranscribing()) return;
     this.voiceError.set('');
-    this.voiceMode.set(true);
     this.stopSpeaking();
-    this.startListening();
+    await this.startVoiceRecording();
   }
   stopVoice() {
     this.voiceMode.set(false);
-    this.clearVoiceRestart();
-    this.discardVoiceDraft = true;
+    this.voiceTranscribing.set(false);
     this.voiceTranscript.set('');
     this.stopVoiceDuration();
-    if (this.recognition && this.listening()) {
+    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
       try {
-        // `abort` evita mandar una frase parcial si la persona decide cancelar.
-        if (typeof this.recognition.abort === 'function') this.recognition.abort();
-        else this.recognition.stop();
+        this.mediaRecorder.stop();
       } catch {
-        /* no estaba iniciado */
+        /* la grabación ya terminó */
       }
     }
+    this.releaseVoiceStream();
     this.listening.set(false);
   }
   toggleVoiceOutput() {
@@ -502,10 +443,7 @@ export class AssistantWidgetComponent implements OnDestroy {
     if (!this.voiceOutputEnabled()) this.stopSpeaking();
   }
   private speak(text: string) {
-    if (!this.speechOutputSupported || !this.voiceOutputEnabled() || !text.trim()) {
-      this.scheduleListening();
-      return;
-    }
+    if (!this.speechOutputSupported || !this.voiceOutputEnabled() || !text.trim()) return;
     this.stopSpeaking();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'es-BO';
@@ -514,7 +452,6 @@ export class AssistantWidgetComponent implements OnDestroy {
     utterance.onend = utterance.onerror = () => {
       if (this.utterance === utterance) {
         this.speaking.set(false);
-        this.scheduleListening();
       }
     };
     this.utterance = utterance;
@@ -526,30 +463,79 @@ export class AssistantWidgetComponent implements OnDestroy {
     this.utterance = null;
     this.speaking.set(false);
   }
-  private startListening() {
-    if (!this.recognition || !this.voiceMode() || this.listening() || this.busy() || this.speaking()) return;
+  private async startVoiceRecording() {
+    if (!this.voiceSupported || this.listening() || this.voiceTranscribing()) return;
+    this.voiceMode.set(true);
+    this.voiceTranscript.set('Grabando audio…');
     try {
-      this.discardVoiceDraft = false;
-      this.recognition.start();
-    } catch (error: any) {
-      // `InvalidStateError` puede ocurrir mientras el navegador termina de
-      // cerrar el turno anterior. El evento `end` volverá a programarlo.
-      if (error?.name !== 'InvalidStateError') {
-        this.voiceMode.set(false);
-        this.voiceError.set(this.voiceErrorMessage(error?.name));
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!this.voiceMode()) {
+        stream.getTracks().forEach(track => track.stop());
+        return;
       }
+      this.mediaStream = stream;
+      const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']
+        .find(type => typeof MediaRecorder.isTypeSupported !== 'function' || MediaRecorder.isTypeSupported(type));
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      this.mediaRecorder = recorder;
+      this.audioChunks = [];
+      recorder.addEventListener('dataavailable', (event: BlobEvent) => {
+        if (event.data.size) this.audioChunks.push(event.data);
+      });
+      recorder.addEventListener('stop', () => void this.onVoiceRecordingStopped());
+      recorder.start(250);
+      this.listening.set(true);
+      this.startVoiceDuration();
+    } catch (error: any) {
+      this.voiceMode.set(false);
+      this.voiceTranscript.set('');
+      this.voiceError.set(this.voiceErrorMessage(error?.name));
+      this.releaseVoiceStream();
     }
   }
-  private scheduleListening() {
-    if (!this.voiceMode() || this.busy() || this.speaking() || this.listening() || this.voiceRestartTimer) return;
-    this.voiceRestartTimer = setTimeout(() => {
-      this.voiceRestartTimer = null;
-      this.startListening();
-    }, 280);
+  private finishVoiceRecording() {
+    const recorder = this.mediaRecorder;
+    if (!recorder || recorder.state === 'inactive') return;
+    this.listening.set(false);
+    this.stopVoiceDuration();
+    this.voiceTranscribing.set(true);
+    this.voiceTranscript.set('Transcribiendo tu audio…');
+    recorder.stop();
   }
-  private clearVoiceRestart() {
-    if (this.voiceRestartTimer) clearTimeout(this.voiceRestartTimer);
-    this.voiceRestartTimer = null;
+  private async onVoiceRecordingStopped() {
+    const shouldTranscribe = this.voiceMode() && this.voiceTranscribing();
+    const type = this.mediaRecorder?.mimeType || 'audio/webm';
+    const audio = new Blob(this.audioChunks, { type });
+    this.mediaRecorder = null;
+    this.audioChunks = [];
+    this.releaseVoiceStream();
+    if (!shouldTranscribe) return;
+    if (audio.size < 400) {
+      this.voiceMode.set(false);
+      this.voiceTranscribing.set(false);
+      this.voiceTranscript.set('');
+      this.voiceError.set('El audio fue demasiado corto. Mantené el micrófono activo mientras decís tu indicación.');
+      return;
+    }
+    try {
+      const result = await this.commerce.transcribeVoice(audio);
+      if (!this.voiceMode()) return;
+      this.voiceMode.set(false);
+      this.voiceTranscribing.set(false);
+      this.voiceTranscript.set('');
+      const text = result.text?.trim();
+      if (!result.available || !text) throw new Error(result.message || 'No pude entender el audio.');
+      await this.send(text);
+    } catch (error) {
+      this.voiceMode.set(false);
+      this.voiceTranscribing.set(false);
+      this.voiceTranscript.set('');
+      this.voiceError.set(errorMessage(error));
+    }
+  }
+  private releaseVoiceStream() {
+    this.mediaStream?.getTracks().forEach(track => track.stop());
+    this.mediaStream = null;
   }
   private startVoiceDuration() {
     this.stopVoiceDuration();
@@ -569,12 +555,11 @@ export class AssistantWidgetComponent implements OnDestroy {
     return `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
   }
   private voiceErrorMessage(code?: string): string {
-    if (code === 'not-allowed' || code === 'service-not-allowed') {
+    if (code === 'NotAllowedError' || code === 'SecurityError') {
       return 'El navegador bloqueó el micrófono. Permitilo para FashionStore y volvé a tocar el botón de voz.';
     }
-    if (code === 'audio-capture') return 'No encontré un micrófono disponible. Conectá uno e intentá nuevamente.';
-    if (code === 'network') return 'El servicio de dictado no respondió. Revisá tu conexión e intentá nuevamente.';
-    return 'No pude iniciar el dictado. Probá de nuevo con Chrome o Edge y verificá el permiso de micrófono.';
+    if (code === 'NotFoundError') return 'No encontré un micrófono disponible. Conectá uno e intentá nuevamente.';
+    return 'No pude iniciar la grabación. Revisá el permiso del micrófono e intentá nuevamente.';
   }
   greetName() {
     const name = this.session.user()?.first_name;

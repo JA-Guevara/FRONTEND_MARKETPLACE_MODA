@@ -29,11 +29,12 @@ function setup(options: { permissions?: string[] } = {}) {
     draftProduct: vi.fn(),
     createProduct: vi.fn(),
   };
+  const transcribeVoice = vi.fn();
   const dashboard = { interpret: vi.fn(), explain: vi.fn(), insights: vi.fn(), executeTool: vi.fn() };
   TestBed.configureTestingModule({
     imports: [AssistantWidgetComponent],
     providers: [
-      { provide: CommerceService, useValue: { write } },
+      { provide: CommerceService, useValue: { write, transcribeVoice } },
       { provide: SessionService, useValue: { user, can: (p: string) => (options.permissions ?? []).includes(p) } },
       { provide: CatalogService, useValue: catalog },
       { provide: DashboardService, useValue: dashboard },
@@ -43,7 +44,38 @@ function setup(options: { permissions?: string[] } = {}) {
   const fixture = TestBed.createComponent(AssistantWidgetComponent);
   fixture.detectChanges();
   const ctx = TestBed.inject(AssistantContextService);
-  return { fixture, write, catalog, dashboard, deferreds, ctx, user };
+  return { fixture, write, catalog, dashboard, deferreds, ctx, user, transcribeVoice };
+}
+
+function installVoiceRecorder(getUserMedia = vi.fn().mockResolvedValue({
+  getTracks: () => [{ stop: vi.fn() }],
+})) {
+  const previousRecorder = (globalThis as any).MediaRecorder;
+  const descriptor = Object.getOwnPropertyDescriptor(navigator, 'mediaDevices');
+  class FakeRecorder {
+    static isTypeSupported = vi.fn(() => true);
+    state: 'inactive' | 'recording' = 'inactive';
+    mimeType = 'audio/webm';
+    listeners: Record<string, (event?: any) => void> = {};
+    constructor(_stream: MediaStream, _options?: MediaRecorderOptions) {}
+    addEventListener(event: string, handler: (event?: any) => void) { this.listeners[event] = handler; }
+    start = vi.fn(() => { this.state = 'recording'; });
+    stop = vi.fn(() => {
+      this.state = 'inactive';
+      this.listeners['dataavailable']?.({ data: new Blob([new Uint8Array(500)], { type: 'audio/webm' }) });
+      this.listeners['stop']?.();
+    });
+  }
+  Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia } });
+  (globalThis as any).MediaRecorder = FakeRecorder;
+  return {
+    getUserMedia,
+    restore: () => {
+      if (descriptor) Object.defineProperty(navigator, 'mediaDevices', descriptor);
+      else delete (navigator as any).mediaDevices;
+      (globalThis as any).MediaRecorder = previousRecorder;
+    },
+  };
 }
 
 describe('Asistente: indicador de espera con tres puntos', () => {
@@ -413,121 +445,58 @@ describe('Asistente: contexto compartido de reportes', () => {
     expect(fixture.nativeElement.textContent).toContain('Limitaciones: Análisis sobre pedidos pagos.');
   });
 
-  it('la voz transcribe y envía la consulta sin exigir un segundo clic', async () => {
-    const FakeRecognition = vi.fn().mockImplementation(function (this: any) {
-      this.lang = '';
-      this.interimResults = false;
-      this.maxAlternatives = 1;
-      this.handlers = {} as Record<string, (e?: any) => void>;
-      this.addEventListener = (ev: string, fn: (e?: any) => void) => (this.handlers[ev] = fn);
-      this.start = vi.fn();
-      this.stop = vi.fn();
-    });
-    const prev = (globalThis as any).SpeechRecognition;
-    (globalThis as any).SpeechRecognition = FakeRecognition;
+  it('graba, transcribe y envía la indicación de voz al mismo asistente', async () => {
+    const voice = installVoiceRecorder();
     try {
-      const { fixture, write } = setup();
-      const recognition = (fixture.componentInstance as any).recognition;
-      expect(recognition).not.toBeNull();
+      const { fixture, write, transcribeVoice } = setup();
+      transcribeVoice.mockResolvedValue({ available: true, text: 'agenda una visita para mañana' });
       fixture.componentInstance.toggle();
+      await fixture.componentInstance.toggleVoice();
       fixture.componentInstance.toggleVoice();
-      recognition.handlers.result({ results: [{ 0: { transcript: 'agenda una visita para mañana' } }] });
+      await fixture.whenStable();
       fixture.detectChanges();
+
+      expect(voice.getUserMedia).toHaveBeenCalledWith({ audio: true });
+      expect(transcribeVoice).toHaveBeenCalledTimes(1);
       expect(fixture.componentInstance.draft).toBe('');
       expect(fixture.nativeElement.querySelectorAll('.ai-msg--user').length).toBe(1);
       expect(write).toHaveBeenCalledWith('POST', '/assistant', {
         message: 'agenda una visita para mañana', context: undefined,
       });
     } finally {
-      (globalThis as any).SpeechRecognition = prev;
+      voice.restore();
     }
   });
 
-  it('muestra una burbuja temporal con el dictado mientras la persona habla', () => {
-    const FakeRecognition = vi.fn().mockImplementation(function (this: any) {
-      this.handlers = {} as Record<string, (e?: any) => void>;
-      this.addEventListener = (ev: string, fn: (e?: any) => void) => (this.handlers[ev] = fn);
-      this.start = vi.fn();
-      this.stop = vi.fn();
-    });
-    const prev = (globalThis as any).SpeechRecognition;
-    (globalThis as any).SpeechRecognition = FakeRecognition;
+  it('muestra una burbuja temporal estilo nota de voz mientras graba', async () => {
+    const voice = installVoiceRecorder();
     try {
       const { fixture } = setup();
-      const recognition = (fixture.componentInstance as any).recognition;
       fixture.componentInstance.toggle();
-      fixture.componentInstance.toggleVoice();
-      recognition.handlers.start();
-      recognition.handlers.result({
-        resultIndex: 0,
-        results: [{ isFinal: false, 0: { transcript: 'quiero ver mis pedidos' } }],
-      });
+      await fixture.componentInstance.toggleVoice();
       fixture.detectChanges();
 
       const draft = fixture.nativeElement.querySelector('.ai-msg--voice-draft');
       expect(draft).not.toBeNull();
-      expect(draft.textContent).toContain('quiero ver mis pedidos');
+      expect(draft.textContent).toContain('Grabando audio');
       expect(draft.textContent).toContain('00:00');
     } finally {
-      (globalThis as any).SpeechRecognition = prev;
+      voice.restore();
     }
   });
 
-  it('mantiene el modo conversación y vuelve a escuchar cuando termina un turno', () => {
-    vi.useFakeTimers();
-    const FakeRecognition = vi.fn().mockImplementation(function (this: any) {
-      this.handlers = {} as Record<string, (e?: any) => void>;
-      this.addEventListener = (ev: string, fn: (e?: any) => void) => (this.handlers[ev] = fn);
-      this.start = vi.fn();
-      this.stop = vi.fn();
-      this.abort = vi.fn();
-    });
-    const prev = (globalThis as any).SpeechRecognition;
-    (globalThis as any).SpeechRecognition = FakeRecognition;
+  it('explica el bloqueo del micrófono en vez de fallar en silencio', async () => {
+    const voice = installVoiceRecorder(vi.fn().mockRejectedValue({ name: 'NotAllowedError' }));
     try {
       const { fixture } = setup();
-      const recognition = (fixture.componentInstance as any).recognition;
-      fixture.componentInstance.toggleVoice();
-      expect(fixture.componentInstance.voiceMode()).toBe(true);
-      expect(recognition.start).toHaveBeenCalledTimes(1);
-
-      // El navegador cierra el dictado al terminar una frase o una pausa.
-      recognition.handlers.end();
-      vi.advanceTimersByTime(280);
-      expect(recognition.start).toHaveBeenCalledTimes(2);
-
-      // Simula el evento que emite el navegador cuando el segundo turno abre.
-      recognition.handlers.start();
-      fixture.componentInstance.toggleVoice();
-      expect(fixture.componentInstance.voiceMode()).toBe(false);
-      expect(recognition.abort).toHaveBeenCalledTimes(1);
-    } finally {
-      (globalThis as any).SpeechRecognition = prev;
-      vi.useRealTimers();
-    }
-  });
-
-  it('explica el bloqueo del micrófono en vez de fallar en silencio', () => {
-    const FakeRecognition = vi.fn().mockImplementation(function (this: any) {
-      this.handlers = {} as Record<string, (e?: any) => void>;
-      this.addEventListener = (ev: string, fn: (e?: any) => void) => (this.handlers[ev] = fn);
-      this.start = vi.fn();
-      this.stop = vi.fn();
-    });
-    const prev = (globalThis as any).SpeechRecognition;
-    (globalThis as any).SpeechRecognition = FakeRecognition;
-    try {
-      const { fixture } = setup();
-      const recognition = (fixture.componentInstance as any).recognition;
       fixture.componentInstance.toggle();
-      fixture.componentInstance.toggleVoice();
-      recognition.handlers.error({ error: 'not-allowed' });
+      await fixture.componentInstance.toggleVoice();
       fixture.detectChanges();
 
       expect(fixture.componentInstance.voiceMode()).toBe(false);
       expect(fixture.nativeElement.textContent).toContain('El navegador bloqueó el micrófono');
     } finally {
-      (globalThis as any).SpeechRecognition = prev;
+      voice.restore();
     }
   });
 });
