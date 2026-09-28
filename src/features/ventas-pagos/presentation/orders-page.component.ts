@@ -336,6 +336,35 @@ export class OrdersPageComponent {
       }
     } else if (returned === 'cancelled') {
       this.message.set('Volviste del pago. Tu pedido sigue pendiente hasta que Stripe confirme el cobro.');
+    } else {
+      // Al abrir «Mis pedidos» sin venir del pago, se consulta igual el estado
+      // de los pedidos con tarjeta sin acreditar.
+      //
+      // El aviso automático de Stripe (webhook) solo llega si puede alcanzar al
+      // backend por internet: contra un backend local nunca llega, y un pago ya
+      // cobrado se quedaba en «Pendiente» hasta que alguien tocara «Verificar».
+      // Eso se lee como «pagué y no lo registra».
+      await this.reconciliarPendientes();
+    }
+  }
+
+  /** Consulta a Stripe por los pagos con tarjeta que siguen sin acreditar. */
+  private async reconciliarPendientes() {
+    const pendientes = this.orders().filter(
+      (o) => o.payment_method === 'stripe' && o.status === 'pending_payment',
+    );
+    // Cada consulta es una llamada a Stripe: solo los más recientes, que son
+    // los que la persona acaba de pagar.
+    for (const pedido of pendientes.slice(0, 3)) {
+      try {
+        const actualizado = await this.api.verifyPayment(pedido.id, false);
+        this.orders.update((lista) =>
+          lista.map((o) => (o.id === actualizado.id ? actualizado : o)),
+        );
+      } catch {
+        // Un pedido que no se puede consultar no debe tumbar la pantalla ni
+        // tapar los demás con un error: se queda como estaba.
+      }
     }
   }
   async verifyPayment(id: string) {

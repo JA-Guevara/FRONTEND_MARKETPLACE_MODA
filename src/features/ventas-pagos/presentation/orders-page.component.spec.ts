@@ -125,3 +125,57 @@ describe('Bandeja de pedidos de gestión', () => {
   });
 });
 
+
+describe('Acreditación automática al abrir Mis pedidos', () => {
+  it('consulta a Stripe por los pagos con tarjeta sin acreditar', async () => {
+    // El aviso automático de Stripe no llega a un backend local, así que un
+    // pago ya cobrado se quedaba en «Pendiente» hasta tocar «Verificar».
+    const { api } = await setup();
+    expect(api.verifyPayment).toHaveBeenCalledWith(pending.id, false);
+  });
+
+  it('refleja en la lista el pedido que Stripe confirmó', async () => {
+    const { fixture } = await setup();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.orders()[0].payment_status).toBe('paid');
+    expect(fixture.nativeElement.textContent).not.toContain('Pagar con Stripe');
+  });
+
+  it('no consulta por pedidos que no son con tarjeta', async () => {
+    const { api } = await setup({}, false, paid);
+    api.verifyPayment.mockClear();
+    api.orders.mockResolvedValue([
+      { ...pending, id: 'o-efectivo', payment_method: 'manual' },
+    ]);
+    await fixture_reload(api);
+    expect(api.verifyPayment).not.toHaveBeenCalled();
+  });
+
+  it('si una consulta falla, las demás y la pantalla siguen', async () => {
+    const { fixture, api } = await setup();
+    api.verifyPayment.mockRejectedValue(new Error('Stripe no responde'));
+    await fixture.componentInstance.load();
+    // La lista se sigue viendo y no queda un error tapando todo.
+    expect(fixture.componentInstance.orders().length).toBe(1);
+  });
+});
+
+/** Rehace el componente con el mock ya alterado. */
+async function fixture_reload(api: Record<string, unknown>) {
+  TestBed.resetTestingModule();
+  TestBed.configureTestingModule({
+    imports: [OrdersPageComponent],
+    providers: [
+      provideRouter([]),
+      {
+        provide: ActivatedRoute,
+        useValue: { snapshot: { data: { admin: false }, queryParamMap: convertToParamMap({}) } },
+      },
+      { provide: CommerceService, useValue: api },
+      { provide: SessionService, useValue: { can: () => true } },
+    ],
+  });
+  const fixture = TestBed.createComponent(OrdersPageComponent);
+  await fixture.whenStable();
+  return fixture;
+}

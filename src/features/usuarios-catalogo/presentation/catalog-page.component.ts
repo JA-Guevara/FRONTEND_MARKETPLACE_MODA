@@ -211,6 +211,7 @@ export class CatalogPageComponent {
   private destroy = inject(DestroyRef);
   result = signal<Page<Product> | null>(null);
   recommendations = signal<RecommendedProduct[]>([]);
+  private recommendationVersion = 0;
   loading = signal(true);
   error = signal('');
   referenceError = signal('');
@@ -228,7 +229,6 @@ export class CatalogPageComponent {
   constructor() {
     this.clearFields();
     void this.loadReferences();
-    void this.loadRecommendations();
     this.route.queryParams
       .pipe(
         tap((query) => {
@@ -237,6 +237,7 @@ export class CatalogPageComponent {
           this.featured = query['featured'] === 'true';
           this.loading.set(true);
           this.error.set('');
+          void this.loadRecommendations(query);
         }),
         switchMap((query) =>
           this.api.products({ ...query, page_size: 12 }).pipe(
@@ -267,9 +268,15 @@ export class CatalogPageComponent {
     };
     this.featured = false;
   }
-  async loadRecommendations() {
+  async loadRecommendations(query: Record<string, unknown> = {}) {
+    const version = ++this.recommendationVersion;
+    this.recommendations.set([]);
     try {
-      this.recommendations.set(await this.commerce.get<RecommendedProduct[]>('/recommendations'));
+      const items = await this.commerce.get<RecommendedProduct[]>(
+        '/recommendations',
+        { size_id: query['size_id'], season_id: query['season_id'] },
+      );
+      if (version === this.recommendationVersion) this.recommendations.set(items);
     } catch {
       /* seccion opcional: si falla, simplemente no se muestra */
     }

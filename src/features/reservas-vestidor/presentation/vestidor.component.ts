@@ -34,6 +34,7 @@ import {
   formaDePrenda,
 } from '../../../shared/garment-renderer';
 import { FotoRealistaComponent } from '../../probador-virtual/presentation/foto-realista.component';
+import { environment } from '../../../environments/environment';
 
 type CameraState = 'off' | 'requesting' | 'active' | 'error';
 
@@ -325,6 +326,13 @@ export class VestidorComponent implements OnInit, OnDestroy {
       // una foto de fondo.
       if (recurso?.asset_url && recurso.asset_type === 'prepared_2_5d') {
         const url = new URL(recurso.asset_url, window.location.origin);
+        // Las URLs grabadas en desarrollo pueden conservar localhost. En la
+        // web publicada ese host apunta al equipo del cliente, no a la API.
+        if (environment.production && ['localhost', '127.0.0.1', '10.0.2.2'].includes(url.hostname)) {
+          const api = new URL(environment.apiUrl, window.location.origin);
+          url.protocol = api.protocol;
+          url.host = api.host;
+        }
         if (['https:', 'http:'].includes(url.protocol)) {
           this.assetUrl.set(url.href);
           this.region = esRegion(recurso.body_region) ? recurso.body_region : this.region;

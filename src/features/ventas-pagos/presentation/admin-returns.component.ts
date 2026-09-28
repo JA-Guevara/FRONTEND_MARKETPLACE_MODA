@@ -31,10 +31,10 @@ const SIGUIENTES: Record<string, { status: string; titulo: string; icono: string
   styleUrl: './commerce.scss',
   template: `<section class="commerce-page">
     <p class="eyebrow">GESTIÓN COMERCIAL</p>
-    <h1>Devoluciones</h1>
+    <h1>Cambios y devoluciones</h1>
     <p class="muted">
-      Revisá las solicitudes de los clientes. Las prendas vuelven al stock cuando registrás que
-      llegaron a la sucursal.
+      Revisá los cambios y devoluciones. Las prendas entregadas vuelven al stock cuando registrás
+      que llegaron a la sucursal.
     </p>
 
     <form class="orders-filters" (ngSubmit)="$event.preventDefault(); filtrar()">
@@ -68,7 +68,7 @@ const SIGUIENTES: Record<string, { status: string; titulo: string; icono: string
     @if (pendientes().length) {
       <!-- Lo que hay que resolver, y cuánto dinero está comprometido en ello. -->
       <p class="alert" role="status">
-        <strong>{{ pendientes().length }}</strong> devolución(es) sin resolver por
+        <strong>{{ pendientes().length }}</strong> solicitud(es) sin resolver. Reintegros pendientes:
         <strong>{{ comprometido() | number: '1.2-2' }}</strong>.
       </p>
     }
@@ -95,7 +95,7 @@ const SIGUIENTES: Record<string, { status: string; titulo: string; icono: string
                 }
               </h2>
               <p class="muted">
-                Devolución {{ codigo(d) }} · {{ d.created_at | date: 'dd/MM/yyyy HH:mm' }}
+                {{ d.kind === 'exchange' ? 'Cambio' : 'Devolución' }} {{ codigo(d) }} · {{ d.created_at | date: 'dd/MM/yyyy HH:mm' }}
               </p>
               <p class="muted">
                 {{ d.customer_name || 'Consumidor final' }}
@@ -109,9 +109,9 @@ const SIGUIENTES: Record<string, { status: string; titulo: string; icono: string
             </div>
             <div>
               <span class="commerce-status">{{ label(d.status) }}</span>
-              <p>
+              @if (d.kind !== 'exchange') {<p>
                 <strong>{{ d.currency | uppercase }} {{ d.refund_amount | number: '1.2-2' }}</strong>
-              </p>
+              </p>}
             </div>
           </div>
 
@@ -126,6 +126,9 @@ const SIGUIENTES: Record<string, { status: string; titulo: string; icono: string
               <div>
                 <h3>{{ i.name }}</h3>
                 <p>{{ i.size }} · {{ i.color }} · {{ i.quantity }} unidad(es)</p>
+                @if (i.replacement_variant_id) {
+                  <p>Cambiar por {{ i.replacement_name }} · {{ i.replacement_size }} · {{ i.replacement_color }}</p>
+                }
                 <small>{{ i.sku }}</small>
               </div>
               <strong>{{ d.currency | uppercase }} {{ i.line_total | number: '1.2-2' }}</strong>
@@ -164,8 +167,7 @@ const SIGUIENTES: Record<string, { status: string; titulo: string; icono: string
               </label>
               @if (destino() === 'completed') {
                 <p class="muted">
-                  Al guardar, las unidades vuelven al stock de la sucursal con su movimiento de
-                  inventario.
+                  Al guardar, las prendas recibidas vuelven al stock de la sucursal con su movimiento de inventario.
                 </p>
               }
               <div class="commerce-actions">

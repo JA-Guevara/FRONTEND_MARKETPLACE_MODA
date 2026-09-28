@@ -54,6 +54,13 @@ export class CommerceService {
   requestReturn(orderId: string, body: unknown) {
     return this.write<OrderReturn>('POST', '/orders/' + orderId + '/returns', body);
   }
+  exchangeOptions(orderId: string, variantId: string) {
+    return this.get<{ variant_id: string; product_name: string; size: string; color: string; available: number; price: string }[]>(
+      '/orders/' + orderId + '/exchange-options', { variant_id: variantId });
+  }
+  requestExchange(orderId: string, body: unknown) {
+    return this.write<OrderReturn>('POST', '/orders/' + orderId + '/exchanges', body);
+  }
   adminReturns(filtros: Record<string, unknown> = {}, offset = 0) {
     return this.get<OrderReturn[]>('/admin/returns', { limit: 50, offset, ...filtros });
   }

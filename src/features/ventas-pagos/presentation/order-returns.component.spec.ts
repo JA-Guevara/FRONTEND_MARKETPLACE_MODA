@@ -24,6 +24,8 @@ async function setup(estado: ReturnAvailability = disponible) {
   const api = {
     returnsOf: vi.fn().mockResolvedValue(estado),
     requestReturn: vi.fn().mockResolvedValue({ id: 'r1' }),
+    exchangeOptions: vi.fn().mockResolvedValue([{ variant_id: 'v2', product_name: 'Polera básica', size: 'L', color: 'Negro', available: 2, price: '100.00' }]),
+    requestExchange: vi.fn().mockResolvedValue({ id: 'e1' }),
   };
   TestBed.configureTestingModule({
     imports: [OrderReturnsComponent],
@@ -91,6 +93,20 @@ describe('Panel de devoluciones (CU19)', () => {
     // Tras enviar se recarga para reflejar lo que quedó comprometido.
     expect(contexto.api.returnsOf).toHaveBeenCalledTimes(2);
     expect(contexto.componente.cantidad('v1')).toBe(0);
+  });
+
+  it('permite pedir un cambio de talla con opción disponible', async () => {
+    const contexto = await setup();
+    await abrir(contexto);
+    await contexto.componente.elegirOriginal('v1');
+    contexto.componente.reemplazoCambio = 'v2';
+    contexto.componente.motivoCambio = 'Necesito una talla más grande.';
+    await contexto.componente.enviarCambio();
+    expect(contexto.api.exchangeOptions).toHaveBeenCalledWith('order-1', 'v1');
+    const [id, cuerpo] = contexto.api.requestExchange.mock.calls[0];
+    expect(id).toBe('order-1');
+    expect(cuerpo).toMatchObject({ variant_id: 'v1', replacement_variant_id: 'v2', quantity: 1 });
+    expect(contexto.api.returnsOf).toHaveBeenCalledTimes(2);
   });
 
   it('explica por qué no se puede devolver cuando el servidor lo impide', async () => {

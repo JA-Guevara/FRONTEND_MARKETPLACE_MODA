@@ -77,8 +77,9 @@ export interface OrderReturn {
   order_id: string;
   branch_id: string;
   status: 'requested' | 'approved' | 'rejected' | 'completed';
+  kind?: 'return' | 'exchange';
   reason: string;
-  items: CartItem[];
+  items: (CartItem & { replacement_variant_id?: string; replacement_name?: string; replacement_size?: string; replacement_color?: string })[];
   refund_amount: string;
   currency: string;
   resolution_note: string | null;

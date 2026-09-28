@@ -49,6 +49,9 @@ import { IconComponent } from '../../../shared/icon.component';
                   {{ totalUnits(r.items) }}
                   {{ totalUnits(r.items) === 1 ? 'unidad' : 'unidades' }}
                 </p>
+                @if (r.inventory_held) {
+                  <p class="muted">Apartadas del inventario de esta sucursal</p>
+                }
               </div>
               <span class="commerce-status">{{ label(r.status) }}</span>
             </div>

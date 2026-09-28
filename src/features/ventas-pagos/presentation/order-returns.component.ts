@@ -19,7 +19,7 @@ import { errorMessage } from '../../../shared/errors';
   template: `<div class="returns-panel">
     <button type="button" class="tracker-toggle" (click)="toggle()" [disabled]="busy()">
       <fs-icon [name]="abierto() ? 'close' : 'box'" />
-      {{ abierto() ? 'Ocultar devoluciones' : 'Devolver prendas' }}
+      {{ abierto() ? 'Ocultar cambios y devoluciones' : 'Cambiar o devolver prendas' }}
     </button>
 
     @if (abierto()) {
@@ -39,13 +39,15 @@ import { errorMessage } from '../../../shared/errors';
             @for (d of info.returns; track d.id) {
               <li class="is-{{ d.status }}">
                 <div>
-                  <strong>{{ etiqueta(d.status) }}</strong>
+                  <strong>{{ d.kind === 'exchange' ? 'Cambio' : 'Devolución' }} · {{ etiqueta(d.status) }}</strong>
                   <small>{{ d.created_at | date: 'dd/MM/yyyy HH:mm' }}</small>
                 </div>
                 <p class="muted">{{ resumen(d.items) }}</p>
-                <p>
+                @if (d.kind === 'exchange') {
+                  <p>Cambio por: {{ d.items[0].replacement_name }} · {{ d.items[0].replacement_size }} · {{ d.items[0].replacement_color }}</p>
+                } @else {<p>
                   Reintegro: <strong>{{ d.currency | uppercase }} {{ d.refund_amount | number: '1.2-2' }}</strong>
-                </p>
+                </p>}
                 @if (d.resolution_note) {
                   <p class="muted">{{ d.resolution_note }}</p>
                 }
@@ -55,11 +57,12 @@ import { errorMessage } from '../../../shared/errors';
         }
 
         @if (info.can_request) {
-          @if (!formulario()) {
+          @if (!formulario() && !formularioCambio()) {
             <button type="button" class="primary" (click)="formulario.set(true)">
               <fs-icon name="plus" /> Solicitar una devolución
             </button>
-          } @else {
+            <button type="button" (click)="formularioCambio.set(true)">Solicitar un cambio</button>
+          } @else if (formulario()) {
             <form #form="ngForm" (ngSubmit)="form.valid && enviar()" class="returns-form">
               <h3>¿Qué querés devolver?</h3>
               @for (i of devolvibles(); track i.variant_id) {
@@ -102,6 +105,38 @@ import { errorMessage } from '../../../shared/errors';
               </div>
             </form>
           }
+          @if (formularioCambio()) {
+            <form #exchangeForm="ngForm" (ngSubmit)="exchangeForm.valid && enviarCambio()" class="returns-form">
+              <h3>Solicitar un cambio</h3>
+              <label>Prenda del pedido
+                <select name="original" [ngModel]="originalCambio()" (ngModelChange)="elegirOriginal($event)" required>
+                  <option value="">Elegí una prenda</option>
+                  @for (i of devolvibles(); track i.variant_id) {
+                    <option [value]="i.variant_id">{{ i.name }} · {{ i.size }} · {{ i.color }}</option>
+                  }
+                </select>
+              </label>
+              @if (originalCambio()) {
+                <label>Nueva prenda o talla
+                  <select name="replacement" [(ngModel)]="reemplazoCambio" required>
+                    <option value="">Elegí una opción disponible al mismo precio</option>
+                    @for (o of opcionesCambio(); track o.variant_id) {
+                      <option [value]="o.variant_id">{{ o.product_name }} · {{ o.size }} · {{ o.color }} · {{ o.available }} disponibles</option>
+                    }
+                  </select>
+                </label>
+                <label>Cantidad
+                  <input type="number" name="exchangeQuantity" [(ngModel)]="cantidadCambio" min="1" [max]="maxCambio()" required />
+                </label>
+                <label>Motivo
+                  <textarea name="exchangeReason" [(ngModel)]="motivoCambio" minlength="5" maxlength="500" required></textarea>
+                </label>
+                <p class="muted">La nueva prenda queda apartada al solicitar el cambio. La original vuelve al inventario cuando se recibe en la sucursal.</p>
+                <button type="submit" class="primary" [disabled]="busy() || !exchangeForm.valid || !reemplazoCambio || cantidadCambio > maxCambio()">Enviar cambio</button>
+              }
+              <button type="button" (click)="formularioCambio.set(false)">Volver</button>
+            </form>
+          }
         } @else if (info.reason) {
           <p class="muted">{{ info.reason }}</p>
         }
@@ -114,6 +149,18 @@ export class OrderReturnsComponent {
   private api = inject(CommerceService);
   abierto = signal(false);
   formulario = signal(false);
+  formularioCambio = signal(false);
+  originalCambio = signal('');
+  opcionesCambio = signal<{ variant_id: string; product_name: string; size: string; color: string; available: number; price: string }[]>([]);
+  reemplazoCambio = '';
+  cantidadCambio = 1;
+  motivoCambio = '';
+  private pendingReturn?: { fingerprint: string; id: string };
+  private pendingExchange?: { fingerprint: string; id: string };
+  maxCambio = () => Math.min(
+    this.disponible(this.originalCambio()),
+    this.opcionesCambio().find((row) => row.variant_id === this.reemplazoCambio)?.available || 0,
+  );
   estado = signal<ReturnAvailability | null>(null);
   busy = signal(false);
   error = signal('');
@@ -145,6 +192,16 @@ export class OrderReturnsComponent {
     return items.map((i) => `${i.name} (${i.size}/${i.color}) x${i.quantity}`).join(' · ');
   }
 
+  private requestId(kind: 'return' | 'exchange', payload: unknown): string {
+    const fingerprint = JSON.stringify(payload);
+    const pending = kind === 'return' ? this.pendingReturn : this.pendingExchange;
+    if (pending?.fingerprint === fingerprint) return pending.id;
+    const next = { fingerprint, id: crypto.randomUUID() };
+    if (kind === 'return') this.pendingReturn = next;
+    else this.pendingExchange = next;
+    return next.id;
+  }
+
   async toggle() {
     this.abierto.update((v) => !v);
     if (this.abierto() && !this.estado()) await this.cargar();
@@ -174,16 +231,62 @@ export class OrderReturnsComponent {
     this.error.set('');
     this.message.set('');
     try {
+      const payload = { reason: this.motivo.trim(), items };
       await this.api.requestReturn(this.pedido.id, {
-        reason: this.motivo,
-        items,
+        ...payload,
         // Un reenvío del formulario no debe abrir dos devoluciones.
-        client_request_id: crypto.randomUUID(),
+        client_request_id: this.requestId('return', payload),
       });
+      this.pendingReturn = undefined;
       this.message.set('Registramos tu solicitud. Te avisamos por correo cuando la revisemos.');
       this.formulario.set(false);
       this.cantidades.set({});
       this.motivo = '';
+      await this.cargar();
+    } catch (e) {
+      this.error.set(errorMessage(e));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  async elegirOriginal(variantId: string) {
+    this.originalCambio.set(variantId);
+    this.reemplazoCambio = '';
+    this.opcionesCambio.set([]);
+    if (!variantId) return;
+    this.busy.set(true);
+    this.error.set('');
+    try {
+      const options = await this.api.exchangeOptions(this.pedido.id, variantId);
+      if (this.originalCambio() === variantId) this.opcionesCambio.set(options);
+    } catch (e) {
+      this.error.set(errorMessage(e));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  async enviarCambio() {
+    if (!this.originalCambio() || !this.reemplazoCambio ||
+        this.cantidadCambio < 1 || this.cantidadCambio > this.maxCambio()) return;
+    this.busy.set(true);
+    this.error.set('');
+    this.message.set('');
+    try {
+      const payload = {
+        variant_id: this.originalCambio(), replacement_variant_id: this.reemplazoCambio,
+        quantity: Number(this.cantidadCambio), reason: this.motivoCambio.trim(),
+      };
+      await this.api.requestExchange(this.pedido.id, {
+        ...payload, client_request_id: this.requestId('exchange', payload),
+      });
+      this.pendingExchange = undefined;
+      this.message.set('Registramos el cambio y apartamos la nueva prenda. Te avisaremos cuando lo revisen.');
+      this.formularioCambio.set(false);
+      this.originalCambio.set('');
+      this.reemplazoCambio = '';
+      this.motivoCambio = '';
       await this.cargar();
     } catch (e) {
       this.error.set(errorMessage(e));

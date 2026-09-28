@@ -19,6 +19,7 @@ export interface Reservation {
   tracking: { status: string; note: string; date: string }[];
   created_at: string;
   updated_at: string;
+  inventory_held?: boolean;
   /** Campos enriquecidos por el backend administrativo (solo lectura). */
   branch_name?: string | null;
   user_name?: string | null;
