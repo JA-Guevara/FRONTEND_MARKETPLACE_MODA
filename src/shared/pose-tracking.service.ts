@@ -12,7 +12,7 @@ const WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/w
 const POSE_MODEL_URL =
   'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
 
-const MIN_INTERVAL_MS = 130;
+const MIN_INTERVAL_MS = 50;
 
 /** Shape mínima del resultado de PoseLandmarker.detectForVideo. La API expone
  * las poses en `landmarks` (NormalizedLandmark[][]): no existe `poseLandmarks`.
@@ -137,9 +137,10 @@ export class PoseTrackingService {
     if (!this.landmarker || !video?.videoWidth) return null;
     const now = performance.now();
     if (now - this.lastRun < MIN_INTERVAL_MS) return null;
-    this.lastRun = now;
+    const ts = Math.max(now, this.lastRun + 1);
+    this.lastRun = ts;
     try {
-      const result = this.landmarker.detectForVideo(video, now);
+      const result = this.landmarker.detectForVideo(video, ts);
       return extractPoseResult(result);
     } catch {
       return null;

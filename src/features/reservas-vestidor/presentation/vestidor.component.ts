@@ -18,14 +18,16 @@ import { IconComponent } from '../../../shared/icon.component';
 import { errorMessage } from '../../../shared/errors';
 import { Entity } from '../../../shared/models';
 import { PoseTrackingService } from '../../../shared/pose-tracking.service';
-import { POSE_LOST_MS, VideoBox } from '../../../shared/pose-projection';
+import { POSE_LOST_MS, VideoBox, videoToDisplay } from '../../../shared/pose-projection';
 import {
   BodyRegion,
   GarmentAnchors,
+  GarmentFit,
   Guidance,
   calcularAjuste,
   esRegion,
   evaluarPostura,
+  suavizarAjuste,
 } from '../../../shared/garment-fit';
 import {
   FormaPrenda,
@@ -101,7 +103,6 @@ interface TryOnResource {
         <canvas
           #lienzo
           class="fitting-canvas"
-          [class.mirrored]="facing() === 'user'"
           [hidden]="cameraState() !== 'active'"
         ></canvas>
 
@@ -269,6 +270,8 @@ export class VestidorComponent implements OnInit, OnDestroy {
   private imageSize = { width: 0, height: 0 };
   /** La foto preparada, ya cargada, para usarla como relleno del dibujo. */
   private textura: HTMLImageElement | null = null;
+  private ultimoAjuste: GarmentFit | null = null;
+  private ultimosLandmarks: { x: number; y: number; visibility?: number }[] | null = null;
   private destroyed = false;
   private loadVersion = 0;
   private cameraVersion = 0;
@@ -510,6 +513,8 @@ export class VestidorComponent implements OnInit, OnDestroy {
     this.dibujada.set(false);
     this.limpiarLienzo();
     this.poseLast = 0;
+    this.ultimoAjuste = null;
+    this.ultimosLandmarks = null;
     this.guidance.set({
       code: 'sin-camara',
       message: 'Activá la cámara para probarte la prenda.',
@@ -565,22 +570,30 @@ export class VestidorComponent implements OnInit, OnDestroy {
         containerH: bounds?.height || 480,
         mirrored: this.facing() === 'user',
       };
-      const guia = evaluarPostura(landmarks, this.region, box);
       const ahora = Date.now();
 
-      // Un solo camino de dibujo: el lienzo. Con foto preparada se usa como
-      // relleno del polígono; sin ella, color liso. Antes la foto era una capa
-      // aparte con un transform rígido y por eso no se deformaba con el cuerpo.
-      if (landmarks && this.pintar(landmarks, box, guia.ok)) {
-        this.poseLast = ahora;
+      if (landmarks) {
+        const guia = evaluarPostura(landmarks, this.region, box);
+        if (this.pintar(landmarks, box, guia.ok)) {
+          this.poseLast = ahora;
+          this.ultimosLandmarks = landmarks;
+          this.dibujada.set(true);
+        }
+        this.guidance.set(guia);
+      } else if (this.ultimosLandmarks && this.poseLast && ahora - this.poseLast <= POSE_LOST_MS) {
+        // Pérdida transitoria de fotograma: mantenemos la proyección para evitar parpadeos
+        this.pintar(this.ultimosLandmarks, box, true);
         this.dibujada.set(true);
+      } else {
+        const guia = evaluarPostura(null, this.region, box);
+        if (this.poseLast && ahora - this.poseLast > POSE_LOST_MS) {
+          this.dibujada.set(false);
+          this.limpiarLienzo();
+          this.ultimoAjuste = null;
+          this.ultimosLandmarks = null;
+        }
+        this.guidance.set(guia);
       }
-      // Si hace rato que no se ve a nadie, la prenda no se queda flotando.
-      if (this.poseLast && ahora - this.poseLast > POSE_LOST_MS) {
-        this.dibujada.set(false);
-        this.limpiarLienzo();
-      }
-      this.guidance.set(guia);
       await new Promise((resolve) => setTimeout(resolve, 120));
     }
   }
@@ -599,15 +612,12 @@ export class VestidorComponent implements OnInit, OnDestroy {
     ctx.clearRect(0, 0, lienzo.width, lienzo.height);
     if (!postura) return false;
 
-    // El lienzo va espejado por CSS igual que el video, así que se dibuja en las
-    // coordenadas del video sin invertir.
-    const cover = Math.max(box.containerW / box.videoW, box.containerH / box.videoH);
-    const dx = (box.containerW - box.videoW * cover) / 2;
-    const dy = (box.containerH - box.videoH * cover) / 2;
-    const puntos: Punto[] = landmarks.map((p) => ({
-      x: dx + p.x * box.videoW * cover,
-      y: dy + p.y * box.videoH * cover,
-    }));
+    // El lienzo ya no lleva transform CSS scaleX(-1): las coordenadas se calculan
+    // en píxeles directos de pantalla mediante videoToDisplay para alinear con el video.
+    const puntos: Punto[] = landmarks.map((p) => {
+      const pt = videoToDisplay(p.x, p.y, box);
+      return { x: pt.px, y: pt.py };
+    });
     const visible = (i: number) => (landmarks[i]?.visibility ?? 0) >= 0.5;
     const completos = estimarOcultos(puntos, visible);
     const escala = this.tuneScale();
@@ -628,14 +638,20 @@ export class VestidorComponent implements OnInit, OnDestroy {
     // entera conserva mangas, estampados y proporciones; usarla como relleno
     // de cada polígono duplicaba trozos del torso en brazos y piernas.
     if (this.textura && this.usaFoto() && this.imageSize.width && this.imageSize.height) {
-      const ajuste = calcularAjuste(landmarks, this.region, this.anchors,
-        this.imageSize, { ...box, mirrored: false });
-      if (ajuste) {
+      const ajusteNuevo = calcularAjuste(landmarks, this.region, this.anchors,
+        this.imageSize, box);
+      if (ajusteNuevo) {
+        this.ultimoAjuste = suavizarAjuste(this.ultimoAjuste, ajusteNuevo, 0.4);
+        const ajuste = this.ultimoAjuste;
         ctx.save();
         ctx.translate(lienzo.width / 2 + ajuste.offsetX,
           lienzo.height / 2 + ajuste.offsetY + this.tuneY());
         ctx.rotate(ajuste.rotation);
-        ctx.scale(ajuste.scale * escala, ajuste.scale * escala);
+        // En cámara frontal (modo espejo), reflejamos horizontalmente la textura
+        // para que la manga izquierda coincida con el brazo izquierdo en pantalla:
+        const scaleX = (box.mirrored ? -1 : 1) * ajuste.scale * escala;
+        const scaleY = ajuste.scale * escala;
+        ctx.scale(scaleX, scaleY);
         ctx.drawImage(this.textura, -this.imageSize.width / 2,
           -this.imageSize.height / 2);
         ctx.restore();
@@ -645,8 +661,6 @@ export class VestidorComponent implements OnInit, OnDestroy {
     return dibujarPrenda(ctx, completos, {
       forma: this.forma(),
       color: this.colorPrenda(),
-      // Con foto preparada, el polígono es el molde y la foto el relleno: la
-      // prenda se deforma con el cuerpo en vez de flotar rígida encima.
       textura: undefined,
     });
   }
@@ -665,6 +679,7 @@ export class VestidorComponent implements OnInit, OnDestroy {
   clearTuning() {
     this.tuneScale.set(1);
     this.tuneY.set(0);
+    this.ultimoAjuste = null;
   }
 
   ngOnDestroy() {

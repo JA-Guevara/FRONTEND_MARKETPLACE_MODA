@@ -122,7 +122,10 @@ export function estimarOcultos(pts: Punto[], visible: (i: number) => boolean): P
   const ancho = largo(resta(hi, hd)) || 1;
   const cruz = unitario(resta(hi, hd));
   // Perpendicular a la línea de hombros: hacia los pies.
-  const abajo: Punto = { x: -cruz.y, y: cruz.x };
+  let abajo: Punto = { x: -cruz.y, y: cruz.x };
+  if (abajo.y < 0) {
+    abajo = { x: -abajo.x, y: -abajo.y };
+  }
 
   if (!visible(P.CADERA_IZQ) || !visible(P.CADERA_DER)) {
     salida[P.CADERA_IZQ] = suma(suma(hi, escala(abajo, ancho * 1.3)), escala(cruz, -ancho * 0.12));
@@ -157,10 +160,14 @@ export function ejes(pts: Punto[]) {
   if (ancho < 4) return null;
   const centroHombros = medio(hi, hd);
   const centroCaderas = medio(ci, cd);
+  let abajo = unitario(resta(centroCaderas, centroHombros));
+  if (abajo.y < 0) {
+    abajo = { x: -abajo.x, y: -abajo.y };
+  }
   return {
     ancho,
     cruz: unitario(resta(hi, hd)),
-    abajo: unitario(resta(centroCaderas, centroHombros)),
+    abajo,
     centroHombros,
     centroCaderas,
   };

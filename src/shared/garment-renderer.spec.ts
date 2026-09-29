@@ -154,6 +154,17 @@ describe('Puntos que la cámara no ve', () => {
     const completado = estimarOcultos(pts, () => true);
     expect(completado[P.CADERA_IZQ]).toEqual(pts[P.CADERA_IZQ]);
   });
+
+  it('estima los puntos hacia los pies incluso con la postura en modo espejo', () => {
+    const pts = cuerpo();
+    // En modo espejo, el hombro izquierdo aparece a la izquierda de la pantalla
+    pts[P.HOMBRO_IZQ] = { x: 250, y: 200 };
+    pts[P.HOMBRO_DER] = { x: 350, y: 200 };
+    const soloHombros = (i: number) => i === P.HOMBRO_IZQ || i === P.HOMBRO_DER;
+    const completado = estimarOcultos(pts, soloHombros);
+    expect(completado[P.CADERA_IZQ].y).toBeGreaterThan(pts[P.HOMBRO_IZQ].y);
+    expect(completado[P.RODILLA_IZQ].y).toBeGreaterThan(completado[P.CADERA_IZQ].y);
+  });
 });
 
 describe('Dibujo', () => {
