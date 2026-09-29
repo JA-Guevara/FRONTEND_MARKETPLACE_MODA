@@ -91,6 +91,7 @@ describe('Probador virtual: ubicación automática', () => {
   const recursoPreparado = {
     asset_type: 'prepared_2_5d',
     asset_url: '/prenda-recortada.webp',
+    color_id: 'c1',
     body_region: 'upper_body',
     anchor_points: {
       shoulder_left: [0.1, 0.12],
@@ -100,15 +101,22 @@ describe('Probador virtual: ubicación automática', () => {
     },
   };
 
-  async function setup(options: { recurso?: unknown; falla?: boolean; poseOk?: boolean } = {}) {
+  async function setup(options: {
+    recurso?: unknown;
+    falla?: boolean;
+    poseOk?: boolean;
+    variante?: string | null;
+    variants?: { id: string; color: { id: string; name: string; hex_code?: string } }[];
+  } = {}) {
     const route = new BehaviorSubject(convertToParamMap({ slug: 'polera' }));
+    const query = new BehaviorSubject(convertToParamMap(options.variante === null ? {} : { variante: options.variante || 'v1' }));
     const catalog = {
       product: vi.fn().mockReturnValue(
         of({
           id: 'p1',
           name: 'Polera esencial',
           category: { name: 'Poleras' },
-          variants: [{ id: 'v1', color: { id: 'c1', hex_code: '#8E2B33' } }],
+          variants: options.variants ?? [{ id: 'v1', color: { id: 'c1', name: 'Bordó', hex_code: '#8E2B33' } }],
         }),
       ),
     };
@@ -132,7 +140,7 @@ describe('Probador virtual: ubicación automática', () => {
           // La variante llega por query param: de ahí sale el color del recurso.
           useValue: {
             paramMap: route,
-            snapshot: { queryParamMap: convertToParamMap({ variante: 'v1' }) },
+            queryParamMap: query,
           },
         },
         { provide: CatalogService, useValue: catalog },
@@ -148,7 +156,7 @@ describe('Probador virtual: ubicación automática', () => {
     // el componente seguiría mostrando "cargando".
     await new Promise((r) => setTimeout(r, 5));
     fixture.detectChanges();
-    return { fixture, component: fixture.componentInstance, api, pose, route, catalog };
+    return { fixture, component: fixture.componentInstance, api, pose, route, query, catalog };
   }
 
   async function conCamara(harness: Awaited<ReturnType<typeof setup>>) {
@@ -202,8 +210,49 @@ describe('Probador virtual: ubicación automática', () => {
   });
 
   it('usa el color de la variante elegida', async () => {
-    const { component } = await setup({ falla: true });
+    const { component, fixture } = await setup({ falla: true });
     expect(component.colorPrenda()).toBe('#8E2B33');
+    expect(fixture.nativeElement.querySelector('.fitting-color')?.textContent).toContain('Bordó');
+  });
+
+  it('sin variante en el enlace elige la primera activa y pide su color', async () => {
+    const { component, api } = await setup({ variante: null });
+    expect(component.varianteId).toBe('v1');
+    expect(api.write).toHaveBeenCalledWith('POST', '/vestidor/sessions', {
+      product_id: 'p1', color_id: 'c1',
+    });
+  });
+
+  it('no reemplaza una variante inválida por la imagen de otro color', async () => {
+    const { component, api } = await setup({ variante: 'v-eliminada' });
+    expect(component.error()).toContain('ya no están disponibles');
+    expect(api.write).not.toHaveBeenCalled();
+  });
+
+  it('rechaza una imagen preparada que corresponda a otro color', async () => {
+    const { component } = await setup({ recurso: { ...recursoPreparado, color_id: 'c2' } });
+    expect(component.usaFoto()).toBe(false);
+    expect(component.assetUrl()).toBe('');
+    expect(component.resourceNotice()).toContain('otro color');
+  });
+
+  it('actualiza color y recurso al cambiar de variante en el mismo probador', async () => {
+    const { component, api, query, fixture } = await setup({
+      variants: [
+        { id: 'v1', color: { id: 'c1', name: 'Bordó', hex_code: '#8E2B33' } },
+        { id: 'v2', color: { id: 'c2', name: 'Azul', hex_code: '#1C4F91' } },
+      ],
+    });
+    expect(component.usaFoto()).toBe(true);
+    query.next(convertToParamMap({ variante: 'v2' }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(api.write).toHaveBeenLastCalledWith('POST', '/vestidor/sessions', {
+      product_id: 'p1', color_id: 'c2',
+    });
+    expect(component.colorPrenda()).toBe('#1C4F91');
+    expect(component.colorName()).toBe('Azul');
+    expect(component.usaFoto()).toBe(false);
   });
 
   it('no muestra controles de ajuste mientras el encaje es automático', async () => {

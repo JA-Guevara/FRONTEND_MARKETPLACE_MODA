@@ -173,7 +173,12 @@ export function calcularAjuste(
   const derecha = par?.derecha ?? [1, 0.12];
 
   const anchoAnclaje = Math.max(0.05, derecha[0] - izquierda[0]);
-  const anchoDeseado = (linea.spanPx * REGLA[region].holgura) / anchoAnclaje;
+  // En algunas fotos la banda superior de la máscara solo contiene el cuello.
+  // Ese anclaje estrecho multiplicaba el tamaño de toda la imagen y la prenda
+  // terminaba cubriendo la cámara. Limitamos el ancho total respecto del cuerpo.
+  const anchoPorAnclaje = (linea.spanPx * REGLA[region].holgura) / anchoAnclaje;
+  const anchoMaximo = linea.spanPx * (region === 'full_body' ? 2.6 : 2.4);
+  const anchoDeseado = Math.min(anchoPorAnclaje, anchoMaximo);
   const scale = anchoDeseado / imagen.width;
 
   // Punto medio del anclaje, en píxeles de la imagen ya escalada, medido desde

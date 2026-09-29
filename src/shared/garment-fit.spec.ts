@@ -100,6 +100,18 @@ describe('Ubicación automática de la prenda', () => {
     expect(ajuste!.scale).toBeGreaterThan(0);
   });
 
+  it('no agranda toda la prenda cuando la banda del hombro solo contiene el cuello', () => {
+    const anclajeEstrecho = {
+      shoulder_left: [0.45, 0.1],
+      shoulder_right: [0.55, 0.1],
+    };
+    const ajuste = calcularAjuste(cuerpo(), 'upper_body', anclajeEstrecho,
+      { width: 400, height: 600 }, box)!;
+    expect(400 * ajuste.scale).toBeCloseTo(120 * 2.4, 0);
+    // Aunque se limite el tamaño, el anclaje sigue centrado en los hombros.
+    expect(box.containerW / 2 + ajuste.offsetX).toBeCloseTo(300, 0);
+  });
+
   it('no puede ubicar nada si no ve la parte del cuerpo que corresponde', () => {
     const sinHombros = cuerpo({
       [LEFT_SHOULDER]: { x: 0.4, y: 0.3, visibility: 0.1 },

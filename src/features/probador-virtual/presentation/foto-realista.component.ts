@@ -208,9 +208,11 @@ export class FotoRealistaComponent implements OnInit {
     this.loading.set(true);
     try {
       const todos = await this.api.mine();
-      // El backend guarda los trabajos por cuenta; acá se acotan a la prenda
-      // que se está viendo para que el panel acompañe la experiencia.
-      this.jobs.set(todos.filter((j) => j.product_id === this.productId));
+      // El historial pertenece a la cuenta, pero una simulación de otro color
+      // no representa la variante que se está probando ahora.
+      this.jobs.set(todos.filter((j) =>
+        j.product_id === this.productId && (!this.colorId || j.color_id === this.colorId),
+      ));
     } catch (e) {
       this.error.set(errorMessage(e));
     } finally {

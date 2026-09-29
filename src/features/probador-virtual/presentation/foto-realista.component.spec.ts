@@ -79,9 +79,10 @@ describe('Panel de foto realista con IA', () => {
     const { fixture, api, componente } = await setup(usuario, [
       trabajo(),
       trabajo({ id: 'j2', product_id: 'p2', status: 'failed' }),
+      trabajo({ id: 'j3', color_id: 'c2', status: 'failed' }),
     ]);
     expect(api.mine).toHaveBeenCalled();
-    // Solo se listan los trabajos de esta prenda, no los de otras.
+    // Solo se listan los trabajos de esta prenda y su color seleccionado.
     expect(componente.jobs().length).toBe(1);
     expect(fixture.nativeElement.textContent).toContain('Lista');
     expect(fixture.nativeElement.textContent).not.toContain('Falló');

@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
+import { combineLatest, firstValueFrom } from 'rxjs';
 import { CatalogService } from '../../usuarios-catalogo/infrastructure/catalog.service';
 import { ApiService } from '../../../app/core/shared/api.service';
 import { IconComponent } from '../../../shared/icon.component';
@@ -44,6 +44,7 @@ type CameraState = 'off' | 'requesting' | 'active' | 'error';
 interface TryOnResource {
   asset_type?: string;
   asset_url: string;
+  color_id?: string | null;
   body_region?: string | null;
   anchor_points?: GarmentAnchors | null;
   garment_type?: string | null;
@@ -132,7 +133,14 @@ interface TryOnResource {
       </div>
 
       <div class="fitting-bar">
-        <p class="fitting-name">{{ productName() }}</p>
+        <p class="fitting-name">
+          {{ productName() }}
+          @if (colorName()) {
+            <span class="fitting-color">
+              <span class="fitting-color-swatch" [style.background]="colorPrenda()" aria-hidden="true"></span>{{ colorName() }}
+            </span>
+          }
+        </p>
         <div class="fitting-buttons">
           @if (cameraState() === 'active') {
             <button type="button" (click)="switchCamera()" aria-label="Cambiar cámara">
@@ -219,6 +227,7 @@ export class VestidorComponent implements OnInit, OnDestroy {
   cameraState = signal<CameraState>('off');
   facing = signal<'user' | 'environment'>('user');
   productName = signal('');
+  colorName = signal('');
   assetUrl = signal('');
   imageFailed = signal(false);
   auditNotice = signal('');
@@ -265,16 +274,16 @@ export class VestidorComponent implements OnInit, OnDestroy {
   private cameraVersion = 0;
   private poseVersion = 0;
   private poseLast = 0;
-  private recorded = false;
   private stream: MediaStream | null = null;
   private detachEnded: (() => void) | null = null;
 
   ngOnInit() {
-    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
-      this.slug = params.get('slug') || '';
-      this.varianteId = this.route.snapshot?.queryParamMap?.get('variante') || null;
-      void this.load(this.slug);
-    });
+    combineLatest([this.route.paramMap, this.route.queryParamMap])
+      .pipe(takeUntilDestroyed(this.destroyRef)).subscribe(([params, query]) => {
+        this.slug = params.get('slug') || '';
+        this.varianteId = query.get('variante') || null;
+        void this.load(this.slug);
+      });
   }
 
   async load(slug: string) {
@@ -284,34 +293,37 @@ export class VestidorComponent implements OnInit, OnDestroy {
     this.error.set('');
     this.assetUrl.set('');
     this.productName.set('');
+    this.productId = '';
+    this.colorId = null;
+    this.colorName.set('');
+    this.colorPrenda.set('#7a7a7a');
+    this.anchors = null;
+    this.imageSize = { width: 0, height: 0 };
     this.imageFailed.set(false);
     this.usaFoto.set(false);
     this.textura = null;
     this.auditNotice.set('');
     this.resourceNotice.set('Comprobando la imagen de la prenda…');
-    this.recorded = false;
     this.clearTuning();
     try {
       const product = await firstValueFrom(this.catalog.product(slug));
       if (this.destroyed || version !== this.loadVersion) return;
       this.productName.set(product.name);
       this.productId = product.id;
-      // El recurso depende del color: se toma el de la variante elegida. Si se
-      // entró al probador sin elegir talla, se usa la primera variante con
-      // color cargado: dibujar la prenda en gris cuando el catálogo sabe de qué
-      // color es era la razón por la que «no se reflejaba» la prenda.
-      const variantes = (product.variants || []) as Entity[];
-      const elegida = variantes.find((v) => v.id === this.varianteId);
-      const conColor = (v?: Entity) =>
-        (v?.['color'] as { id?: string; hex_code?: string } | undefined)?.hex_code
-          ? (v!['color'] as { id?: string; hex_code?: string })
-          : undefined;
-      const color =
-        conColor(elegida) ||
-        (elegida?.['color'] as { id?: string; hex_code?: string } | undefined) ||
-        conColor(variantes.find((v) => conColor(v)));
-      this.colorId = color?.id || null;
-      if (color?.hex_code) this.colorPrenda.set(color.hex_code);
+      // La variante del enlace define el color. Sin una selección previa se
+      // usa la primera variante activa, pero una variante inválida nunca se
+      // sustituye silenciosamente por otro color.
+      const variantes = ((product.variants || []) as Entity[]).filter((v) => v['is_active'] !== false);
+      const elegida = this.varianteId
+        ? variantes.find((v) => v.id === this.varianteId)
+        : variantes[0];
+      if (!elegida) throw new Error('La talla y el color elegidos ya no están disponibles. Volvé a elegir una variante.');
+      const color = elegida['color'] as { id?: string; name?: string; hex_code?: string } | undefined;
+      if (!color?.id) throw new Error('Esta variante no tiene un color válido para el probador.');
+      this.varianteId = elegida.id;
+      this.colorId = color.id;
+      this.colorName.set(color.name || 'Color elegido');
+      if (color.hex_code) this.colorPrenda.set(color.hex_code);
 
       // La prenda se puede probar siempre: el dibujo se arma con el tipo y el
       // color. El recurso preparado, si existe, mejora la vista con la foto real.
@@ -320,14 +332,14 @@ export class VestidorComponent implements OnInit, OnDestroy {
       this.forma.set(forma);
       this.region = forma === 'vestido' ? 'full_body' : esInferior(forma) ? 'lower_body' : 'upper_body';
 
-      const recurso = await this.fetchResource();
+      const recurso = await this.fetchResource(version);
       if (this.destroyed || version !== this.loadVersion) return;
       // Solo una imagen preparada por el servidor puede ponerse sobre la
       // cámara. Los recursos antiguos `image_overlay` eran fotos comerciales
       // sin alfa y producían el rectángulo blanco que se veía en el probador.
       // Es preferible el dibujo geométrico antes que ocultar a la persona con
       // una foto de fondo.
-      if (recurso?.asset_url && recurso.asset_type === 'prepared_2_5d') {
+      if (recurso?.asset_url && recurso.asset_type === 'prepared_2_5d' && recurso.color_id === this.colorId) {
         const url = new URL(recurso.asset_url, window.location.origin);
         // Las URLs grabadas en desarrollo pueden conservar localhost. En la
         // web publicada ese host apunta al equipo del cliente, no a la API.
@@ -353,6 +365,8 @@ export class VestidorComponent implements OnInit, OnDestroy {
             'Esta prenda aún no tiene una imagen preparada. Mostramos una vista aproximada hasta que se prepare su foto.',
           );
         }
+      } else if (recurso?.asset_type === 'prepared_2_5d' && recurso.color_id !== this.colorId) {
+        this.resourceNotice.set('La imagen preparada corresponde a otro color; mostramos la vista aproximada del color elegido.');
       }
     } catch (e) {
       if (!this.destroyed && version === this.loadVersion) this.error.set(errorMessage(e));
@@ -366,16 +380,16 @@ export class VestidorComponent implements OnInit, OnDestroy {
    * impide probarse la prenda: en ese caso se dibuja, que es el camino normal
    * para el catálogo sin preparar.
    */
-  private async fetchResource(): Promise<TryOnResource | null> {
+  private async fetchResource(version: number): Promise<TryOnResource | null> {
     const cuerpo: Record<string, string> = { product_id: this.productId };
     if (this.colorId) cuerpo['color_id'] = this.colorId;
     try {
       const respuesta = await firstValueFrom(
         this.api.write<TryOnResource>('POST', '/vestidor/sessions', cuerpo),
       );
-      this.recorded = true;
       return respuesta.data;
     } catch (e) {
+      if (this.destroyed || version !== this.loadVersion) return null;
       // El resto de la pantalla sigue funcionando con el dibujo, pero el
       // motivo deja de ser invisible para quien prueba la prenda.
       this.auditNotice.set('');
@@ -398,8 +412,12 @@ export class VestidorComponent implements OnInit, OnDestroy {
       img.crossOrigin = 'anonymous';
       img.onload = () => {
         if (!this.destroyed && version === this.loadVersion) {
-          this.imageSize = { width: img.naturalWidth, height: img.naturalHeight };
-          this.textura = img;
+          if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+            this.imageSize = { width: img.naturalWidth, height: img.naturalHeight };
+            this.textura = img;
+          } else {
+            this.imageFailed.set(true);
+          }
         }
         resolve();
       };

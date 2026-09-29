@@ -122,6 +122,23 @@
   font-weight: 650;
   font-size: 15px;
 }
+.fitting-color {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+.fitting-color-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  border: 1px solid #777;
+  border-radius: 50%;
+}
 .fitting-buttons {
   display: flex;
   flex-wrap: wrap;
