@@ -26,7 +26,7 @@ function conLienzoFalso() {
     beginPath: () => {}, moveTo: () => {}, lineTo: () => {}, closePath: () => {},
     fill: () => {}, stroke: () => {}, arc: () => {}, ellipse: () => {},
     save: () => {}, restore: () => {}, clip: () => {}, translate: () => {},
-    rotate: () => {}, drawImage: () => {}, clearRect: () => {}, setTransform: () => {},
+    rotate: () => {}, scale: () => {}, drawImage: vi.fn(), clearRect: () => {}, setTransform: () => {},
   };
   return vi
     .spyOn(HTMLCanvasElement.prototype, 'getContext')
@@ -229,7 +229,7 @@ describe('Probador virtual: ubicación automática', () => {
   });
 
   it('ubica la prenda sola cuando ve el cuerpo, sin intervención', async () => {
-    conLienzoFalso();
+    const lienzo = conLienzoFalso();
     const harness = await setup();
     harness.pose.detectTorso.mockReturnValue(cuerpo());
     await conCamara(harness);
@@ -242,6 +242,10 @@ describe('Probador virtual: ubicación automática', () => {
     // rotar y escalar la prenda no podía deformarse con la persona.
     expect(harness.component.dibujada()).toBe(true);
     expect(harness.component.placed()).toBe(true);
+    const contexto = lienzo.mock.results[0]?.value as CanvasRenderingContext2D;
+    // Se dibuja una imagen por fotograma, no decenas de fragmentos de malla.
+    expect((contexto.drawImage as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(0);
+    expect((contexto.drawImage as ReturnType<typeof vi.fn>).mock.calls.length).toBeLessThan(5);
   });
 
   it('le dice a la persona cómo pararse en lugar de ofrecerle controles', async () => {

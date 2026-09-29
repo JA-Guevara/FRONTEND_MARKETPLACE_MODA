@@ -23,6 +23,7 @@ import {
   BodyRegion,
   GarmentAnchors,
   Guidance,
+  calcularAjuste,
   esRegion,
   evaluarPostura,
 } from '../../../shared/garment-fit';
@@ -31,6 +32,7 @@ import {
   Punto,
   dibujarPrenda,
   estimarOcultos,
+  esInferior,
   formaDePrenda,
 } from '../../../shared/garment-renderer';
 import { FotoRealistaComponent } from '../../probador-virtual/presentation/foto-realista.component';
@@ -314,8 +316,9 @@ export class VestidorComponent implements OnInit, OnDestroy {
       // La prenda se puede probar siempre: el dibujo se arma con el tipo y el
       // color. El recurso preparado, si existe, mejora la vista con la foto real.
       const categoria = (product.category as { name?: string } | undefined)?.name;
-      this.forma.set(formaDePrenda(`${product.name} ${categoria || ''}`));
-      this.region = 'upper_body';
+      const forma = formaDePrenda(`${product.name} ${categoria || ''}`);
+      this.forma.set(forma);
+      this.region = forma === 'vestido' ? 'full_body' : esInferior(forma) ? 'lower_body' : 'upper_body';
 
       const recurso = await this.fetchResource();
       if (this.destroyed || version !== this.loadVersion) return;
@@ -603,12 +606,30 @@ export class VestidorComponent implements OnInit, OnDestroy {
     } else if (this.tuneY()) {
       for (const punto of completos) if (punto) punto.y += this.tuneY();
     }
+    // El recurso preparado es una prenda completa y transparente. Dibujarla
+    // entera conserva mangas, estampados y proporciones; usarla como relleno
+    // de cada polígono duplicaba trozos del torso en brazos y piernas.
+    if (this.textura && this.usaFoto() && this.imageSize.width && this.imageSize.height) {
+      const ajuste = calcularAjuste(landmarks, this.region, this.anchors,
+        this.imageSize, { ...box, mirrored: false });
+      if (ajuste) {
+        ctx.save();
+        ctx.translate(lienzo.width / 2 + ajuste.offsetX,
+          lienzo.height / 2 + ajuste.offsetY + this.tuneY());
+        ctx.rotate(ajuste.rotation);
+        ctx.scale(ajuste.scale * escala, ajuste.scale * escala);
+        ctx.drawImage(this.textura, -this.imageSize.width / 2,
+          -this.imageSize.height / 2);
+        ctx.restore();
+        return true;
+      }
+    }
     return dibujarPrenda(ctx, completos, {
       forma: this.forma(),
       color: this.colorPrenda(),
       // Con foto preparada, el polígono es el molde y la foto el relleno: la
       // prenda se deforma con el cuerpo en vez de flotar rígida encima.
-      textura: this.textura,
+      textura: undefined,
     });
   }
 
