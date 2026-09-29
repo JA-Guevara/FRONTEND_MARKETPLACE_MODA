@@ -114,7 +114,8 @@ import { RecommendedProduct } from '../../ventas-pagos/domain/commerce.models';
           }
           @if (referenceError()) {
             <p class="alert error">
-              {{ referenceError() }} <button (click)="loadReferences()">Recargar filtros</button>
+              {{ referenceError() }}
+              <button (click)="loadReferences(true)">Recargar filtros</button>
             </p>
           }
           @if (loading()) {
@@ -281,9 +282,13 @@ export class CatalogPageComponent {
       /* seccion opcional: si falla, simplemente no se muestra */
     }
   }
-  async loadReferences() {
+  /** Las cinco listas salen del caché de CatalogService, así que una segunda
+   * visita al catálogo no vuelve a pedirlas. `forzar` es para el botón
+   * «Recargar filtros»: sin él quedaría decorativo, devolviendo siempre lo mismo. */
+  async loadReferences(forzar = false) {
     this.referenceError.set('');
     const keys = this.referenceFields.map((f) => f.resource);
+    if (forzar) for (const k of keys) this.api.invalidateReference(k);
     const results = await Promise.allSettled(
       keys.map((k) => firstValueFrom(this.api.reference(k))),
     );

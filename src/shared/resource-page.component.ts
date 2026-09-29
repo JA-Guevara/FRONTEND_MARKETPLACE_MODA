@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../app/core/shared/api.service';
 import { SessionService } from '../features/usuarios-catalogo/application/session.service';
+import { CatalogService } from '../features/usuarios-catalogo/infrastructure/catalog.service';
 import { Entity, Page } from './models';
 import { Field, Resource } from './form-schema';
 import { EntityFormComponent } from './entity-form.component';
@@ -106,7 +107,7 @@ import { IconComponent } from './icon.component';
           include_deleted: includeDeleted,
           branch_id: branchFilter,
         }"
-        (imported)="load()"
+        (imported)="imported()"
       />
     }
     @if (loading()) {
@@ -341,6 +342,7 @@ import { IconComponent } from './icon.component';
 export class ResourcePageComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private api = inject(ApiService);
+  private catalog = inject(CatalogService);
   session = inject(SessionService);
   config!: Resource;
   items = signal<Entity[]>([]);
@@ -487,6 +489,13 @@ export class ResourcePageComponent implements OnInit {
     this.formError.set('');
     this.editing.set(true);
   }
+  /** Una importación masiva puede apuntar a cualquier recurso (el panel de Excel
+   * tiene su propio selector de destino, no solo el de esta pantalla), así que
+   * se olvidan todas las listas. Borrar el mapa no genera ninguna petición. */
+  imported() {
+    this.catalog.invalidateReference();
+    return this.load();
+  }
   async save(body: Record<string, unknown>) {
     if (this.busy() || !this.canWrite()) return;
     this.busy.set(true);
@@ -504,6 +513,9 @@ export class ResourcePageComponent implements OnInit {
       );
       this.message.set(response.message);
       this.editing.set(false);
+      // El catálogo público comparte estas listas en memoria: si no se olvidan
+      // acá, el administrador seguiría viendo la lista vieja tras dar de alta.
+      this.catalog.invalidateReference(this.config.key);
       await this.load();
       if (this.config.key === 'products' && !this.current)
         this.message.set(
@@ -544,6 +556,9 @@ export class ResourcePageComponent implements OnInit {
       );
       this.message.set(r.message);
       this.pending = null;
+      // Activar, desactivar, eliminar o restaurar cambia lo que ve el catálogo
+      // público, que solo muestra las activas.
+      this.catalog.invalidateReference(this.config.key);
       await this.load();
     } catch (e) {
       this.formError.set(errorMessage(e));

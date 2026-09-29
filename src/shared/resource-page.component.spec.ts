@@ -2,8 +2,9 @@ import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { provideRouter, ActivatedRoute } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
-import { of } from 'rxjs';
+import { firstValueFrom, of } from 'rxjs';
 import { ResourcePageComponent } from './resource-page.component';
+import { CatalogService } from '../features/usuarios-catalogo/infrastructure/catalog.service';
 import { resources } from '../app/core/shared/resources';
 import { addressesResource } from '../features/usuarios-catalogo/application/resources';
 import { Resource } from './form-schema';
@@ -59,6 +60,40 @@ describe('Contratos de las pantallas administrativas', () => {
     vi.spyOn(fixture.componentInstance.session, 'can').mockReturnValue(false);
     await fixture.componentInstance.save({name:'No autorizado'});
     backend.expectNone('/api/v1/catalog/admin/categories');
+  });
+  // El catálogo público comparte estas listas en memoria: sin invalidar, el
+  // administrador guardaría una categoría y seguiría viendo la lista vieja.
+  it('al guardar, la lista de referencia se vuelve a pedir', async () => {
+    await setup(resources.find(r => r.key === 'categories')!);
+    const catalog = TestBed.inject(CatalogService);
+    void firstValueFrom(catalog.reference('categories'));
+    backend.expectOne('/api/v1/catalog/categories').flush({success:true,message:'OK',data:[{id:'c1',name:'Vieja'}]});
+    void firstValueFrom(catalog.reference('categories'));
+    backend.expectNone('/api/v1/catalog/categories'); // servida desde el caché
+    const component = fixture.componentInstance;
+    component.open();
+    const saving = component.save({name:'Camperas'});
+    backend.expectOne(r => r.method === 'POST' && r.url === '/api/v1/catalog/admin/categories')
+      .flush({success:true,message:'Categoría creada.',data:{id:'c2',name:'Camperas'}});
+    await new Promise(r => setTimeout(r, 0));
+    backend.expectOne(r => r.method === 'GET' && r.url === '/api/v1/catalog/admin/categories')
+      .flush({success:true,message:'OK',data:[]});
+    await saving;
+    void firstValueFrom(catalog.reference('categories'));
+    backend.expectOne('/api/v1/catalog/categories').flush({success:true,message:'OK',data:[{id:'c2',name:'Camperas'}]});
+  });
+  it('la baja de una entidad también invalida la lista', async () => {
+    await setup(resources.find(r => r.key === 'colors')!);
+    const invalidar = vi.spyOn(TestBed.inject(CatalogService), 'invalidateReference');
+    const component = fixture.componentInstance;
+    component.confirmAction({id:'x1',name:'Rojo'}, 'deactivate');
+    const acting = component.executeAction();
+    backend.expectOne('/api/v1/catalog/admin/colors/x1/deactivate').flush({success:true,message:'Color desactivado.',data:null});
+    await new Promise(r => setTimeout(r, 0));
+    backend.expectOne(r => r.method === 'GET' && r.url === '/api/v1/catalog/admin/colors')
+      .flush({success:true,message:'OK',data:[]});
+    await acting;
+    expect(invalidar).toHaveBeenCalledWith('colors');
   });
 });
 

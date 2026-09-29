@@ -1266,6 +1266,11 @@ async retry() {
             slug: values['slug'] || null,
           }),
         );
+        // La categoría recién creada tiene que aparecer en el filtro del
+        // catálogo y en el próximo borrador, así que se olvida la lista
+        // compartida y también la copia local de este panel.
+        this.catalog.invalidateReference('categories');
+        this.draftCategories.set([]);
         this.history.update((h) => [...h, { from: 'assistant', text: `Categoría creada: ${values['name']}.` }]);
       } else if (draft.title.includes('Proveedor')) {
         await firstValueFrom(

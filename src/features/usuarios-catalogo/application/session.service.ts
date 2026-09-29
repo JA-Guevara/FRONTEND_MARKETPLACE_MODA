@@ -14,12 +14,24 @@ import {
 } from 'rxjs';
 import { ApiResponse, Tokens, User } from '../../../shared/models';
 import { environment } from '../../../environments/environment';
+import { errorDeTiempoLimite } from '../../../shared/errors';
+import { LIMITES_HTTP } from '../../../app/core/timeout.interceptor';
 
 @Injectable({ providedIn: 'root' })
 export class SessionService {
   // Access token stays in memory. Only the rotating refresh token survives
   // same-tab redirects (Stripe) in sessionStorage; never localStorage.
   private http = new HttpClient(inject(HttpBackend));
+  // Este HttpClient se construye sobre HttpBackend a propósito (ver arriba), así
+  // que SALTA toda la cadena de interceptores: el tiempo límite global no lo
+  // cubre. Sin este límite propio, un backend congelado dejaba la pantalla de
+  // inicio de sesión girando para siempre y `refresh()` sin resolver nunca.
+  private limites = inject(LIMITES_HTTP);
+  private conLimite<T>(peticion: Observable<T>, url: string) {
+    return peticion.pipe(
+      timeout({ each: this.limites.normal, with: () => throwError(() => errorDeTiempoLimite(url)) }),
+    );
+  }
   private tokens: Tokens | null = null;
   private renewing?: Observable<Tokens>;
   private restoring?: Promise<void>;
@@ -75,21 +87,29 @@ export class SessionService {
     const headers = this.accessToken
       ? new HttpHeaders({ Authorization: `Bearer ${this.accessToken}` })
       : undefined;
-    return this.http
-      .post<ApiResponse<T>>(`${environment.apiUrl}/auth/${action}`, body, { headers })
-      .pipe(
-        catchError((error) => {
-          if (action !== 'change-password' || error.status !== 401 || !this.tokens)
-            return throwError(() => error);
-          return this.refresh().pipe(
-            switchMap(() =>
-              this.http.post<ApiResponse<T>>(`${environment.apiUrl}/auth/${action}`, body, {
+    const url = `${environment.apiUrl}/auth/${action}`;
+    // El límite envuelve cada envío por separado, no la cadena entera: el
+    // reintento posterior a la renovación estrena su propio reloj, igual que en
+    // timeoutInterceptor.
+    return this.conLimite(
+      this.http.post<ApiResponse<T>>(url, body, { headers }),
+      url,
+    ).pipe(
+      catchError((error) => {
+        if (action !== 'change-password' || error.status !== 401 || !this.tokens)
+          return throwError(() => error);
+        return this.refresh().pipe(
+          switchMap(() =>
+            this.conLimite(
+              this.http.post<ApiResponse<T>>(url, body, {
                 headers: { Authorization: `Bearer ${this.accessToken}` },
               }),
+              url,
             ),
-          );
-        }),
-      );
+          ),
+        );
+      }),
+    );
   }
   refresh(): Observable<Tokens> {
     if (this.renewing) return this.renewing;
@@ -113,10 +133,12 @@ export class SessionService {
     return this.request<null>('logout', { refresh_token }).pipe(finalize(() => this.clear()));
   }
   reloadUser() {
-    return this.http
-      .get<ApiResponse<User>>(`${environment.apiUrl}/auth/me`, {
+    const url = `${environment.apiUrl}/auth/me`;
+    return this.conLimite(
+      this.http.get<ApiResponse<User>>(url, {
         headers: { Authorization: `Bearer ${this.accessToken}` },
-      })
-      .pipe(tap((r) => this.user.set(r.data)));
+      }),
+      url,
+    ).pipe(tap((r) => this.user.set(r.data)));
   }
 }

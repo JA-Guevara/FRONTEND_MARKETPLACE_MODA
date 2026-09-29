@@ -29,6 +29,8 @@ function setup(options: { permissions?: string[] } = {}) {
     ),
     draftProduct: vi.fn(),
     createProduct: vi.fn(),
+    // El panel olvida la lista compartida al crear una categoría.
+    invalidateReference: vi.fn(),
   };
   const transcribeVoice = vi.fn();
   const api = { get: vi.fn(), write: vi.fn() };
