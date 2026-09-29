@@ -78,6 +78,7 @@ describe('Agregar prendas a la reserva desde el detalle', () => {
   });
   it('no agrega sin una variante elegida', async () => {
     const { component, tryOn } = await setup();
+    component.variant.set(null);
     component.addToTryOn();
     expect(tryOn.items()).toEqual([]);
     expect(component.tryOnMessage()).toBe('');

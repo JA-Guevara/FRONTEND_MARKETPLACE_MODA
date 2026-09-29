@@ -78,7 +78,9 @@ import {
           <h3>Tallas y colores</h3>
           <div class="variant-list">
             @for (v of p.variants; track v.id) {
-              <button [class.selected]="variant()?.id === v.id" (click)="selectVariant(v)">
+              <button type="button" [class.selected]="variant()?.id === v.id"
+                [attr.aria-pressed]="variant()?.id === v.id" [disabled]="v['is_active'] === false"
+                (click)="selectVariant(v)">
                 <span class="swatch" [style.background]="v['color']['hex_code']"></span
                 >{{ v['size']['name'] }} · {{ v['color']['name'] }}
               </button>
@@ -194,6 +196,7 @@ export class ProductPageComponent {
     return hasVestidor(this.product() ?? { variants: [] });
   }
   selectVariant(v: Entity) {
+    if (v['is_active'] === false) return;
     this.variant.set(v);
     this.tryOnMessage.set('');
     this.tryOnQuantity = MIN_ITEM_QUANTITY;
@@ -316,10 +319,15 @@ export class ProductPageComponent {
       .subscribe((p) => {
         this.product.set(p);
         this.favorite.set(false);
-        // Conserva la variante elegida al volver del probador (query ?variante=).
+        // La primera talla/color publicada queda elegida al abrir la ficha.
+        // Un enlace a una variante concreta se respeta: si dejó de estar
+        // publicada no se sustituye silenciosamente por otra talla.
         const wantedId = this.route.snapshot?.queryParamMap?.get('variante') ?? null;
+        const activeVariants = p?.variants.filter((v) => v['is_active'] !== false) ?? [];
         this.variant.set(
-          wantedId ? (p?.variants.find((v) => v.id === wantedId) ?? null) : null,
+          wantedId !== null
+            ? (activeVariants.find((v) => v.id === wantedId) ?? null)
+            : (activeVariants[0] ?? null),
         );
         this.selectedImage.set(
           (p?.images.find((i) => i['is_primary']) || p?.images[0])?.['url'] || '',

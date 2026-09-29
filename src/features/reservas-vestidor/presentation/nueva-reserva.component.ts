@@ -147,6 +147,14 @@ function newIdemKey(): string {
       @if (!branchId) {
         <p class="muted">Elegí una sucursal para saber qué hay disponible antes de confirmar.</p>
       }
+      @if (queryState() === 'error' && branchId) {
+        <button type="button" (click)="onBranchChange()">Reintentar consulta de disponibilidad</button>
+      }
+      @if (scheduleExpired()) {
+        <p class="alert error" role="alert">
+          El horario elegido ya pasó. Seleccioná una fecha y hora futuras para reservar.
+        </p>
+      }
       <div class="form-actions">
         <a class="button" routerLink="/">Seguir explorando</a>
       </div>
@@ -184,7 +192,9 @@ export class NuevaReservaComponent {
   minDateTime = NuevaReservaComponent.localInput(
     new Date(Date.now() + 60 * 1000),
   ).slice(0, 16);
-  scheduledAt = this.minDateTime;
+  // Un minuto de margen se vencía mientras el cliente elegía las prendas y la
+  // sucursal; ofrecer media hora de entrada deja tiempo real para completar.
+  scheduledAt = NuevaReservaComponent.localInput(new Date(Date.now() + 30 * 60 * 1000));
   memoryOnly = this.tryOn.memoryOnly;
   constructor() {
     void this.loadBranches();
@@ -203,11 +213,14 @@ export class NuevaReservaComponent {
   get unavailable() {
     return this.availability().filter((a) => !a.available);
   }
+  scheduleExpired() {
+    const timestamp = new Date(this.scheduledAt).getTime();
+    return !!this.scheduledAt && (!Number.isFinite(timestamp) || timestamp <= Date.now());
+  }
   canConfirm() {
     const items = this.tryOn.items();
     if (this.busy() || !items.length || !this.branchId || !this.scheduledAt) return false;
-    const timestamp = new Date(this.scheduledAt).getTime();
-    if (!Number.isFinite(timestamp) || timestamp <= Date.now()) return false;
+    if (this.scheduleExpired()) return false;
     if (this.queryState() !== 'idle') return false;
     if (this.availability().length !== items.length) return false;
     return this.unavailable.length === 0;

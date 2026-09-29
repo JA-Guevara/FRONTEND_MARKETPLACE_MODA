@@ -23,7 +23,10 @@ describe('Nueva reserva para probar prendas', () => {
     };
   }
   async function setup() {
-    const commerce = { branches: vi.fn().mockResolvedValue([{ id: 'b1', name: 'Centro' }]) } as unknown as CommerceService;
+    const commerce = { branches: vi.fn().mockResolvedValue([
+      { id: 'b1', name: 'Las Brisas' },
+      { id: 'b2', name: 'Costanera' },
+    ]) } as unknown as CommerceService;
     const reservas = {
       availability: vi.fn().mockResolvedValue([disponibilidad('v1', true)]),
       create: vi.fn().mockResolvedValue({ id: 'r1', status: 'pending' }),
@@ -35,9 +38,11 @@ describe('Nueva reserva para probar prendas', () => {
         { provide: ReservasService, useValue: reservas },
       ],
     });
-    const component = TestBed.runInInjectionContext(() => new NuevaReservaComponent());
-    await Promise.resolve();
-    return { component, reservas, tryOn: TestBed.inject(TryOnListService) };
+    const fixture = TestBed.createComponent(NuevaReservaComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return { component: fixture.componentInstance, fixture, reservas, tryOn: TestBed.inject(TryOnListService) };
   }
   it('no deja confirmar sin sucursal, horario futuro ni disponibilidad', async () => {
     const { component, tryOn } = await setup();
@@ -52,6 +57,15 @@ describe('Nueva reserva para probar prendas', () => {
       image_url: null,
       quantity: 1,
     });
+    expect(component.canConfirm()).toBe(false);
+  });
+  it('propone un horario con tiempo para completar el formulario y avisa si venció', async () => {
+    const { component } = await setup();
+    const minutesAhead = (new Date(component.scheduledAt).getTime() - Date.now()) / 60000;
+    expect(minutesAhead).toBeGreaterThan(28);
+    expect(minutesAhead).toBeLessThan(31);
+    component.scheduledAt = '2000-01-01T10:00';
+    expect(component.scheduleExpired()).toBe(true);
     expect(component.canConfirm()).toBe(false);
   });
   it('consulta disponibilidad con las cantidades pedidas y habilita confirmar', async () => {
@@ -71,6 +85,34 @@ describe('Nueva reserva para probar prendas', () => {
     expect(reservas.availability).toHaveBeenCalledWith('b1', expect.any(Array));
     expect(component.queryState()).toBe('idle');
     expect(component.statusOf('v1')?.available).toBe(true);
+  });
+  it('muestra sin stock en una sucursal y habilita reservar al elegir otra con stock', async () => {
+    const { component, fixture, tryOn, reservas } = await setup();
+    tryOn.add({
+      variant_id: 'v1', product_id: 'p1', name: 'Polera POLO', sku: 'SKU',
+      size: 'XS', color: 'Azul marino', image_url: null, quantity: 1,
+    });
+    expect(component.branchId).toBe('');
+
+    (reservas.availability as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      disponibilidad('v1', false),
+    ]);
+    component.branchId = 'b1';
+    await component.onBranchChange();
+    fixture.detectChanges();
+    const submit = fixture.nativeElement.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(fixture.nativeElement.textContent).toContain('Sin unidades en esta sucursal');
+    expect(submit.disabled).toBe(true);
+
+    (reservas.availability as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      disponibilidad('v1', true),
+    ]);
+    component.branchId = 'b2';
+    await component.onBranchChange();
+    fixture.detectChanges();
+    expect(reservas.availability).toHaveBeenLastCalledWith('b2', expect.any(Array));
+    expect(fixture.nativeElement.textContent).toContain('Disponible');
+    expect(submit.disabled).toBe(false);
   });
   it('descartar la respuesta de una consulta anterior (respuestas obsoletas)', async () => {
     const { component, tryOn, reservas } = await setup();

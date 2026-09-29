@@ -5,8 +5,9 @@ import { ProductPageComponent } from './product-page.component';
 import { CatalogService } from '../infrastructure/catalog.service';
 import { CommerceService } from '../../ventas-pagos/infrastructure/commerce.service';
 import { SessionService } from '../../usuarios-catalogo/application/session.service';
+import { TryOnListService } from '../../reservas-vestidor/application/try-on-list.service';
 
-const BASE: object = {
+const BASE = {
   id: 'p1',
   name: 'Camisa',
   slug: 'camisa',
@@ -37,6 +38,7 @@ const SIN_PREPARAR = { ...BASE, ar_assets: [] };
 const SIN_VARIANTES = { ...BASE, variants: [], ar_assets: [] };
 
 describe('Acceso al probador virtual desde la ficha', () => {
+  beforeEach(() => sessionStorage.removeItem('fs-try-on-list'));
   async function render(setup: {
     product?: object;
     canRead?: boolean;
@@ -100,6 +102,57 @@ const block = fixture.nativeElement.querySelector('.fitting-access');
     expect(block.textContent).toContain('Agregá al menos una talla y color');
     expect(block.textContent).toContain('Preparar imágenes del probador');
     expect(block.querySelector('a[href^="/admin/products/p1"]')).toBeTruthy();
+  });
+  it('selecciona la única talla publicada y permite añadirla a la reserva desde la ficha', async () => {
+    const fixture = await render({ product: SIN_PREPARAR });
+    const variant = fixture.nativeElement.querySelector('.variant-list button') as HTMLButtonElement;
+    const reserve = [...fixture.nativeElement.querySelectorAll('button')].find((button) =>
+      (button as HTMLButtonElement).textContent?.includes('Agregar a mi reserva'),
+    ) as HTMLButtonElement;
+
+    expect(fixture.componentInstance.variant()?.id).toBe('v1');
+    expect(variant.getAttribute('aria-pressed')).toBe('true');
+    expect(reserve.disabled).toBe(false);
+    expect(fixture.nativeElement.textContent).not.toContain('Elegí una talla y un color');
+
+    reserve.click();
+    fixture.detectChanges();
+    expect(TestBed.inject(TryOnListService).items()[0].variant_id).toBe('v1');
+    expect(fixture.nativeElement.textContent).toContain('Revisar selección y reservar');
+  });
+  it('no permite seleccionar una variante inactiva', async () => {
+    const inactive = {
+      ...SIN_PREPARAR,
+      variants: [{ ...SIN_PREPARAR.variants[0], is_active: false }],
+    };
+    const fixture = await render({ product: inactive });
+    const variant = fixture.nativeElement.querySelector('.variant-list button') as HTMLButtonElement;
+
+    expect(fixture.componentInstance.variant()).toBeNull();
+    expect(variant.disabled).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Elegí una talla y un color');
+  });
+  it('preselecciona la primera talla disponible y permite cambiarla', async () => {
+    const product = {
+      ...SIN_PREPARAR,
+      variants: [
+        SIN_PREPARAR.variants[0],
+        { ...SIN_PREPARAR.variants[0], id: 'v2', size: { id: 's2', name: 'L', code: 'L' } },
+      ],
+    };
+    const fixture = await render({ product });
+    const buttons = fixture.nativeElement.querySelectorAll('.variant-list button');
+
+    expect(fixture.componentInstance.variant()?.id).toBe('v1');
+    buttons[1].click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.variant()?.id).toBe('v2');
+    expect(buttons[1].getAttribute('aria-pressed')).toBe('true');
+  });
+  it('no sustituye una talla concreta que ya no existe en el catálogo', async () => {
+    const fixture = await render({ product: SIN_PREPARAR, variante: 'v-eliminada' });
+    expect(fixture.componentInstance.variant()).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Elegí una talla y un color');
   });
 });
 
