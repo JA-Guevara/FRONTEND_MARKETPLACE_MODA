@@ -2,6 +2,7 @@
 
 # Compiled output
 /dist
+/dist-pwa-local
 /tmp
 /out-tsc
 /bazel-out

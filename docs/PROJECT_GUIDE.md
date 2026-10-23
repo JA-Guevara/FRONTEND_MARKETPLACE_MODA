@@ -16,7 +16,9 @@ npm run test:ci
 npm run build
 ```
 
-Para prueba manual de PWA, sirve `dist/frontend_marketplace_moda/browser` (o la carpeta `browser` informada por el build) con fallback a `index.html` en localhost, inicia sesión, descarga el catálogo, espera activación del worker y recarga sin red. Comprueba reserva, cierre/reapertura y anulación; revisar solo `ng serve` no valida ese escenario. Las pruebas automatizadas usan `fake-indexeddb` y datos sintéticos. El seguimiento compartido distingue esa evidencia de las comprobaciones manuales.
+Para prueba manual de PWA local, ejecuta `npm run build -- --configuration production,pwa-local --output-path dist-pwa-local`. Este bundle conserva optimización y service worker y usa `/api/v1` local. Desde la carpeta compartida se puede servir con `backend_marketplace_moda\.venv\Scripts\python.exe docs\_fuentes\qa_pwa_local.py`; el servidor incluye fallback a `index.html` y proxy a la API sintética `qa_api_local.py`. El build habitual `dist/browser` mantiene el destino de producción configurado.
+
+Inicia sesión, descarga el catálogo, espera activación del worker y recarga sin red. Comprueba reserva, cierre/reapertura y anulación; revisar solo `ng serve` no valida ese escenario. Las pruebas automatizadas usan `fake-indexeddb` y datos sintéticos. El seguimiento compartido distingue esa evidencia de las comprobaciones manuales.
 
 ## 1. Qué es
 
@@ -154,7 +156,7 @@ Se revisó vista por vista, no con reglas generales:
 ## 8. Pruebas
 
 ```powershell
-npm run test:ci      # 351 pruebas
+npm run test:ci      # 489 pruebas al cierre del segundo parcial
 npm run build        # compilación de producción
 ```
 
