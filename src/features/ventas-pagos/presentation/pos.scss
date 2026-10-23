@@ -11,7 +11,7 @@
 
 /* Utilidades que estos componentes necesitan por su cuenta. */
 .muted {
-  color: #736c65;
+  color: var(--muted);
 }
 .pos-actions {
   display: flex;
@@ -30,7 +30,7 @@
   margin-bottom: 16px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: var(--white);
+  background: var(--surface);
 }
 .pos-bar label {
   display: grid;
@@ -52,7 +52,7 @@
 }
 .pos-tabs button.is-active {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border-color: var(--accent);
 }
 
@@ -67,7 +67,7 @@
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: var(--white);
+  background: var(--surface);
 }
 /* La venta acompaña el scroll: el cajero siempre ve el total y el botón. */
 .pos-ticket {
@@ -95,7 +95,7 @@
 .pos-stock th {
   position: sticky;
   top: 0;
-  background: var(--white);
+  background: var(--surface);
   text-align: left;
   padding: 8px 6px;
   font-size: 11px;
@@ -177,8 +177,8 @@
   font-size: 20px;
 }
 .pos-vuelto.is-insuficiente {
-  background: #fbeaea;
-  color: #8f2d2d;
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 /* --- Resultado de la operación ------------------------------------------ */
@@ -189,7 +189,7 @@
   border: 1px solid var(--line);
   border-left: 4px solid var(--accent);
   border-radius: 12px;
-  background: var(--white);
+  background: var(--surface);
 }
 .pos-recibo h2 {
   margin: 0;
@@ -245,7 +245,7 @@
 .pos-medios button.is-active {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 /* El importe de la línea, debajo de talla y color. */

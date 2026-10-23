@@ -137,7 +137,7 @@ const SUGGESTIONS = [
     .ai-panel__actions { display: flex; gap: 2px; margin-left: auto; }
     .ai-panel__actions button, .ai-panel__close {
       min-width: 34px; min-height: 34px; padding: 6px; border-radius: 8px;
-      background: none; border: 0; color: white; opacity: 0.85; cursor: pointer; display: grid;
+      background: none; border: 0; color: var(--on-accent); opacity: 0.85; cursor: pointer; display: grid;
       place-items: center;
     }
     .ai-panel__actions button:hover, .ai-panel__close:hover { opacity: 1; background: #ffffff26; }
@@ -145,21 +145,21 @@ const SUGGESTIONS = [
       flex: 1; min-width: 0; min-height: 40px; max-height: 120px; resize: none;
       border-radius: 12px; padding: 9px 12px; font-size: 13.5px; line-height: 1.45;
     }
-    .ai-btn--speaker.is-speaking { color: var(--accent); background: #f1e7eb; animation: ai-speak-pulse 1.1s ease-in-out infinite; }
-    .ai-btn--mic.is-voice-mode:not(.is-listening) { color: var(--accent); background: #f1e7eb; }
+    .ai-btn--speaker.is-speaking { color: var(--accent); background: var(--accent-soft); animation: ai-speak-pulse 1.1s ease-in-out infinite; }
+    .ai-btn--mic.is-voice-mode:not(.is-listening) { color: var(--accent); background: var(--accent-soft); }
     .ai-voice-status { margin: 0; padding: 0 12px 10px; color: var(--muted); font-size: 12px; }
-    .ai-voice-error { margin: 0; padding: 0 12px 10px; color: #9b3c34; font-size: 12px; }
+    .ai-voice-error { margin: 0; padding: 0 12px 10px; color: var(--danger); font-size: 12px; }
     .ai-chip { color: var(--accent); border: 0; background: none; font-size: 12px; min-height: 0;
       padding: 0; }
     .ai-new { align-self: center; justify-self: end; margin-top: 6px; }
-    .ai-draft { display: grid; gap: 8px; background: white; border: 1px solid var(--line); border-radius: 12px;
+    .ai-draft { display: grid; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
       padding: 12px; font-size: 13px; }
     .ai-draft__title { margin: 0; font-weight: 600; font-size: 12.5px; }
     .ai-draft label { gap: 3px; font-size: 12px; }
     .ai-draft input, .ai-draft select, .ai-draft textarea { font-size: 13px; padding: 7px 9px; }
     .ai-draft__actions { display: flex; gap: 8px; }
     .ai-draft__actions button { flex: 1; min-height: 34px; }
-    .ai-confirm { display: grid; gap: 8px; background: white; border: 1px solid var(--line);
+    .ai-confirm { display: grid; gap: 8px; background: var(--surface); border: 1px solid var(--line);
       border-radius: 12px; padding: 12px; font-size: 13px; box-shadow: 0 2px 10px #0000001a; }
     .ai-confirm__line { margin: 0; line-height: 1.5; }
     .ai-confirm__key { gap: 3px; font-size: 12px; }
@@ -172,9 +172,9 @@ const SUGGESTIONS = [
     .ai-msg--typing .ai-dot:nth-child(2) { animation-delay: 0.15s; }
     .ai-msg--typing .ai-dot:nth-child(3) { animation-delay: 0.3s; }
     .ai-msg--voice-draft { display: flex; align-items: center; gap: 8px; min-width: 168px; }
-    .ai-msg--voice-draft small { margin-left: auto; color: #ffffffc9; font-variant-numeric: tabular-nums; }
+    .ai-msg--voice-draft small { margin-left: auto; color: color-mix(in oklab, var(--on-accent) 80%, transparent); font-variant-numeric: tabular-nums; }
     .ai-voice-wave { display: inline-flex; align-items: center; gap: 2px; height: 18px; }
-    .ai-voice-wave i { width: 3px; height: 6px; border-radius: 999px; background: #fff; animation: ai-voice-wave 0.75s ease-in-out infinite alternate; }
+    .ai-voice-wave i { width: 3px; height: 6px; border-radius: 999px; background: var(--surface); animation: ai-voice-wave 0.75s ease-in-out infinite alternate; }
     .ai-voice-wave i:nth-child(2) { height: 14px; animation-delay: 0.12s; }
     .ai-voice-wave i:nth-child(3) { height: 9px; animation-delay: 0.25s; }
     .ai-voice-wave i:nth-child(4) { height: 16px; animation-delay: 0.08s; }

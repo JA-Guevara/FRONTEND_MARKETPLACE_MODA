@@ -151,7 +151,7 @@ interface Draft {
         height: 200px;
         display: grid;
         place-items: center;
-        background: #f2eee7;
+        background: var(--surface-2);
         border-radius: 10px;
         overflow: hidden;
         margin-top: 14px;
@@ -185,7 +185,7 @@ interface Draft {
         object-fit: cover;
       }
       .thumbs .selected {
-        border: 2px solid #665a43;
+        border: 2px solid var(--line-elev);
       }
       .photos > label.check {
         display: flex;

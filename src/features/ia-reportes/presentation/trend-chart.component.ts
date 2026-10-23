@@ -24,7 +24,7 @@ export interface TrendPoint { label:string; value:number; }
       <div class="legend"><span><i></i>Real · {{ currency }}</span>@if(projected.length) { <span><i class="projected"></i>Proyección orientativa</span> }</div>
     } @else { <p class="empty">Todavía no hay suficientes datos para graficar una tendencia.</p> }
   `,
-  styles:[`:host{display:block;min-width:0}svg{width:100%;height:auto;max-height:260px;display:block}.tick{font-size:11px;fill:#706b68}.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.73rem;color:#706b68;margin-top:8px}.legend span{display:flex;align-items:center;gap:6px}i{width:17px;border-top:3px solid #74394e}i.projected{border-color:#267c78;border-top-style:dashed}.empty{color:#756c62;font-size:.85rem;line-height:1.6}`],
+  styles:[`:host{display:block;min-width:0}svg{width:100%;height:auto;max-height:260px;display:block}.tick{font-size:11px;fill: var(--muted)}.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.73rem;color: var(--muted);margin-top:8px}.legend span{display:flex;align-items:center;gap:6px}i{width:17px;border-top: 3px solid var(--accent)}i.projected{border-color: var(--ok);border-top-style:dashed}.empty{color: var(--muted);font-size:.85rem;line-height:1.6}`],
 })
 export class TrendChartComponent {
   @Input() actual:TrendPoint[]=[];

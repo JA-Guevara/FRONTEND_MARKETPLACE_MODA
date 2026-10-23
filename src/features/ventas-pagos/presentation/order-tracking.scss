@@ -7,7 +7,7 @@
 
 /* Utilidades compartidas que estos componentes necesitan por su cuenta. */
 .muted {
-  color: #736c65;
+  color: var(--muted);
 }
 .commerce-actions {
   display: flex;
@@ -27,7 +27,7 @@
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: var(--white);
+  background: var(--surface);
 }
 .tracker-summary {
   display: grid;
@@ -54,7 +54,7 @@
   top: 17px;
   height: 3px;
   border-radius: 3px;
-  background: #e5e2da;
+  background: var(--line);
   overflow: hidden;
 }
 .tracker-rail span {
@@ -80,16 +80,16 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: #f1eee7;
-  border: 2px solid #e0dcd2;
-  color: #9b958a;
+  background: var(--surface-2);
+  border: 2px solid var(--line);
+  color: var(--muted);
   font-size: 15px;
 }
 .tracker-step.is-hecha .tracker-dot,
 .tracker-step.is-actual .tracker-dot {
   background: var(--accent, #74394e);
   border-color: var(--accent, #74394e);
-  color: #fff;
+  color: var(--on-accent);
 }
 .tracker-step.is-actual .tracker-dot {
   box-shadow: 0 0 0 5px #74394e22;
@@ -205,7 +205,7 @@
   border-left-color: var(--accent, #2f6f4f);
 }
 .returns-list li.is-rejected {
-  border-left-color: #a33;
+  border-left-color: var(--danger);
 }
 .returns-list li > div {
   display: flex;
@@ -222,7 +222,7 @@
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: var(--white);
+  background: var(--surface);
 }
 /* Prenda a la izquierda, cantidad a la derecha. */
 .returns-item {

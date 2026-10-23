@@ -53,7 +53,7 @@ import { CartStateService } from '../../../features/ventas-pagos/application/car
       padding: 0 5px;
       border-radius: 30px;
       background: var(--accent);
-      color: white;
+      color: var(--on-accent);
       font-size: 10px;
       line-height: 1;
     }

@@ -105,12 +105,12 @@ import { errorMessage } from '../../../shared/errors';
       }
       .image-preview {
         height: 160px;
-        background: #eeeae2;
-        border: 1px dashed #b7afa0;
+        background: var(--surface-2);
+        border: 1px dashed var(--line-elev);
         border-radius: 10px;
         display: grid;
         place-items: center;
-        color: #706b60;
+        color: var(--muted);
         font-size: 12px;
         overflow: hidden;
       }
@@ -121,7 +121,7 @@ import { errorMessage } from '../../../shared/errors';
       }
       .upload-area {
         padding: 16px;
-        background: #f0ede6;
+        background: var(--surface-2);
         border-radius: 8px;
         display: grid;
         gap: 6px;

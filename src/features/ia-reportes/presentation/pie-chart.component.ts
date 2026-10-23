@@ -82,14 +82,14 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
       }
       .pie-total-label {
         font-size: 8px;
-        fill: #756c62;
+        fill: var(--muted);
         text-transform: uppercase;
         letter-spacing: 0.04em;
       }
       .pie-total-value {
         font-size: 11px;
         font-weight: 700;
-        fill: #24231f;
+        fill: var(--ink);
       }
       .pie-legend {
         list-style: none;
@@ -115,13 +115,13 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
       .pie-legend span {
         flex: 1;
         overflow-wrap: anywhere;
-        color: #4a453d;
+        color: var(--ink);
       }
       .pie-legend b {
-        color: #24231f;
+        color: var(--ink);
       }
       .empty {
-        color: #756c62;
+        color: var(--muted);
         font-size: 0.85rem;
         line-height: 1.6;
         margin: 0;

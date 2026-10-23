@@ -74,11 +74,11 @@ const PLOT_HEIGHT = 150;
         display: block;
       }
       .bar-chart-axis {
-        stroke: #e5ded5;
+        stroke: var(--line);
         stroke-width: 1;
       }
       .bar-chart-bar {
-        fill: #74394e;
+        fill: var(--accent);
       }
       .bar-chart-labels {
         display: grid;
@@ -89,16 +89,16 @@ const PLOT_HEIGHT = 150;
         justify-items: center;
         text-align: center;
         font-size: 0.68rem;
-        color: #6d6459;
+        color: var(--muted);
         overflow: hidden;
       }
       .bar-chart-label b {
         font-size: 0.68rem;
-        color: #24231f;
+        color: var(--ink);
         overflow-wrap: anywhere;
       }
       .empty {
-        color: #756c62;
+        color: var(--muted);
         font-size: 0.85rem;
         line-height: 1.6;
         margin: 0;

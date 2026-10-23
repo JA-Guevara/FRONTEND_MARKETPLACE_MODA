@@ -31,7 +31,7 @@ import {
   styles: [
     `
       strong.baja {
-        color: #a4453a;
+        color: var(--danger);
       }
     `,
   ],

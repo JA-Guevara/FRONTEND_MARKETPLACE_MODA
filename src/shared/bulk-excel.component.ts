@@ -36,12 +36,12 @@ export const EXCEL_RESOURCES = new Set([
     .excel-preview table { min-width:28rem; width:100%; }
     .excel-note { max-width:80ch; }
     .excel-tools button,.excel-controls button { white-space:normal; min-height:44px; }
-    .excel-tools { padding:12px; background:#f0ede6; border:1px solid #d8d2c6; border-radius:10px; }
-    .excel-tools button { color:#292820; background:white; border-color:#aaa18f; }
-    .excel-tools .import-button { background:#292820; color:#fff; border-color:#292820; }
+    .excel-tools { padding:12px; background: var(--surface-2); border: 1px solid var(--line-elev); border-radius:10px; }
+    .excel-tools button { color: var(--ink); background: var(--surface); border-color: var(--line-elev); }
+    .excel-tools .import-button { background: var(--inverse-bg); color: var(--inverse-fg); border-color: var(--inverse-bg); }
     .excel-panel h2 { font-size:1.2rem; margin:0 0 12px; }
-    .excel-note { color:#555047; line-height:1.6; font-size:.85rem; }
-    .excel-preview th { background:#eee9df; color:#292820; }
+    .excel-note { color: var(--accent); line-height:1.6; font-size:.85rem; }
+    .excel-preview th { background: var(--surface-2); color: var(--ink); }
     @media(max-width:600px) { .excel-tools button { flex:1 1 140px; } }
     @media(max-width:600px) { .excel-controls { align-items:stretch; } .excel-controls>* { width:100%; } }
   `],
