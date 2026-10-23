@@ -106,7 +106,7 @@ describe('Tiempo límite de las peticiones', () => {
     expect(interceptores.indexOf(timeoutInterceptor)).toBeGreaterThan(
       interceptores.indexOf(authInterceptor),
     );
-    expect(interceptores.indexOf(authInterceptor)).toBe(0);
+    expect(interceptores.indexOf(authInterceptor)).toBe(1);
   });
 
   it('el reintento tras renovar el token llega a completarse', async () => {

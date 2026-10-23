@@ -1,0 +1,51 @@
+:host {
+  display: block;
+}
+.sp2-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.sp2-heading p {
+  color: var(--muted);
+}
+.sp2-details {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+}
+.sp2-stack {
+  display: grid;
+  gap: 18px;
+}
+.plan-price {
+  font-size: 34px;
+  font-family: var(--font-display);
+}
+.feature-list {
+  list-style: none;
+  padding: 0;
+}
+.feature-list li {
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+}
+.timeline {
+  border-left: 2px solid var(--accent-line);
+  padding-left: 20px;
+}
+.timeline li {
+  padding: 0 0 22px;
+  list-style: none;
+}
+@media (max-width: 760px) {
+  .sp2-details {
+    grid-template-columns: 1fr;
+  }
+  .sp2-heading {
+    align-items: start;
+    flex-direction: column;
+  }
+}

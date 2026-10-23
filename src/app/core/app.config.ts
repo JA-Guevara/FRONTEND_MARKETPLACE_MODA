@@ -1,3 +1,7 @@
+import {isDevMode} from '@angular/core';
+import {provideServiceWorker} from '@angular/service-worker';
+import {tenantInterceptor} from './tenant.interceptor';
+import {planNoticeInterceptor} from './plan-notice.interceptor';
 import { ApplicationConfig, inject, provideAppInitializer, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { routes } from './app.routes';
@@ -16,10 +20,11 @@ import { SessionService } from '../../features/usuarios-catalogo/application/ses
  *
  * Se exporta para que la prueba pueda fijar ese orden: una vez armada la cadena
  * ya no es observable desde fuera. */
-export const interceptores = [authInterceptor, timeoutInterceptor];
+export const interceptores = [tenantInterceptor, authInterceptor, planNoticeInterceptor, timeoutInterceptor];
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    provideServiceWorker('ngsw-worker.js',{enabled:!isDevMode(),registrationStrategy:'registerWhenStable:30000'}),
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
     provideHttpClient(withInterceptors(interceptores)),

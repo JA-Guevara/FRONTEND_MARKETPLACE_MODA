@@ -1,3 +1,4 @@
+import {offlineGuard} from './offline/offline-session';
 import { Routes } from '@angular/router';
 import { authGuard } from './auth.guard';
 import { resources } from './shared/resources';
@@ -8,6 +9,12 @@ const auth = () =>
 const resource = () =>
   import('../../shared/resource-page.component').then((m) => m.ResourcePageComponent);
 export const routes: Routes = [
+{path:'sin-conexion',canActivate:[offlineGuard],loadComponent:()=>import('../../features/operacion-offline/presentation/preparar-offline.component').then(m=>m.PrepararOfflineComponent)},
+{path:'sin-conexion/catalogo',canActivate:[offlineGuard],loadComponent:()=>import('../../features/operacion-offline/presentation/catalogo-offline.component').then(m=>m.CatalogoOfflineComponent)},
+{path:'sin-conexion/reservar',canActivate:[offlineGuard],loadComponent:()=>import('../../features/operacion-offline/presentation/reserva-offline.component').then(m=>m.ReservaOfflineComponent)},
+{path:'sin-conexion/reservas',canActivate:[offlineGuard],loadComponent:()=>import('../../features/operacion-offline/presentation/reservas-locales.component').then(m=>m.ReservasLocalesComponent)},
+{path:'sin-conexion/reservas/:id',canActivate:[offlineGuard],loadComponent:()=>import('../../features/operacion-offline/presentation/comprobante-reserva.component').then(m=>m.ComprobanteReservaComponent)},
+
   {
     path: 'carrito',
     title: 'Mi carrito | FashionStore',
@@ -152,6 +159,11 @@ export const routes: Routes = [
       import('./layout/admin-layout.component').then((m) => m.AdminLayoutComponent),
     canActivate: [authGuard],
     children: [
+{path:'plataforma/empresas',canActivate:[authGuard],data:{permission:'tenants.read'},loadComponent:()=>import('../../features/plataforma-saas/presentation/empresas-page.component').then(m=>m.EmpresasPageComponent)},
+{path:'plataforma/empresas/:id/suscripcion',canActivate:[authGuard],data:{permission:'subscriptions.read'},loadComponent:()=>import('../../features/plataforma-saas/presentation/suscripcion-empresa.component').then(m=>m.SuscripcionEmpresaComponent)},
+{path:'plataforma/empresas/:id',canActivate:[authGuard],data:{permission:'tenants.read'},loadComponent:()=>import('../../features/plataforma-saas/presentation/empresa-detalle.component').then(m=>m.EmpresaDetalleComponent)},
+{path:'plataforma/planes',canActivate:[authGuard],data:{permission:'plans.read'},loadComponent:()=>import('../../features/plataforma-saas/presentation/planes-page.component').then(m=>m.PlanesPageComponent)},
+{path:'mi-suscripcion',canActivate:[authGuard],data:{permission:'my_subscription.read'},loadComponent:()=>import('../../features/plataforma-saas/presentation/mi-suscripcion.component').then(m=>m.MiSuscripcionComponent)},
       {
         path: 'dashboard',
         title: 'Centro de reportes | FashionStore',

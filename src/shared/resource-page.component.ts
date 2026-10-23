@@ -190,7 +190,8 @@ import { IconComponent } from './icon.component';
                         </button>
                       }
                       @if (config.key === 'users' && !item['deleted_at']) {
-                        <button (click)="assign(item, 'roles')"><fs-icon name="users" />Roles</button
+                        <button (click)="assign(item, 'roles')">
+                          <fs-icon name="users" />Roles</button
                         ><button (click)="confirmAction(item, 'unlock')">
                           <fs-icon name="unlock" />Desbloquear
                         </button>
@@ -200,6 +201,11 @@ import { IconComponent } from './icon.component';
                           <fs-icon name="lock" />Permisos
                         </button>
                       }
+                    }
+                    @if (canDeactivateBranch(item)) {
+                      <button [disabled]="busy()" (click)="confirmAction(item, 'deactivate')">
+                        <fs-icon name="close" />Desactivar
+                      </button>
                     }
                     @if (config.key === 'products') {
                       <a class="button" [routerLink]="['/admin/products', item.id]">
@@ -253,16 +259,16 @@ import { IconComponent } from './icon.component';
             <p class="alert error" role="alert">{{ formError() }}</p>
           }
           <div [class.product-editor-columns]="config.key === 'products' && !assignment">
-          @if (config.key === 'products' && !assignment) {
-            <fs-product-images [existing]="productImages" [busy]="busy()" />
-          }
-          <fs-entity-form
-            [fields]="editFields"
-            [value]="current"
-            [busy]="busy()"
-            (saved)="save($event)"
-            (cancel)="close()"
-          />
+            @if (config.key === 'products' && !assignment) {
+              <fs-product-images [existing]="productImages" [busy]="busy()" />
+            }
+            <fs-entity-form
+              [fields]="editFields"
+              [value]="current"
+              [busy]="busy()"
+              (saved)="save($event)"
+              (cancel)="close()"
+            />
           </div>
         </section>
       </div>
@@ -382,7 +388,16 @@ export class ResourcePageComponent implements OnInit {
     });
   }
   canWrite() {
-    return this.session.can(this.config.writePermission);
+    return !this.session.readOnly() && this.session.can(this.config.writePermission);
+  }
+  canDeactivateBranch(item: Entity) {
+    return (
+      this.session.readOnly() &&
+      this.config.key === 'branches' &&
+      this.session.can(this.config.writePermission) &&
+      item['is_active'] &&
+      !item['deleted_at']
+    );
   }
   excelSupported() {
     return EXCEL_RESOURCES.has(this.config.key);
@@ -543,7 +558,13 @@ export class ResourcePageComponent implements OnInit {
     )[action];
   }
   async executeAction() {
-    if (!this.pending || this.busy() || !this.canWrite()) return;
+    if (
+      !this.pending ||
+      this.busy() ||
+      (!this.canWrite() &&
+        !(this.pending.action === 'deactivate' && this.canDeactivateBranch(this.pending.item)))
+    )
+      return;
     this.busy.set(true);
     this.formError.set('');
     const { item, action } = this.pending;
@@ -586,4 +607,3 @@ export class ResourcePageComponent implements OnInit {
     return String(value);
   }
 }
-

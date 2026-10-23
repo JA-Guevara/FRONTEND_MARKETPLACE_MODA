@@ -1,0 +1,150 @@
+:host {
+  display: block;
+}
+.offline-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+.offline-heading p {
+  color: var(--muted);
+}
+.offline-cols {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 24px;
+}
+.offline-cols aside {
+  align-self: start;
+  position: sticky;
+  top: 20px;
+}
+.offline-cols aside label {
+  margin-bottom: 16px;
+}
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 18px;
+}
+.product-card {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.product-image {
+  aspect-ratio: 4/3;
+  background: var(--surface-2);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 38px;
+}
+.product-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.product-body {
+  padding: 16px;
+  display: grid;
+  gap: 8px;
+}
+.product-body h3 {
+  font-family: var(--font-display);
+}
+.product-body small {
+  color: var(--muted);
+}
+.product-price {
+  font-size: 21px;
+  font-weight: 700;
+}
+.product-price del {
+  font-size: 13px;
+  color: var(--muted);
+  margin-left: 8px;
+}
+.reservation-cols {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 22px;
+}
+.reservation-item {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line);
+}
+.reservation-item .grow {
+  flex: 1;
+}
+.receipt {
+  max-width: 760px;
+  margin: 24px auto;
+  padding: 32px;
+}
+.receipt-code {
+  overflow-wrap: anywhere;
+  font-family: monospace;
+  font-size: 15px;
+}
+.snapshot-progress {
+  width: 100%;
+  height: 10px;
+  accent-color: var(--accent);
+}
+.print-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+@media (max-width: 760px) {
+  .offline-cols,
+  .reservation-cols {
+    grid-template-columns: 1fr;
+  }
+  .offline-cols aside {
+    position: static;
+  }
+  .offline-heading {
+    align-items: start;
+    flex-direction: column;
+  }
+  .sp2-page {
+    padding: 16px;
+  }
+  .product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .product-body {
+    padding: 12px;
+  }
+  .product-body button {
+    padding: 8px;
+  }
+  .receipt {
+    padding: 18px;
+  }
+}
+@media print {
+  .print-actions,
+  .offline-heading {
+    display: none !important;
+  }
+  .receipt {
+    border: 0;
+    box-shadow: none;
+    max-width: 100%;
+  }
+  a {
+    display: none;
+  }
+}

@@ -1,3 +1,8 @@
+import {
+  saveOfflineProfile,
+  readOfflineProfile,
+  clearOfflineProfile,
+} from '../../../app/core/offline/offline-session';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpBackend, HttpClient, HttpHeaders } from '@angular/common/http';
 import {
@@ -29,7 +34,10 @@ export class SessionService {
   private limites = inject(LIMITES_HTTP);
   private conLimite<T>(peticion: Observable<T>, url: string) {
     return peticion.pipe(
-      timeout({ each: this.limites.normal, with: () => throwError(() => errorDeTiempoLimite(url)) }),
+      timeout({
+        each: this.limites.normal,
+        with: () => throwError(() => errorDeTiempoLimite(url)),
+      }),
     );
   }
   private tokens: Tokens | null = null;
@@ -38,6 +46,20 @@ export class SessionService {
   private sessionVersion = 0;
   private readonly storageKey = 'fashionstore.refresh';
   readonly user = signal<User | null>(null);
+  readonly offlineSession = signal(false);
+  readonly tenant = computed(() => this.user()?.tenant ?? null);
+  readonly subscription = computed(() => this.user()?.subscription ?? null);
+  readonly isPlatformAdmin = computed(() => this.can('tenants.read') && !this.tenant());
+  readonly readOnly = computed(() => {
+    const s = this.subscription();
+    if (!s) return false;
+    const end = new Date(s.end_date + 'T23:59:59');
+    return s.status !== 'ACTIVA' || end.getTime() < Date.now();
+  });
+  hasFeature(code: string) {
+    return this.subscription()?.features[code] === true;
+  }
+
   readonly permissions = computed(
     () =>
       new Set(
@@ -57,25 +79,71 @@ export class SessionService {
   private accept(tokens: Tokens) {
     this.tokens = tokens;
     this.user.set(tokens.user);
-    try { sessionStorage.setItem(this.storageKey, tokens.refresh_token); } catch { /* memory-only fallback */ }
+    this.offlineSession.set(false);
+    void saveOfflineProfile(tokens.user).catch(() => {});
+    try {
+      sessionStorage.setItem(this.storageKey, tokens.refresh_token);
+    } catch {
+      /* memory-only fallback */
+    }
   }
   clear() {
     this.sessionVersion++;
     this.tokens = null;
     this.user.set(null);
-    try { sessionStorage.removeItem(this.storageKey); } catch { /* storage unavailable */ }
+    this.offlineSession.set(false);
+    void clearOfflineProfile().catch(() => {});
+    try {
+      sessionStorage.removeItem(this.storageKey);
+    } catch {
+      /* storage unavailable */
+    }
   }
   restore(): Promise<void> {
     if (this.user()) return Promise.resolve();
     if (this.restoring) return this.restoring;
     let refreshToken: string | null = null;
-    try { refreshToken = sessionStorage.getItem(this.storageKey); } catch { /* storage unavailable */ }
+    try {
+      refreshToken = sessionStorage.getItem(this.storageKey);
+    } catch {
+      /* storage unavailable */
+    }
+    if (!navigator.onLine) {
+      const version = this.sessionVersion;
+      return readOfflineProfile()
+        .then((u) => {
+          if (version === this.sessionVersion && u?.is_active && u.tenant?.status === 'ACTIVA') {
+            this.user.set(u);
+            this.offlineSession.set(true);
+          }
+        })
+        .catch(() => {});
+    }
     if (!refreshToken) return Promise.resolve();
     const version = this.sessionVersion;
-    this.restoring = firstValueFrom(this.request<Tokens>('refresh', { refresh_token: refreshToken }).pipe(timeout(10000)))
-      .then(r => { if (version === this.sessionVersion) this.accept(r.data); })
-      .catch(() => { if (version === this.sessionVersion) this.clear(); })
-      .finally(() => { this.restoring = undefined; });
+    this.restoring = firstValueFrom(
+      this.request<Tokens>('refresh', { refresh_token: refreshToken }).pipe(timeout(10000)),
+    )
+      .then((r) => {
+        if (version === this.sessionVersion) this.accept(r.data);
+      })
+      .catch(async (error) => {
+        if (version !== this.sessionVersion) return;
+        if (error.status === 0 || error.name === 'TimeoutError') {
+          const profile = await readOfflineProfile().catch(() => null);
+          if (version !== this.sessionVersion) return;
+          if (profile?.is_active && profile.tenant?.status === 'ACTIVA') {
+            this.tokens = null;
+            this.user.set(profile);
+            this.offlineSession.set(true);
+            return;
+          }
+        }
+        this.clear();
+      })
+      .finally(() => {
+        this.restoring = undefined;
+      });
     return this.restoring;
   }
   login(email: string, password: string) {
@@ -85,16 +153,18 @@ export class SessionService {
   }
   request<T>(action: string, body: unknown) {
     const headers = this.accessToken
-      ? new HttpHeaders({ Authorization: `Bearer ${this.accessToken}` })
-      : undefined;
+      ? new HttpHeaders({
+          Authorization: `Bearer ${this.accessToken}`,
+          ...(action === 'register' ? { 'X-Tenant-Slug': environment.tenantSlug } : {}),
+        })
+      : action === 'register'
+        ? new HttpHeaders({ 'X-Tenant-Slug': environment.tenantSlug })
+        : undefined;
     const url = `${environment.apiUrl}/auth/${action}`;
     // El límite envuelve cada envío por separado, no la cadena entera: el
     // reintento posterior a la renovación estrena su propio reloj, igual que en
     // timeoutInterceptor.
-    return this.conLimite(
-      this.http.post<ApiResponse<T>>(url, body, { headers }),
-      url,
-    ).pipe(
+    return this.conLimite(this.http.post<ApiResponse<T>>(url, body, { headers }), url).pipe(
       catchError((error) => {
         if (action !== 'change-password' || error.status !== 401 || !this.tokens)
           return throwError(() => error);
@@ -120,7 +190,8 @@ export class SessionService {
     }).pipe(
       map((r) => r.data),
       tap((t) => {
-        if (version !== this.sessionVersion) throw new Error('La sesión se cerró durante la renovación.');
+        if (version !== this.sessionVersion)
+          throw new Error('La sesión se cerró durante la renovación.');
         this.accept(t);
       }),
       finalize(() => (this.renewing = undefined)),
@@ -139,6 +210,11 @@ export class SessionService {
         headers: { Authorization: `Bearer ${this.accessToken}` },
       }),
       url,
-    ).pipe(tap((r) => this.user.set(r.data)));
+    ).pipe(
+      tap((r) => {
+        this.user.set(r.data);
+        void saveOfflineProfile(r.data).catch(() => {});
+      }),
+    );
   }
 }

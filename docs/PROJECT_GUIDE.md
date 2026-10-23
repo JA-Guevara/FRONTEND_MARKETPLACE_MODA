@@ -1,5 +1,23 @@
 # FashionStore Frontend — guía del proyecto
 
+## Segundo parcial: SaaS y operación local (23/10/2026)
+
+`plataforma-saas` agrega empresas, planes y suscripciones; `operacion-offline` agrega preparación de catálogo, filtros, reserva provisional, comprobante imprimible y lista/anulación local. Las rutas siguen los contratos de los planes CU-00 a CU-05 de la carpeta compartida `docs`.
+
+- El encabezado de consola y el menú cambian según cuenta de plataforma/empresa. Los tokens visuales v2, modo claro/oscuro y componentes `fs-*` compartidos están en `styles.scss` y `shared/ui`, con hojas propias. `DialogFocusDirective` gestiona teclado/foco; cada nueva confirmación limpia el texto previo.
+- La cadena es `tenantInterceptor`, `authInterceptor`, `planNoticeInterceptor`, `timeoutInterceptor`. El cliente directo de sesión agrega el encabezado de empresa al registro. Los errores de plan abren el diálogo global y se propagan para terminar el estado de guardado de la pantalla.
+- `fashionstore-offline` v1 tiene nueve almacenes IndexedDB. La instantánea se reemplaza en una transacción; una descarga fallida conserva la versión anterior. El catálogo se vincula a empresa, usuario y sucursal. Cambiar de cuenta vacía el estado visible; cambiar catálogo no elimina las reservas pendientes de otra cuenta.
+- El perfil offline contiene solo datos públicos y permisos, nunca tokens. Un error de red permite restaurarlo; un401 revocado lo elimina. Este perfil habilita rutas locales y no equivale a autenticación para las rutas protegidas remotas. Un refresh anterior al cierre de sesión no puede revivirla.
+- Una reserva local crea UUID, ítems y operación `PENDIENTE` y descuenta stock en la misma transacción. Cancelar restaura stock una sola vez, marca `ANULADA_LOCAL`/`ANULADA` y conserva historial. Una nueva instantánea vuelve a aplicar el descuento de las pendientes; no repone unidades apartadas. No hay envío automático: pertenece al futuro CU-07.
+- La PWA de producción incluye manifest, iconos y service worker. Las imágenes visitadas se guardan en caché de catálogo; precios/stock se consultan en IndexedDB. `ng serve` no prueba instalación ni arranque offline del service worker.
+
+```powershell
+npm run test:ci
+npm run build
+```
+
+Para prueba manual de PWA, sirve `dist/frontend_marketplace_moda/browser` (o la carpeta `browser` informada por el build) con fallback a `index.html` en localhost, inicia sesión, descarga el catálogo, espera activación del worker y recarga sin red. Comprueba reserva, cierre/reapertura y anulación; revisar solo `ng serve` no valida ese escenario. Las pruebas automatizadas usan `fake-indexeddb` y datos sintéticos. El seguimiento compartido distingue esa evidencia de las comprobaciones manuales.
+
 ## 1. Qué es
 
 Aplicación web en Angular 22 con componentes independientes y señales. Cubre **las dos caras** del sistema:

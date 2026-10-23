@@ -4,7 +4,7 @@ import { SessionService } from '../../features/usuarios-catalogo/application/ses
 export const authGuard: CanActivateFn = (route, state) => {
   const session = inject(SessionService);
   const router = inject(Router);
-  if (!session.user())
+  if (!session.user() || session.offlineSession?.())
     return router.createUrlTree(['/iniciar-sesion'], { queryParams: { returnUrl: state.url } });
   return session.can(route.data['permission']) || router.createUrlTree(['/sin-acceso']);
 };

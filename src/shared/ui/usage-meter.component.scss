@@ -1,0 +1,18 @@
+:host {
+  display: block;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+:host > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+:host strong {
+  color: var(--ink);
+}
+.meter {
+  height: 7px;
+}
