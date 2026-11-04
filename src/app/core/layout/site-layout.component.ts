@@ -133,7 +133,7 @@ import { CartStateService } from '../../../features/ventas-pagos/application/car
         </div>
         <button (click)="logout()" [disabled]="busy()" aria-label="Cerrar sesión">Salir</button>
       </header>
-    } @else {
+    } @else if (!adminShell()) {
       <div class="top-strip">
         {{
           demo ? 'ENTORNO DE PRUEBA · DATOS TEMPORALES' : 'TU ESTILO. TU RITMO. TU FASHIONSTORE.'
@@ -242,7 +242,7 @@ import { CartStateService } from '../../../features/ventas-pagos/application/car
       <p class="container alert error" role="alert">{{ notice() }}</p>
     }
     <main id="main-content"><router-outlet /></main>
-    @if (!workspace()) {
+    @if (!workspace() && !adminShell()) {
       <footer class="site-footer">
         <div class="container footer-inner">
           <a class="brand" routerLink="/">fashion<span>store</span></a>
@@ -267,8 +267,13 @@ export class SiteLayoutComponent {
   cart = inject(CartStateService);
   tryOn = inject(TryOnListService);
   private router = inject(Router);
+  /** Pantallas sin conexión fuera del panel: usan la barra compacta de trabajo. */
   workspace() {
-    return /^\/(admin|sin-conexion)(\/|$)/.test(this.router.url);
+    return /^\/sin-conexion(\/|$)/.test(this.router.url);
+  }
+  /** El panel /admin trae su propia barra superior (fs-admin-topbar): aquí no se pinta ninguna. */
+  adminShell() {
+    return /^\/admin(\/|$|\?)/.test(this.router.url);
   }
   toggleTheme() {
     const dark =

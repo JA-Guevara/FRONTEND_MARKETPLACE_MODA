@@ -56,11 +56,10 @@ import { IniciarSoporteDialogComponent } from '../../../features/plataforma-saas
           [attr.aria-expanded]="menuOpen()"
         >
           <span class="av">⌘</span>
-          <span>Vista plataforma ▾</span>
+          <span>Plataforma · <b>elegir empresa</b> ▾</span>
         </button>
-
         @if (menuOpen()) {
-          <div class="ctx-menu">
+          <div class="ctx-menu" role="dialog" aria-label="Elegir empresa">
             <div class="input-wrap">
               <span class="search-ic">⌕</span>
               <input
@@ -68,57 +67,50 @@ import { IniciarSoporteDialogComponent } from '../../../features/plataforma-saas
                 [(ngModel)]="searchQuery"
                 (ngModelChange)="onSearchChange($event)"
                 placeholder="Buscar empresa por nombre, NIT o slug…"
+                aria-label="Buscar empresa"
               />
             </div>
-
-            @if (searchResults().length > 0) {
-              <h5>Resultados</h5>
-              @for (t of searchResults(); track t.id) {
+            <h5>{{ searchQuery.trim().length >= 2 ? 'Resultados' : 'Empresas' }} · {{ total() }}</h5>
+            @if (loading()) {
+              <p class="ctx-empty">Cargando empresas…</p>
+            } @else if (error()) {
+              <p class="ctx-empty">{{ error() }}</p>
+            } @else if (lista().length === 0) {
+              <p class="ctx-empty">No hay empresas que coincidan.</p>
+            }
+            <div class="ctx-list">
+              @for (t of lista(); track t.id) {
                 <div class="ctx-item">
                   <span class="logo-t">{{ getInitials(t.trade_name) }}</span>
-                  <div style="flex:1">
+                  <div class="ctx-main">
                     <b>{{ t.trade_name }}</b>
-                    <span class="sub">{{ t.slug }} · {{ t.status }}</span>
+                    <span class="sub"
+                      >{{ t.plan_name ?? 'Sin plan' }} · {{ t.subscription_status ?? t.status }} ·
+                      {{ t.active_branches }} suc.</span
+                    >
                   </div>
-                  <button
-                    type="button"
+                  <a
                     class="btn sm"
-                    (click)="abrirAsistir(t)"
+                    [routerLink]="['/admin/plataforma/empresas', t.id]"
+                    (click)="menuOpen.set(false)"
+                    title="Ver ficha 360° de la empresa"
+                    >360°</a
                   >
+                  <button type="button" class="btn sm" (click)="abrirAsistir(t)" title="Entrar como soporte">
                     Asistir
                   </button>
                 </div>
               }
-            } @else if (soporte.recientes().length > 0) {
-              <h5>Empresas recientes</h5>
-              @for (r of soporte.recientes(); track r.id) {
-                <div class="ctx-item">
-                  <span class="logo-t">{{ getInitials(r.trade_name) }}</span>
-                  <div style="flex:1">
-                    <b>{{ r.trade_name }}</b>
-                    <span class="sub">{{ r.slug ?? '' }}</span>
-                  </div>
-                  <button
-                    type="button"
-                    class="btn sm"
-                    (click)="abrirAsistir(r)"
-                  >
-                    Asistir
-                  </button>
-                </div>
-              }
-            }
-
-            <h5 style="margin-top: 10px">Ver todas</h5>
+            </div>
             <a
               routerLink="/admin/plataforma/empresas"
-              class="ctx-item"
+              class="ctx-item ctx-all"
               (click)="menuOpen.set(false)"
             >
               <span>▦</span>
               <div>
                 <b>Directorio de empresas</b>
-                <span class="sub">Todas las empresas registradas</span>
+                <span class="sub">Filtros, altas, suscripciones y estado</span>
               </div>
             </a>
           </div>
@@ -151,10 +143,13 @@ export class ContextSwitcherComponent {
 
   menuOpen = signal(false);
   searchQuery = '';
-  searchResults = signal<Tenant[]>([]);
+  /** Lista visible al abrir el menú (primeras empresas) o resultados de la búsqueda. */
+  lista = signal<Tenant[]>([]);
+  total = signal(0);
+  loading = signal(false);
+  error = signal('');
   selectedTenantForSupport = signal<{ id: string; trade_name: string; slug?: string } | null>(null);
-
-  private searchTimeout: any = null;
+  private searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
   @HostListener('document:click', ['$event'])
   onDocumentClick(e: MouseEvent): void {
@@ -164,21 +159,35 @@ export class ContextSwitcherComponent {
   }
 
   togglePlatformMenu(): void {
-    this.menuOpen.set(!this.menuOpen());
+    const open = !this.menuOpen();
+    this.menuOpen.set(open);
+    if (open && this.lista().length === 0) {
+      this.cargar('');
+    }
   }
 
   onSearchChange(val: string): void {
-    clearTimeout(this.searchTimeout);
-    if (!val || val.trim().length < 2) {
-      this.searchResults.set([]);
-      return;
-    }
-    this.searchTimeout = setTimeout(() => {
-      this.api.tenants({ search: val.trim() }).subscribe({
-        next: (page) => this.searchResults.set(page.items),
-        error: () => this.searchResults.set([]),
-      });
-    }, 300);
+    if (this.searchTimeout) clearTimeout(this.searchTimeout);
+    const q = (val ?? '').trim();
+    this.searchTimeout = setTimeout(() => this.cargar(q.length >= 2 ? q : ''), 300);
+  }
+
+  private cargar(search: string): void {
+    this.loading.set(true);
+    this.error.set('');
+    this.api.tenants({ search: search || undefined, page_size: 8 }).subscribe({
+      next: (page) => {
+        this.lista.set(page.items);
+        this.total.set(page.total ?? page.items.length);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.lista.set([]);
+        this.total.set(0);
+        this.error.set('No se pudo cargar la lista de empresas.');
+        this.loading.set(false);
+      },
+    });
   }
 
   abrirAsistir(t: { id: string; trade_name: string; slug?: string }): void {

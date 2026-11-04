@@ -53,7 +53,7 @@ describe('AdminShell (Layout, Topbar, Sidebar)', () => {
     }).compileComponents();
   });
 
-  it('Sesión plataforma → sidebar con «Tablero» y topbar «Vista plataforma»', () => {
+  it('Sesión plataforma → sidebar con «Tablero» y topbar «elegir empresa»', () => {
     mockSession.user.set({
       id: 'u1',
       first_name: 'José',
@@ -74,7 +74,9 @@ describe('AdminShell (Layout, Topbar, Sidebar)', () => {
 
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.textContent).toContain('Tablero');
-    expect(compiled.textContent).toContain('Vista plataforma');
+    expect(compiled.textContent).toContain('elegir empresa');
+    // La barra de la consola es la única: el layout del sitio no agrega otra (sin «Salir» suelto).
+    expect(compiled.querySelectorAll('header').length).toBe(1);
   });
 
   it('Sesión soporte → fs-support-strip visible con nombre de la empresa y enlace «Volver a la consola»', () => {
