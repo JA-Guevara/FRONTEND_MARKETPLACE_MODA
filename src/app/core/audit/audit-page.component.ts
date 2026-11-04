@@ -1,7 +1,8 @@
 import { DialogFocusDirective } from '../../../shared/dialog-focus.directive';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { DatePipe, JsonPipe } from '@angular/common';
+import { DatePipe, JsonPipe } from '@angular/common';
+import { ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../../app/core/shared/api.service';
 import { Entity, Page } from '../../../shared/models';
@@ -75,6 +76,9 @@ import { errorMessage } from '../../../shared/errors';
                 <td>{{ event['created_at'] | date: 'dd/MM/yyyy HH:mm' }}</td>
                 <td>
                   {{ event['actor_email'] || (event['actor_user_id'] ? 'Correo no disponible' : 'Sin sesión') }}
+                  @if (event['actor_is_support'] || event['support_session_id']) {
+                    <span class="badge warn" style="margin-left:4px">⛑ soporte</span>
+                  }
                 </td>
                 <td>{{ event['action'] }}</td>
                 <td>{{ event['entity_type'] }}</td>
@@ -141,7 +145,8 @@ import { errorMessage } from '../../../shared/errors';
     }`,
 })
 export class AuditPageComponent {
-  private api = inject(ApiService);
+  private api = inject(ApiService);
+  private route = inject(ActivatedRoute);
   filters: Record<string, string> = {};
   page = 1;
   result = signal<Page<Entity> | null>(null);
@@ -149,6 +154,10 @@ export class AuditPageComponent {
   loading = signal(false);
   selected = signal<Entity | null>(null);
   constructor() {
+    const ssid = this.route.snapshot.queryParamMap.get('support_session_id');
+    if (ssid) {
+      this.filters['support_session_id'] = ssid;
+    }
     void this.load();
   }
   actorLabel(event: Entity): string {

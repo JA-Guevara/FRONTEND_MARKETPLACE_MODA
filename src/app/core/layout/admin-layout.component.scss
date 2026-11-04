@@ -1,1 +1,82 @@
-.management-toggle{display:none}.admin-sidebar nav a{display:flex;align-items:center;justify-content:flex-start;gap:10px}.admin-sidebar{background:var(--sidebar);border-right:1px solid var(--line)}.admin-sidebar h3{color:var(--muted);text-transform:uppercase;letter-spacing:.12em;font-size:10px;margin-top:20px}.admin-sidebar nav a.active{background:var(--sidebar-active);color:var(--on-sidebar-active)}.admin-content{background:var(--paper)}@media(max-width:760px){.management-toggle{display:flex;width:100%;min-height:44px;margin-bottom:8px}.management-menu.collapsed{display:none}}
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--paper);
+}
+
+.admin-body {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr);
+  flex: 1;
+  min-height: calc(100vh - 58px);
+}
+
+.admin-content {
+  padding: 26px 30px 34px;
+  min-width: 0;
+  background: var(--paper);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  & > .offline-strip {
+    margin: -26px -30px 16px;
+  }
+}
+
+.mobile-nav-toggle {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .admin-body {
+    grid-template-columns: 1fr;
+    position: relative;
+  }
+
+  .mobile-nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    margin: 10px 16px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm, 6px);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  fs-admin-sidebar {
+    display: none;
+
+    &.open {
+      display: block;
+      position: fixed;
+      inset: 58px auto 0 0;
+      width: 260px;
+      z-index: 999;
+      box-shadow: var(--shadow-3, 0 24px 60px rgba(0, 0, 0, 0.2));
+      background: var(--surface-elev, #fff);
+      overflow-y: auto;
+    }
+  }
+
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 58px 0 0 0;
+    background: var(--scrim, rgba(0, 0, 0, 0.4));
+    z-index: 998;
+  }
+
+  .admin-content {
+    padding: 16px;
+
+    & > .offline-strip {
+      margin: -16px -16px 16px;
+    }
+  }
+}

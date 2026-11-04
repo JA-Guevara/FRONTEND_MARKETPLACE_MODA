@@ -62,8 +62,13 @@ async function deleteOfflineProfile() {
   }
 }
 export const offlineGuard: CanActivateFn = (route, state) => {
-  const session = inject(SessionService),
-    router = inject(Router);
+  const session = inject(SessionService);
+  const router = inject(Router);
+
+  if (session.isSupport()) {
+    return router.parseUrl('/admin');
+  }
+
   if (navigator.onLine && !session.offlineSession()) return authGuard(route, state);
   return readOfflineProfile().then((user) => {
     if (user?.is_active && user.tenant?.status === 'ACTIVA') {

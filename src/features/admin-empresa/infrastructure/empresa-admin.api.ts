@@ -1,0 +1,60 @@
+import { Injectable, inject } from '@angular/core';
+import { Observable } from 'rxjs';
+import { ApiService } from '../../../app/core/shared/api.service';
+import { Page, Permission } from '../../../shared/models';
+import {
+  TenantDashboard,
+  TenantProfile,
+  TenantProfileUpdate,
+  RoleView,
+} from '../domain/empresa-admin.models';
+import { SupportSession } from '../../plataforma-saas/domain/soporte.models';
+
+@Injectable({ providedIn: 'root' })
+export class EmpresaAdminApi {
+  private api = inject(ApiService);
+
+  dashboard(branchId?: string): Observable<TenantDashboard> {
+    return this.api.get<TenantDashboard>('/tenant/dashboard', { branch_id: branchId });
+  }
+
+  profile(): Observable<TenantProfile> {
+    return this.api.get<TenantProfile>('/tenant/profile');
+  }
+
+  updateProfile(body: TenantProfileUpdate) {
+    return this.api.write<TenantProfile>('PATCH', '/tenant/profile', body);
+  }
+
+  supportSessions(page = 1): Observable<Page<SupportSession>> {
+    return this.api.get<Page<SupportSession>>('/tenant/support-sessions', { page });
+  }
+
+  roles(): Observable<RoleView[]> {
+    return this.api.get<RoleView[]>('/roles');
+  }
+
+  permissions(): Observable<Permission[]> {
+    return this.api.get<Permission[]>('/roles/permissions/all');
+  }
+
+  createRole(body: { name: string; description?: string; permissions?: string[] }) {
+    return this.api.write<RoleView>('POST', '/roles', body);
+  }
+
+  updateRole(id: string, body: { name?: string; description?: string }) {
+    return this.api.write<RoleView>('PATCH', `/roles/${id}`, body);
+  }
+
+  setRolePermissions(id: string, permissionIds: string[]) {
+    return this.api.write<RoleView>('PUT', `/roles/${id}/permissions`, { permissions: permissionIds });
+  }
+
+  deactivateRole(id: string) {
+    return this.api.write<RoleView>('PATCH', `/roles/${id}/deactivate`);
+  }
+
+  activateRole(id: string) {
+    return this.api.write<RoleView>('PATCH', `/roles/${id}/activate`);
+  }
+}

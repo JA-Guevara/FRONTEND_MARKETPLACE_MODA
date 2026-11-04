@@ -1,6 +1,6 @@
 # FashionStore — Frontend del ciclo I
 
-Aplicación Angular con catálogo público, acceso de clientes y administración por permisos. Implementa el ciclo I (CU01–CU08) definido en `../backend_marketplace_moda/docs/PROJECT_GUIDE.md` y utiliza el contrato de `API_CONTRACT.md` y las rutas FastAPI actuales.
+Aplicación Angular con catálogo público, acceso de clientes y administración por permisos. Implementa el ciclo I (CU01–CU08) definido en `../docs/backend/PROJECT_GUIDE.md` y utiliza el contrato de `../docs/backend/API_CONTRACT.md` y las rutas FastAPI actuales.
 
 ## Probar con el backend configurado
 
@@ -21,7 +21,7 @@ El backend debe estar iniciado con su base migrada:
 .venv\Scripts\python.exe -m uvicorn src.main:app --reload --port 8000
 ```
 
-Las instrucciones de migraciones y creación del primer administrador están en `../backend_marketplace_moda/docs/PROJECT_GUIDE.md`. Este frontend no crea administradores ni aplica migraciones sobre tu base automáticamente.
+Las instrucciones de migraciones y creación del primer administrador están en `../docs/backend/PROJECT_GUIDE.md`. Este frontend no crea administradores ni aplica migraciones sobre tu base automáticamente.
 
 ## Probar todo sin modificar la base real
 
@@ -351,12 +351,12 @@ de unos 2800px de tabla a 522px con desplazamiento interno.
 
 `npm run build` genera `dist/browser`. El servidor web debe servir `index.html` para rutas del frontend y reenviar `/api/v1` al backend. La compilación reemplaza el archivo de ambiente por `environment.prod.ts`. El proxy de Angular solo funciona durante desarrollo; no forma parte de la compilación publicada.
 
-## Documentación del proyecto
+## Documentación del proyecto (Centralizada en `docs/`)
 
-- `docs/PROJECT_GUIDE.md`: arquitectura, rutas, sesión, decisiones de interfaz y pruebas.
-- `docs/PRUEBAS_CICLO_1.md`: detalle de las pruebas del ciclo I.
-- `../backend_marketplace_moda/docs/API_CONTRACT.md`: contrato de los endpoints que consume esta aplicación.
-- `../backend_marketplace_moda/docs/TRAZABILIDAD_RF.md`: estado de cada RF en los tres proyectos.
+- `../docs/frontend/PROJECT_GUIDE.md`: arquitectura, planos (plataforma vs empresa), navegación ADMIN_NAV, señales, decisiones de interfaz y pruebas.
+- `../docs/frontend/PRUEBAS_CICLO_1.md`: detalle de las pruebas del ciclo I.
+- `../docs/backend/API_CONTRACT.md`: contrato de los endpoints que consume esta aplicación.
+- `../docs/backend/TRAZABILIDAD_RF.md`: estado de cada RF en los tres proyectos.
 
 ## Fuente documental
 

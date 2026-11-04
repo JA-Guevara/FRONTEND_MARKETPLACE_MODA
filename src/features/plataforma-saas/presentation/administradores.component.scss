@@ -1,0 +1,21 @@
+:host {
+  display: block;
+}
+
+.av {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface-2, #e2e8f0);
+  color: var(--text, #1e293b);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.sp2-stack {
+  display: grid;
+  gap: 14px;
+}

@@ -2444,3 +2444,16 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 }
 input, select, textarea { color: var(--ink); background-color: var(--surface); border-color: var(--line); }
 input::placeholder, textarea::placeholder { color: var(--muted); }
+
+/* Reestructuración SaaS: franja de soporte, botones de contexto y candados de plan */
+.support-strip { display: flex; align-items: center; gap: 12px; padding: 9px 20px; background: var(--warn-soft); color: var(--ink); border-bottom: 1px solid color-mix(in oklab, var(--warn) 45%, transparent); font-size: 12.5px; }
+.support-strip .ic { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--warn); color: var(--paper); font-weight: 700; }
+.support-strip .grow { flex: 1; }
+.support-strip .timer { font-family: var(--font-mono, monospace); font-weight: 600; color: var(--warn); }
+.support-strip .btn { background: var(--surface); border-color: color-mix(in oklab, var(--warn) 50%, transparent); }
+.ctx { position: relative; }
+.ctx-btn { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-weight: 600; font-size: 13px; cursor: pointer; }
+.ctx-btn.support { border-color: color-mix(in oklab, var(--warn) 60%, transparent); background: var(--warn-soft); }
+.nav-lock { margin-left: auto; font-size: 10px; font-weight: 700; color: var(--accent); background: var(--accent-soft); padding: 1px 6px; border-radius: 999px; }
+.nav-back { display: flex; gap: 8px; align-items: center; padding: 8px 10px; margin: 0 0 6px; border-radius: var(--radius); background: var(--surface); border: 1px dashed var(--line-elev); font-size: 12.5px; color: var(--muted); text-decoration: none; cursor: pointer; }
+

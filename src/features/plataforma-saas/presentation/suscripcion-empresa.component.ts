@@ -162,7 +162,13 @@ import { Plan, FEATURE_LABELS } from '../domain/plan.models';
 })
 export class SuscripcionEmpresaComponent {
   private api = inject(PlataformaApi);
-  private id = inject(ActivatedRoute).snapshot.paramMap.get('id')!;
+  private id = inject(ActivatedRoute).snapshot.paramMap.get('id') || '';
+  @Input() set tenantId(v: string | undefined) {
+    if (v && v !== this.id) {
+      this.id = v;
+      void this.load();
+    }
+  }
   session = inject(SessionService);
   detail = signal<SubscriptionDetail | null>(null);
   plans = signal<Plan[]>([]);

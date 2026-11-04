@@ -1,3 +1,5 @@
+import type { SupportSession } from '../features/plataforma-saas/domain/soporte.models';
+
 export interface ApiResponse<T> {
   success: boolean;
   message: string;
@@ -30,7 +32,7 @@ export interface Role {
 }
 export interface TenantSummary {id:string;slug:string;trade_name:string;status:'ACTIVA'|'INACTIVA'}
 export interface SubscriptionSummary {plan_code:string;plan_name:string;status:string;start_date:string;end_date:string;days_left:number;features:Record<string,boolean>;limits:Record<string,number>}
-export interface User {tenant?:TenantSummary|null;subscription?:SubscriptionSummary|null;
+export interface User {tenant?:TenantSummary|null;subscription?:SubscriptionSummary|null;support?:SupportSession|null;
   id: string;
   email: string;
   first_name: string;

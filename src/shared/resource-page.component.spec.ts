@@ -53,7 +53,8 @@ describe('Contratos de las pantallas administrativas', () => {
     },
   );
   it('consulta permisos desde el listado sin inventar un GET de detalle', async () => {
-    await setup(resources.find((r) => r.key === 'permissions')!);
+    const permResource: Resource = { key: 'permissions', title: 'Permisos', singular: 'permiso', path: '/roles/permissions', listPath: '/roles/permissions/all', group: 'Acceso y seguridad', fields: [], columns: [{ key: 'name', label: 'Nombre' }] };
+    await setup(permResource);
     await fixture.componentInstance.detail({ id: 'p1', name: 'Consultar' });
     backend.expectNone('/api/v1/roles/permissions/p1');
     expect(fixture.componentInstance.viewing()?.id).toBe('p1');

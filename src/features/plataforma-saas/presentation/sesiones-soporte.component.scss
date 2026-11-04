@@ -1,0 +1,7 @@
+:host {
+  display: block;
+}
+
+tr.active-session {
+  background-color: var(--warn-soft, rgba(234, 179, 8, 0.08));
+}

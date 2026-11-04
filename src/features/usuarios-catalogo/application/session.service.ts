@@ -21,6 +21,7 @@ import { ApiResponse, Tokens, User } from '../../../shared/models';
 import { environment } from '../../../environments/environment';
 import { errorDeTiempoLimite } from '../../../shared/errors';
 import { LIMITES_HTTP } from '../../../app/core/timeout.interceptor';
+import { SupportSessionStart } from '../../plataforma-saas/domain/soporte.models';
 
 @Injectable({ providedIn: 'root' })
 export class SessionService {
@@ -45,22 +46,19 @@ export class SessionService {
   private restoring?: Promise<void>;
   private sessionVersion = 0;
   private readonly storageKey = 'fashionstore.refresh';
+  private readonly supportStorageKey = 'fashionstore.support';
+
   readonly user = signal<User | null>(null);
   readonly offlineSession = signal(false);
-  readonly tenant = computed(() => this.user()?.tenant ?? null);
-  readonly subscription = computed(() => this.user()?.subscription ?? null);
-  readonly isPlatformAdmin = computed(() => this.can('tenants.read') && !this.tenant());
-  readonly readOnly = computed(() => {
-    const s = this.subscription();
-    if (!s) return false;
-    const end = new Date(s.end_date + 'T23:59:59');
-    return s.status !== 'ACTIVA' || end.getTime() < Date.now();
-  });
-  hasFeature(code: string) {
-    return this.subscription()?.features[code] === true;
-  }
+  readonly support = signal<SupportSessionStart | null>(null);
 
-  readonly permissions = computed(
+  readonly isSupport = computed(() => !!this.support());
+  readonly tenant = computed(() => this.support()?.tenant ?? this.user()?.tenant ?? null);
+  readonly subscription = computed(
+    () => this.support()?.subscription ?? this.user()?.subscription ?? null,
+  );
+
+  private basePermissions = computed(
     () =>
       new Set(
         this.user()
@@ -69,29 +67,105 @@ export class SessionService {
           [],
       ),
   );
+
+  baseCan(permission?: string): boolean {
+    return !permission || this.basePermissions().has(permission);
+  }
+
+  readonly isPlatformAdmin = computed(
+    () => !this.user()?.tenant && this.baseCan('tenants.read'),
+  );
+
+  readonly readOnly = computed(() => {
+    const s = this.subscription();
+    if (!s) return false;
+    const end = new Date(s.end_date + 'T23:59:59');
+    return s.status !== 'ACTIVA' || end.getTime() < Date.now();
+  });
+
+  hasFeature(code: string) {
+    return this.subscription()?.features[code] === true;
+  }
+
+  readonly permissions = computed(() =>
+    this.support() ? new Set(this.support()!.permissions) : this.basePermissions(),
+  );
+
   readonly administrative = computed(() => this.permissions().size > 0);
-  get accessToken() {
+
+  readonly scope = computed<'platform' | 'tenant'>(() =>
+    this.isPlatformAdmin() && !this.isSupport() ? 'platform' : 'tenant',
+  );
+
+  get accessToken(): string | undefined {
+    const s = this.support();
+    if (s) {
+      const expiresAt = new Date(s.session.expires_at).getTime();
+      if (expiresAt > Date.now()) {
+        return s.access_token;
+      }
+    }
     return this.tokens?.access_token;
   }
+
   can(permission?: string) {
     return !permission || this.permissions().has(permission);
   }
+
+  constructor() {
+    try {
+      const raw = sessionStorage.getItem(this.supportStorageKey);
+      if (raw) {
+        const parsed: SupportSessionStart = JSON.parse(raw);
+        if (new Date(parsed.session?.expires_at).getTime() > Date.now()) {
+          this.support.set(parsed);
+        } else {
+          sessionStorage.removeItem(this.supportStorageKey);
+        }
+      }
+    } catch {
+      /* storage unavailable or parse error */
+    }
+  }
+
+  startSupport(start: SupportSessionStart): void {
+    this.support.set(start);
+    try {
+      sessionStorage.setItem(this.supportStorageKey, JSON.stringify(start));
+    } catch {
+      /* storage unavailable */
+    }
+  }
+
+  endSupport(): void {
+    this.support.set(null);
+    try {
+      sessionStorage.removeItem(this.supportStorageKey);
+    } catch {
+      /* storage unavailable */
+    }
+  }
+
   private accept(tokens: Tokens) {
     this.tokens = tokens;
     this.user.set(tokens.user);
     this.offlineSession.set(false);
-    void saveOfflineProfile(tokens.user).catch(() => {});
+    if (!this.isSupport()) {
+      void saveOfflineProfile(tokens.user).catch(() => {});
+    }
     try {
       sessionStorage.setItem(this.storageKey, tokens.refresh_token);
     } catch {
       /* memory-only fallback */
     }
   }
+
   clear() {
     this.sessionVersion++;
     this.tokens = null;
     this.user.set(null);
     this.offlineSession.set(false);
+    this.endSupport();
     void clearOfflineProfile().catch(() => {});
     try {
       sessionStorage.removeItem(this.storageKey);
@@ -99,6 +173,7 @@ export class SessionService {
       /* storage unavailable */
     }
   }
+
   restore(): Promise<void> {
     if (this.user()) return Promise.resolve();
     if (this.restoring) return this.restoring;
@@ -146,11 +221,13 @@ export class SessionService {
       });
     return this.restoring;
   }
+
   login(email: string, password: string) {
     return this.request<Tokens>('login', { email: email.trim().toLowerCase(), password }).pipe(
       tap((r) => this.accept(r.data)),
     );
   }
+
   request<T>(action: string, body: unknown) {
     const headers = this.accessToken
       ? new HttpHeaders({
@@ -181,6 +258,7 @@ export class SessionService {
       }),
     );
   }
+
   refresh(): Observable<Tokens> {
     if (this.renewing) return this.renewing;
     if (!this.tokens) return throwError(() => new Error('Iniciá sesión para continuar.'));
@@ -199,10 +277,12 @@ export class SessionService {
     );
     return this.renewing;
   }
+
   logout() {
     const refresh_token = this.tokens?.refresh_token;
     return this.request<null>('logout', { refresh_token }).pipe(finalize(() => this.clear()));
   }
+
   reloadUser() {
     const url = `${environment.apiUrl}/auth/me`;
     return this.conLimite(
@@ -213,7 +293,9 @@ export class SessionService {
     ).pipe(
       tap((r) => {
         this.user.set(r.data);
-        void saveOfflineProfile(r.data).catch(() => {});
+        if (!this.isSupport()) {
+          void saveOfflineProfile(r.data).catch(() => {});
+        }
       }),
     );
   }

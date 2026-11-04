@@ -1,52 +1,92 @@
-import {offlineGuard} from './offline/offline-session';
+import { offlineGuard } from './offline/offline-session';
 import { Routes } from '@angular/router';
 import { authGuard } from './auth.guard';
+import { tenantScopeGuard } from './scope.guard';
 import { resources } from './shared/resources';
 import { addressesResource } from '../../features/usuarios-catalogo/application/resources';
+import { PLATAFORMA_ROUTES } from '../../features/plataforma-saas/plataforma.routes';
+import { EMPRESA_ROUTES } from '../../features/admin-empresa/empresa.routes';
 
 const auth = () =>
-  import('../../features/usuarios-catalogo/presentation/auth-page.component').then((m) => m.AuthPageComponent);
+  import('../../features/usuarios-catalogo/presentation/auth-page.component').then(
+    (m) => m.AuthPageComponent
+  );
 const resource = () =>
   import('../../shared/resource-page.component').then((m) => m.ResourcePageComponent);
-export const routes: Routes = [
-{path:'sin-conexion',canActivate:[offlineGuard],loadComponent:()=>import('../../features/operacion-offline/presentation/preparar-offline.component').then(m=>m.PrepararOfflineComponent)},
-{path:'sin-conexion/catalogo',canActivate:[offlineGuard],loadComponent:()=>import('../../features/operacion-offline/presentation/catalogo-offline.component').then(m=>m.CatalogoOfflineComponent)},
-{path:'sin-conexion/reservar',canActivate:[offlineGuard],loadComponent:()=>import('../../features/operacion-offline/presentation/reserva-offline.component').then(m=>m.ReservaOfflineComponent)},
-{path:'sin-conexion/reservas',canActivate:[offlineGuard],loadComponent:()=>import('../../features/operacion-offline/presentation/reservas-locales.component').then(m=>m.ReservasLocalesComponent)},
-{path:'sin-conexion/reservas/:id',canActivate:[offlineGuard],loadComponent:()=>import('../../features/operacion-offline/presentation/comprobante-reserva.component').then(m=>m.ComprobanteReservaComponent)},
 
+export const routes: Routes = [
+  {
+    path: 'sin-conexion',
+    canActivate: [offlineGuard],
+    loadComponent: () =>
+      import(
+        '../../features/operacion-offline/presentation/preparar-offline.component'
+      ).then((m) => m.PrepararOfflineComponent),
+  },
+  {
+    path: 'sin-conexion/catalogo',
+    canActivate: [offlineGuard],
+    loadComponent: () =>
+      import(
+        '../../features/operacion-offline/presentation/catalogo-offline.component'
+      ).then((m) => m.CatalogoOfflineComponent),
+  },
+  {
+    path: 'sin-conexion/reservar',
+    canActivate: [offlineGuard],
+    loadComponent: () =>
+      import(
+        '../../features/operacion-offline/presentation/reserva-offline.component'
+      ).then((m) => m.ReservaOfflineComponent),
+  },
+  {
+    path: 'sin-conexion/reservas',
+    canActivate: [offlineGuard],
+    loadComponent: () =>
+      import(
+        '../../features/operacion-offline/presentation/reservas-locales.component'
+      ).then((m) => m.ReservasLocalesComponent),
+  },
+  {
+    path: 'sin-conexion/reservas/:id',
+    canActivate: [offlineGuard],
+    loadComponent: () =>
+      import(
+        '../../features/operacion-offline/presentation/comprobante-reserva.component'
+      ).then((m) => m.ComprobanteReservaComponent),
+  },
   {
     path: 'carrito',
     title: 'Mi carrito | FashionStore',
     canActivate: [authGuard],
     loadComponent: () =>
       import('../../features/ventas-pagos/presentation/cart-page.component').then(
-        (m) => m.CartPageComponent,
+        (m) => m.CartPageComponent
       ),
   },
   {
     path: '',
     title: 'FashionStore | Tu estilo',
     loadComponent: () =>
-      import('../../features/usuarios-catalogo/presentation/catalog-page.component').then(
-        (m) => m.CatalogPageComponent,
-      ),
+      import(
+        '../../features/usuarios-catalogo/presentation/catalog-page.component'
+      ).then((m) => m.CatalogPageComponent),
   },
   {
     path: 'prendas/:slug',
     title: 'Prenda | FashionStore',
     loadComponent: () =>
-      import('../../features/usuarios-catalogo/presentation/product-page.component').then(
-        (m) => m.ProductPageComponent,
-      ),
+      import(
+        '../../features/usuarios-catalogo/presentation/product-page.component'
+      ).then((m) => m.ProductPageComponent),
   },
   {
     path: 'sucursales',
     title: 'Sucursales | FashionStore',
     loadComponent: () =>
-      import('../../features/inventario-sucursales/presentation/branches-page.component').then(
-        (m) => m.BranchesPageComponent,
-      ),
+      import(
+        '../../features/inventario-sucursales/presentation/branches-page.component'
+      ).then((m) => m.BranchesPageComponent),
   },
   {
     path: 'iniciar-sesion',
@@ -83,18 +123,18 @@ export const routes: Routes = [
     // Espacio personal del cliente: un solo módulo con menú propio.
     path: 'mi-cuenta',
     loadComponent: () =>
-      import('../../features/usuarios-catalogo/presentation/account-layout.component').then(
-        (m) => m.AccountLayoutComponent,
-      ),
+      import(
+        '../../features/usuarios-catalogo/presentation/account-layout.component'
+      ).then((m) => m.AccountLayoutComponent),
     canActivate: [authGuard],
     children: [
       {
         path: '',
         title: 'Mi perfil | FashionStore',
         loadComponent: () =>
-          import('../../features/usuarios-catalogo/presentation/account-page.component').then(
-            (m) => m.AccountPageComponent,
-          ),
+          import(
+            '../../features/usuarios-catalogo/presentation/account-page.component'
+          ).then((m) => m.AccountPageComponent),
       },
       {
         path: 'direcciones',
@@ -107,28 +147,26 @@ export const routes: Routes = [
         title: 'Mis pedidos | FashionStore',
         loadComponent: () =>
           import('../../features/ventas-pagos/presentation/orders-page.component').then(
-            (m) => m.OrdersPageComponent,
+            (m) => m.OrdersPageComponent
           ),
       },
       {
         path: 'favoritos',
         title: 'Mis favoritos | FashionStore',
         loadComponent: () =>
-          import('../../features/ventas-pagos/presentation/favorites-page.component').then(
-            (m) => m.FavoritesPageComponent,
-          ),
+          import(
+            '../../features/ventas-pagos/presentation/favorites-page.component'
+          ).then((m) => m.FavoritesPageComponent),
       },
       {
         path: 'reservas',
         title: 'Mis reservas | FashionStore',
         loadComponent: () =>
-          import('../../features/reservas-vestidor/presentation/mis-reservas.component').then(
-            (m) => m.MisReservasComponent,
-          ),
+          import(
+            '../../features/reservas-vestidor/presentation/mis-reservas.component'
+          ).then((m) => m.MisReservasComponent),
       },
       {
-        // Antes vivía suelta en /cambiar-contrasena y se salía del módulo:
-        // el cliente quedaba sin el menú de su cuenta para volver.
         path: 'seguridad',
         title: 'Seguridad | FashionStore',
         loadComponent: auth,
@@ -140,18 +178,18 @@ export const routes: Routes = [
     path: 'reservar',
     title: 'Nueva reserva | FashionStore',
     loadComponent: () =>
-      import('../../features/reservas-vestidor/presentation/nueva-reserva.component').then(
-        (m) => m.NuevaReservaComponent,
-      ),
+      import(
+        '../../features/reservas-vestidor/presentation/nueva-reserva.component'
+      ).then((m) => m.NuevaReservaComponent),
     canActivate: [authGuard],
   },
   {
     path: 'prendas/:slug/vestidor',
     title: 'Vestidor virtual | FashionStore',
     loadComponent: () =>
-      import('../../features/reservas-vestidor/presentation/vestidor.component').then(
-        (m) => m.VestidorComponent,
-      ),
+      import(
+        '../../features/reservas-vestidor/presentation/vestidor.component'
+      ).then((m) => m.VestidorComponent),
   },
   {
     path: 'admin',
@@ -159,120 +197,113 @@ export const routes: Routes = [
       import('./layout/admin-layout.component').then((m) => m.AdminLayoutComponent),
     canActivate: [authGuard],
     children: [
-{path:'plataforma/empresas',canActivate:[authGuard],data:{permission:'tenants.read'},loadComponent:()=>import('../../features/plataforma-saas/presentation/empresas-page.component').then(m=>m.EmpresasPageComponent)},
-{path:'plataforma/empresas/:id/suscripcion',canActivate:[authGuard],data:{permission:'subscriptions.read'},loadComponent:()=>import('../../features/plataforma-saas/presentation/suscripcion-empresa.component').then(m=>m.SuscripcionEmpresaComponent)},
-{path:'plataforma/empresas/:id',canActivate:[authGuard],data:{permission:'tenants.read'},loadComponent:()=>import('../../features/plataforma-saas/presentation/empresa-detalle.component').then(m=>m.EmpresaDetalleComponent)},
-{path:'plataforma/planes',canActivate:[authGuard],data:{permission:'plans.read'},loadComponent:()=>import('../../features/plataforma-saas/presentation/planes-page.component').then(m=>m.PlanesPageComponent)},
-{path:'mi-suscripcion',canActivate:[authGuard],data:{permission:'my_subscription.read'},loadComponent:()=>import('../../features/plataforma-saas/presentation/mi-suscripcion.component').then(m=>m.MiSuscripcionComponent)},
+      ...PLATAFORMA_ROUTES,
+      ...EMPRESA_ROUTES,
       {
         path: 'dashboard',
         title: 'Centro de reportes | FashionStore',
-        canActivate: [authGuard],
+        canActivate: [authGuard, tenantScopeGuard],
         data: { permission: 'dashboard.read' },
         loadComponent: () =>
           import('../../features/ia-reportes/presentation/dashboard.component').then(
-            (m) => m.DashboardComponent,
+            (m) => m.DashboardComponent
           ),
       },
       {
         path: 'pedidos',
         title: 'Pedidos y pagos | FashionStore',
-        canActivate: [authGuard],
+        canActivate: [authGuard, tenantScopeGuard],
         data: { admin: true, permission: 'commerce.read' },
         loadComponent: () =>
           import('../../features/ventas-pagos/presentation/orders-page.component').then(
-            (m) => m.OrdersPageComponent,
+            (m) => m.OrdersPageComponent
           ),
       },
       {
         path: 'promociones',
         title: 'Cupones y promociones | FashionStore',
-        canActivate: [authGuard],
+        canActivate: [authGuard, tenantScopeGuard],
         data: { admin: true, permission: 'commerce.read' },
         loadComponent: () =>
-          import('../../features/ventas-pagos/presentation/promotions-page.component').then(
-            (m) => m.PromotionsPageComponent,
-          ),
+          import(
+            '../../features/ventas-pagos/presentation/promotions-page.component'
+          ).then((m) => m.PromotionsPageComponent),
       },
       {
         path: 'stock',
         title: 'Existencias | FashionStore',
-        canActivate: [authGuard],
+        canActivate: [authGuard, tenantScopeGuard],
         data: { permission: 'stock.read' },
         loadComponent: () =>
           import('../../features/ventas-pagos/presentation/stock-page.component').then(
-            (m) => m.StockPageComponent,
+            (m) => m.StockPageComponent
           ),
       },
       {
         path: 'caja',
         title: 'Caja | FashionStore',
-        canActivate: [authGuard],
+        canActivate: [authGuard, tenantScopeGuard],
         data: { permission: 'commerce.write' },
         loadComponent: () =>
-          import('../../features/ventas-pagos/presentation/pos-page.component').then((m) => m.PosPageComponent),
+          import('../../features/ventas-pagos/presentation/pos-page.component').then(
+            (m) => m.PosPageComponent
+          ),
       },
-      {
-        path: '',
-        title: 'Administración | FashionStore',
-        loadComponent: () =>
-          import('./layout/admin-home.component').then((m) => m.AdminHomeComponent),
-      },
-      ...resources.map((r) => ({
-        path: r.key,
-        title: r.title + ' | FashionStore',
-        loadComponent: resource,
-        canActivate: [authGuard],
-        data: { resource: r, permission: r.permission },
-      })),
+      ...resources
+        .filter((r) => r.key !== 'roles' && r.key !== 'permissions')
+        .map((r) => ({
+          path: r.key,
+          title: r.title + ' | FashionStore',
+          loadComponent: resource,
+          canActivate: [authGuard, tenantScopeGuard],
+          data: { resource: r, permission: r.permission },
+        })),
       {
         path: 'products/:id',
         title: 'Recursos de la prenda | FashionStore',
         loadComponent: () =>
-          import('../../features/usuarios-catalogo/presentation/product-editor.component').then(
-            (m) => m.ProductEditorComponent,
-          ),
-        canActivate: [authGuard],
+          import(
+            '../../features/usuarios-catalogo/presentation/product-editor.component'
+          ).then((m) => m.ProductEditorComponent),
+        canActivate: [authGuard, tenantScopeGuard],
         data: { permission: 'catalog.read' },
       },
       {
         path: 'probador',
         title: 'Recursos del probador | FashionStore',
         loadComponent: () =>
-          import('../../features/probador-virtual/presentation/admin-recursos.component').then(
-            (m) => m.AdminRecursosComponent,
-          ),
-        canActivate: [authGuard],
+          import(
+            '../../features/probador-virtual/presentation/admin-recursos.component'
+          ).then((m) => m.AdminRecursosComponent),
+        canActivate: [authGuard, tenantScopeGuard],
         data: { permission: 'catalog.read' },
       },
       {
         path: 'reservas',
         title: 'Reservas | FashionStore',
         loadComponent: () =>
-          import('../../features/reservas-vestidor/presentation/admin-reservas.component').then(
-            (m) => m.AdminReservasComponent,
-          ),
-        canActivate: [authGuard],
+          import(
+            '../../features/reservas-vestidor/presentation/admin-reservas.component'
+          ).then((m) => m.AdminReservasComponent),
+        canActivate: [authGuard, tenantScopeGuard],
         data: { permission: 'reservations.read' },
       },
       {
         path: 'devoluciones',
         title: 'Devoluciones | FashionStore',
         loadComponent: () =>
-          import('../../features/ventas-pagos/presentation/admin-returns.component').then(
-            (m) => m.AdminReturnsComponent,
-          ),
-        canActivate: [authGuard],
+          import(
+            '../../features/ventas-pagos/presentation/admin-returns.component'
+          ).then((m) => m.AdminReturnsComponent),
+        canActivate: [authGuard, tenantScopeGuard],
         data: { permission: 'commerce.read' },
       },
       {
         path: 'bitacora',
         title: 'Bitácora | FashionStore',
         loadComponent: () =>
-          import('./audit/audit-page.component').then(
-            (m) => m.AuditPageComponent,
-          ),
-        canActivate: [authGuard],
+          import('./audit/audit-page.component').then((m) => m.AuditPageComponent),
+        canActivate: [authGuard, tenantScopeGuard],
         data: { permission: 'audit.read' },
       },
     ],
@@ -289,4 +320,3 @@ export const routes: Routes = [
       import('./layout/status-page.component').then((m) => m.StatusPageComponent),
   },
 ];
-

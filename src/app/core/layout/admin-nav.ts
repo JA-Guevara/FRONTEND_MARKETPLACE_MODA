@@ -1,0 +1,191 @@
+export interface NavItem {
+  key: string;
+  label: string;
+  icon: string;
+  path: string;
+  permission?: string;
+  feature?: string;
+  children?: NavItem[];
+  badge?: 'support';
+}
+
+export interface NavSection {
+  title: string;
+  scope: 'platform' | 'tenant';
+  items: NavItem[];
+  hideInSupport?: boolean;
+}
+
+export const ADMIN_NAV: NavSection[] = [
+  // ---------- PLATAFORMA ----------
+  {
+    title: 'Plataforma SaaS',
+    scope: 'platform',
+    items: [
+      { key: 'tablero', label: 'Tablero', icon: 'grid', path: '/admin/plataforma', permission: 'tenants.read' },
+      { key: 'empresas', label: 'Empresas', icon: 'users', path: '/admin/plataforma/empresas', permission: 'tenants.read' },
+      { key: 'planes', label: 'Planes', icon: 'tag', path: '/admin/plataforma/planes', permission: 'plans.read' },
+      { key: 'suscripciones', label: 'Suscripciones', icon: 'refresh', path: '/admin/plataforma/suscripciones', permission: 'subscriptions.read' },
+    ],
+  },
+  {
+    title: 'Personas y seguridad',
+    scope: 'platform',
+    items: [
+      { key: 'usuarios', label: 'Usuarios globales', icon: 'users', path: '/admin/plataforma/usuarios', permission: 'platform_users.read' },
+      { key: 'admins', label: 'Administradores', icon: 'lock', path: '/admin/plataforma/administradores', permission: 'platform_users.write' },
+      { key: 'auditoria', label: 'Auditoría global', icon: 'list', path: '/admin/plataforma/auditoria', permission: 'platform_audit.read' },
+      { key: 'soporte', label: 'Sesiones de soporte', icon: 'heart', path: '/admin/plataforma/soporte', permission: 'platform_audit.read' },
+    ],
+  },
+  {
+    title: 'Catálogos globales',
+    scope: 'platform',
+    items: [
+      { key: 'ciudades', label: 'Ciudades', icon: 'box', path: '/admin/plataforma/ciudades', permission: 'cities.write' },
+    ],
+  },
+
+  // ---------- TENANT (EMPRESA) ----------
+  {
+    title: 'General',
+    scope: 'tenant',
+    items: [
+      { key: 'panel', label: 'Panel', icon: 'home', path: '/admin', permission: 'dashboard.read' },
+      { key: 'reportes', label: 'Centro de reportes', icon: 'chart', path: '/admin/dashboard', permission: 'dashboard.read' },
+      { key: 'ia', label: 'Reportes con IA', icon: 'sparkles', path: '/admin/dashboard?modo=ia', permission: 'dashboard.read', feature: 'ai_reports' },
+    ],
+  },
+  {
+    title: 'Ventas',
+    scope: 'tenant',
+    items: [
+      { key: 'caja', label: 'Caja', icon: 'box', path: '/admin/caja', permission: 'commerce.write' },
+      { key: 'pedidos', label: 'Pedidos y pagos', icon: 'cart', path: '/admin/pedidos', permission: 'commerce.read' },
+      { key: 'devoluciones', label: 'Devoluciones', icon: 'return', path: '/admin/devoluciones', permission: 'commerce.read' },
+      { key: 'promos', label: 'Cupones y promociones', icon: 'tag', path: '/admin/promociones', permission: 'commerce.read' },
+    ],
+  },
+  {
+    title: 'Inventario y reservas',
+    scope: 'tenant',
+    items: [
+      { key: 'stock', label: 'Existencias', icon: 'list', path: '/admin/stock', permission: 'stock.read' },
+      { key: 'reservas', label: 'Reservas', icon: 'calendar', path: '/admin/reservas', permission: 'reservations.read' },
+    ],
+  },
+  {
+    title: 'Catálogo',
+    scope: 'tenant',
+    items: [
+      { key: 'prendas', label: 'Prendas', icon: 'tag', path: '/admin/products', permission: 'catalog.read' },
+      {
+        key: 'atributos',
+        label: 'Categorías y atributos',
+        icon: 'grid',
+        path: '/admin/categories',
+        permission: 'catalog.read',
+        children: [
+          { key: 'categories', label: 'Categorías', icon: 'grid', path: '/admin/categories', permission: 'catalog.read' },
+          { key: 'sizes', label: 'Tallas', icon: 'grid', path: '/admin/sizes', permission: 'catalog.read' },
+          { key: 'colors', label: 'Colores', icon: 'grid', path: '/admin/colors', permission: 'catalog.read' },
+          { key: 'seasons', label: 'Temporadas', icon: 'grid', path: '/admin/seasons', permission: 'catalog.read' },
+          { key: 'collections', label: 'Colecciones', icon: 'grid', path: '/admin/collections', permission: 'catalog.read' },
+        ],
+      },
+      { key: 'proveedores', label: 'Proveedores', icon: 'refresh', path: '/admin/suppliers', permission: 'suppliers.read' },
+      { key: 'probador', label: 'Probador virtual', icon: 'camera', path: '/admin/probador', permission: 'catalog.read' },
+    ],
+  },
+  {
+    title: 'Organización',
+    scope: 'tenant',
+    items: [
+      {
+        key: 'sucursales',
+        label: 'Sucursales y cajas',
+        icon: 'home',
+        path: '/admin/branches',
+        permission: 'branches.read',
+        children: [
+          { key: 'branches', label: 'Sucursales', icon: 'home', path: '/admin/branches', permission: 'branches.read' },
+          { key: 'cash-points', label: 'Puntos de caja', icon: 'box', path: '/admin/cash-points', permission: 'branches.read' },
+        ],
+      },
+    ],
+  },
+  {
+    title: 'Personal',
+    scope: 'tenant',
+    items: [
+      { key: 'personal', label: 'Usuarios', icon: 'users', path: '/admin/users', permission: 'users.read' },
+      { key: 'roles', label: 'Roles y permisos', icon: 'lock', path: '/admin/roles', permission: 'roles.read' },
+    ],
+  },
+  {
+    title: 'Mi empresa',
+    scope: 'tenant',
+    items: [
+      { key: 'perfil', label: 'Perfil de la empresa', icon: 'edit', path: '/admin/empresa/perfil', permission: 'my_subscription.read' },
+      { key: 'suscripcion', label: 'Mi suscripción', icon: 'settings', path: '/admin/mi-suscripcion', permission: 'my_subscription.read' },
+      { key: 'accesos', label: 'Accesos de soporte', icon: 'heart', path: '/admin/empresa/accesos-soporte', permission: 'support_sessions.read' },
+      { key: 'bitacora', label: 'Bitácora', icon: 'list', path: '/admin/bitacora', permission: 'audit.read' },
+    ],
+  },
+  {
+    title: 'Sin conexión',
+    scope: 'tenant',
+    hideInSupport: true,
+    items: [
+      { key: 'offline', label: 'Preparar dispositivo', icon: 'download', path: '/sin-conexion' },
+      { key: 'locales', label: 'Reservas locales', icon: 'calendar', path: '/sin-conexion/reservas', feature: 'offline' },
+    ],
+  },
+];
+
+export function visibleSections(
+  nav: NavSection[],
+  s: {
+    scope: 'platform' | 'tenant';
+    isSupport: boolean;
+    can: (p?: string) => boolean;
+  }
+): NavSection[] {
+  return nav
+    .filter((section) => {
+      if (section.scope !== s.scope) {
+        return false;
+      }
+      if (s.isSupport && section.hideInSupport) {
+        return false;
+      }
+      return true;
+    })
+    .map((section) => {
+      const filteredItems = section.items
+        .map((item) => {
+          if (item.children && item.children.length > 0) {
+            const visibleChildren = item.children.filter((child) => s.can(child.permission));
+            if (visibleChildren.length === 0) {
+              return null;
+            }
+            if (!s.can(item.permission)) {
+              return null;
+            }
+            return { ...item, children: visibleChildren };
+          }
+          if (!s.can(item.permission)) {
+            return null;
+          }
+          return item;
+        })
+        .filter((item): item is NavItem => item !== null);
+
+      return { ...section, items: filteredItems };
+    })
+    .filter((section) => section.items.length > 0);
+}
+
+export function lockedByPlan(item: NavItem, hasFeature: (c: string) => boolean): boolean {
+  return Boolean(item.feature && !hasFeature(item.feature));
+}

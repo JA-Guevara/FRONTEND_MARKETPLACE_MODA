@@ -1,17 +1,12 @@
 import { Plan } from '../domain/plan.models';
 import {
   Component,
-  Input,
-  Output,
-  EventEmitter,
   inject,
   signal,
-  computed,
   OnInit,
-  OnChanges,
 } from '@angular/core';
-import { FormsModule, ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
-import { RouterLink, ActivatedRoute, Router } from '@angular/router';
+import { FormsModule } from '@angular/forms';
+import { RouterLink, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { PlataformaApi } from '../infrastructure/plataforma.api';
@@ -20,13 +15,14 @@ import { StatusBadgeComponent } from '../../../shared/ui/status-badge.component'
 import { KpiCardComponent } from '../../../shared/ui/kpi-card.component';
 import { UsageMeterComponent } from '../../../shared/ui/usage-meter.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state.component';
-import { DrawerComponent } from '../../../shared/ui/drawer.component';
-import { ConfirmDialogComponent } from '../../../shared/ui/confirm-dialog.component';
 import { EmpresasStore } from '../application/empresas.store';
 import { Tenant, tenantTone } from '../domain/empresa.models';
 import { EmpresaFormComponent } from './empresa-form.component';
+import { IniciarSoporteDialogComponent } from './iniciar-soporte-dialog.component';
+
 @Component({
   selector: 'fs-empresas-page',
+  standalone: true,
   providers: [EmpresasStore],
   imports: [
     CommonModule,
@@ -37,6 +33,7 @@ import { EmpresaFormComponent } from './empresa-form.component';
     UsageMeterComponent,
     EmptyStateComponent,
     EmpresaFormComponent,
+    IniciarSoporteDialogComponent,
   ],
   template: `<div class="sp2-heading">
       <div>
@@ -159,7 +156,10 @@ import { EmpresaFormComponent } from './empresa-form.component';
                       t.admin_password_set ? 'Cuenta activa' : 'Invitación pendiente'
                     }}</small>
                   </td>
-                  <td><a [routerLink]="['/admin/plataforma/empresas', t.id]">Ver detalle →</a></td>
+                  <td style="text-align:right;white-space:nowrap">
+                    <a class="btn sm" [routerLink]="['/admin/plataforma/empresas', t.id]">Ver 360°</a>
+                    <button class="btn sm" (click)="supportTenant.set(t)">⛑ Asistir</button>
+                  </td>
                 </tr>
               }
             </tbody>
@@ -177,17 +177,26 @@ import { EmpresaFormComponent } from './empresa-form.component';
     </div>
     @if (formOpen()) {
       <fs-empresa-form (saved)="afterCreated($event)" (closed)="formOpen.set(false)" />
+    }
+    @if (supportTenant(); as st) {
+      <fs-iniciar-soporte-dialog
+        [tenant]="{ id: st.id, trade_name: st.trade_name }"
+        (closed)="supportTenant.set(null)"
+      />
     }`,
   styleUrl: './empresas-page.component.scss',
 })
-export class EmpresasPageComponent {
+export class EmpresasPageComponent implements OnInit {
   readonly store = inject(EmpresasStore);
   session = inject(SessionService);
   private api = inject(PlataformaApi);
+  private route = inject(ActivatedRoute);
+
   plans = signal<Plan[]>([]);
   formOpen = signal(false);
   created = signal<Tenant | null>(null);
   notice = signal('');
+  supportTenant = signal<Tenant | null>(null);
   tone = tenantTone;
   chips = [
     ['todas', 'Todas'],
@@ -196,21 +205,34 @@ export class EmpresasPageComponent {
     ['suspendidas', 'Suspendidas'],
     ['inactivas', 'Inactivas'],
   ];
+
   constructor() {
-    void this.store.load();
     this.api.plans(true).subscribe({ next: (p) => this.plans.set(p), error: () => {} });
   }
+
+  ngOnInit() {
+    const filtro = this.route.snapshot.queryParamMap.get('filtro');
+    if (filtro === 'por_vencer') {
+      this.store.setFilter('status', 'por_vencer');
+    } else {
+      void this.store.load();
+    }
+  }
+
   limit(code: string | null) {
     return this.plans().find((p) => p.code === code)?.limits['max_active_branches'] ?? 0;
   }
+
   openNew() {
     this.formOpen.set(true);
   }
+
   afterCreated(t: Tenant) {
     this.formOpen.set(false);
     this.created.set(t);
     void this.store.load();
   }
+
   async resend(t: Tenant) {
     try {
       const response = await firstValueFrom(this.api.resendInvitation(t.id));

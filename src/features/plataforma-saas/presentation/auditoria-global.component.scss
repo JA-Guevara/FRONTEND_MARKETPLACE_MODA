@@ -1,0 +1,30 @@
+:host {
+  display: block;
+}
+
+.fbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+tr.hl {
+  background-color: var(--accent-soft, rgba(79, 70, 229, 0.04));
+}
+
+pre.mono {
+  background: var(--surface-2, #f1f5f9);
+  padding: 10px;
+  border-radius: 8px;
+  margin: 4px 0 0;
+  font-size: 12px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+.sp2-stack {
+  display: grid;
+  gap: 14px;
+}

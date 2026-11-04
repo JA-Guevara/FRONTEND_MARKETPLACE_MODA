@@ -1,0 +1,7 @@
+:host {
+  display: block;
+}
+
+tr.active-row {
+  background-color: var(--warn-soft, rgba(234, 179, 8, 0.08));
+}

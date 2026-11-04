@@ -1,0 +1,29 @@
+:host {
+  display: block;
+}
+
+.sp2-form {
+  display: grid;
+  gap: 16px;
+  max-width: 680px;
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+
+  label {
+    font-size: 13px;
+    font-weight: 600;
+  }
+}

@@ -18,6 +18,18 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
   return next(authorize()).pipe(
     catchError((error) => {
       if (error.status !== 401) return throwError(() => error);
+
+      const errCode = error.error?.error?.code ?? error.error?.code;
+      if (errCode === 'support_session_expired') {
+        session.endSupport();
+        void router.navigate(['/admin/plataforma']);
+        return throwError(() => error);
+      }
+
+      if (session.isSupport()) {
+        session.endSupport();
+      }
+
       return session.refresh().pipe(
         catchError((refreshError) => {
           session.clear();
@@ -37,4 +49,3 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
     }),
   );
 };
-
