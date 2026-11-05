@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { barPercent, chartPoints, localDate } from './dashboard.helpers';
 
 describe('Gráficos del dashboard', () => {

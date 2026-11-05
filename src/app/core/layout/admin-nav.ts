@@ -24,8 +24,17 @@ export const ADMIN_NAV: NavSection[] = [
     items: [
       { key: 'tablero', label: 'Tablero', icon: 'grid', path: '/admin/plataforma', permission: 'tenants.read' },
       { key: 'empresas', label: 'Empresas', icon: 'users', path: '/admin/plataforma/empresas', permission: 'tenants.read' },
-      { key: 'planes', label: 'Planes', icon: 'tag', path: '/admin/plataforma/planes', permission: 'plans.read' },
+      { key: 'planes', label: 'Planes y precios', icon: 'tag', path: '/admin/plataforma/planes', permission: 'plans.read' },
       { key: 'suscripciones', label: 'Suscripciones', icon: 'refresh', path: '/admin/plataforma/suscripciones', permission: 'subscriptions.read' },
+    ],
+  },
+  {
+    title: 'Producto',
+    scope: 'platform',
+    items: [
+      { key: 'modulos', label: 'Módulos', icon: 'box', path: '/admin/plataforma/modulos', permission: 'modules.read' },
+      { key: 'demo', label: 'Empresa demo', icon: 'sparkles', path: '/admin/plataforma/demo', permission: 'sandbox.manage' },
+      { key: 'modelos-ml', label: 'Modelos de ML', icon: 'grid', path: '/admin/plataforma/ml', permission: 'ml_models.manage' },
     ],
   },
   {
@@ -33,7 +42,8 @@ export const ADMIN_NAV: NavSection[] = [
     scope: 'platform',
     items: [
       { key: 'usuarios', label: 'Usuarios globales', icon: 'users', path: '/admin/plataforma/usuarios', permission: 'platform_users.read' },
-      { key: 'admins', label: 'Administradores', icon: 'lock', path: '/admin/plataforma/administradores', permission: 'platform_users.write' },
+      { key: 'roles', label: 'Roles y permisos', icon: 'lock', path: '/admin/plataforma/roles', permission: 'platform_roles.read' },
+      { key: 'admins', label: 'Equipo de plataforma', icon: 'lock', path: '/admin/plataforma/equipo', permission: 'platform_users.write' },
       { key: 'auditoria', label: 'Auditoría global', icon: 'list', path: '/admin/plataforma/auditoria', permission: 'platform_audit.read' },
       { key: 'soporte', label: 'Sesiones de soporte', icon: 'heart', path: '/admin/plataforma/soporte', permission: 'platform_audit.read' },
     ],
@@ -53,25 +63,29 @@ export const ADMIN_NAV: NavSection[] = [
     items: [
       { key: 'panel', label: 'Panel', icon: 'home', path: '/admin', permission: 'dashboard.read' },
       { key: 'reportes', label: 'Centro de reportes', icon: 'chart', path: '/admin/dashboard', permission: 'dashboard.read' },
-      { key: 'ia', label: 'Reportes con IA', icon: 'sparkles', path: '/admin/dashboard?modo=ia', permission: 'dashboard.read', feature: 'ai_reports' },
+      { key: 'ia', label: 'Reportes con IA', icon: 'sparkles', path: '/admin/reportes-ia', permission: 'ai_reports.use', feature: 'ai_reports' },
+      { key: 'analitica-ml', label: 'Analítica predictiva ML', icon: 'chart', path: '/admin/analitica-ml', permission: 'ml_dashboard.read', feature: 'ml_analytics' },
     ],
   },
   {
     title: 'Ventas',
     scope: 'tenant',
     items: [
-      { key: 'caja', label: 'Caja', icon: 'box', path: '/admin/caja', permission: 'commerce.write' },
-      { key: 'pedidos', label: 'Pedidos y pagos', icon: 'cart', path: '/admin/pedidos', permission: 'commerce.read' },
+      { key: 'caja', label: 'Caja', icon: 'box', path: '/admin/caja', permission: 'commerce.write', feature: 'sales' },
+      { key: 'pedidos', label: 'Pedidos y pagos', icon: 'cart', path: '/admin/pedidos', permission: 'commerce.read', feature: 'sales' },
+      { key: 'cambios', label: 'Cambios de prenda', icon: 'return', path: '/admin/cambios', permission: 'exchanges.read', feature: 'exchanges' },
       { key: 'devoluciones', label: 'Devoluciones', icon: 'return', path: '/admin/devoluciones', permission: 'commerce.read' },
-      { key: 'promos', label: 'Cupones y promociones', icon: 'tag', path: '/admin/promociones', permission: 'commerce.read' },
+      { key: 'promos', label: 'Cupones y promociones', icon: 'tag', path: '/admin/promociones', permission: 'commerce.read', feature: 'promotions' },
     ],
   },
   {
     title: 'Inventario y reservas',
     scope: 'tenant',
     items: [
-      { key: 'stock', label: 'Existencias', icon: 'list', path: '/admin/stock', permission: 'stock.read' },
-      { key: 'reservas', label: 'Reservas', icon: 'calendar', path: '/admin/reservas', permission: 'reservations.read' },
+      { key: 'stock', label: 'Existencias', icon: 'list', path: '/admin/stock', permission: 'stock.read', feature: 'inventory' },
+      { key: 'reservas', label: 'Reservas', icon: 'calendar', path: '/admin/reservas', permission: 'reservations.read', feature: 'reservations' },
+      { key: 'conflictos-sync', label: 'Conflictos de sync', icon: 'refresh', path: '/admin/sincronizacion/conflictos', permission: 'sync_conflicts.read' },
+      { key: 'historial-sync', label: 'Historial de sync', icon: 'list', path: '/admin/sincronizacion/historial', permission: 'sync_log.read' },
     ],
   },
   {
@@ -94,7 +108,7 @@ export const ADMIN_NAV: NavSection[] = [
         ],
       },
       { key: 'proveedores', label: 'Proveedores', icon: 'refresh', path: '/admin/suppliers', permission: 'suppliers.read' },
-      { key: 'probador', label: 'Probador virtual', icon: 'camera', path: '/admin/probador', permission: 'catalog.read' },
+      { key: 'probador', label: 'Probador virtual', icon: 'camera', path: '/admin/probador', permission: 'catalog.read', feature: 'virtual_tryon' },
     ],
   },
   {
@@ -139,6 +153,7 @@ export const ADMIN_NAV: NavSection[] = [
     items: [
       { key: 'offline', label: 'Preparar dispositivo', icon: 'download', path: '/sin-conexion' },
       { key: 'locales', label: 'Reservas locales', icon: 'calendar', path: '/sin-conexion/reservas', feature: 'offline' },
+      { key: 'operaciones-sync', label: 'Operaciones locales', icon: 'refresh', path: '/sin-conexion/operaciones', feature: 'offline' },
     ],
   },
 ];

@@ -1,4 +1,6 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { firstValueFrom } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { PlataformaApi } from '../infrastructure/plataforma.api';
@@ -9,12 +11,29 @@ import { KpiCardComponent } from '../../../shared/ui/kpi-card.component';
 import { UsageMeterComponent } from '../../../shared/ui/usage-meter.component';
 import { IniciarSoporteDialogComponent } from './iniciar-soporte-dialog.component';
 import { SuscripcionEmpresaComponent } from './suscripcion-empresa.component';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
+import {
+  TenantModule,
+  TenantModuleGrant,
+  PlatformModule,
+  TenantLimit,
+  TenantRole,
+  PermissionCatalogItem,
+  etiquetaOrigen,
+  vigencia,
+} from '../domain/gobierno.models';
+import { HabilitarModuloDialogComponent } from './habilitar-modulo-dialog.component';
+import { ConfirmDialogComponent } from '../../../shared/ui/confirm-dialog.component';
+import { errorMessage } from '../../../shared/errors';
 
 @Component({
   selector: 'fs-empresa-360',
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
+    HabilitarModuloDialogComponent,
+    ConfirmDialogComponent,
     RouterLink,
     KpiCardComponent,
     UsageMeterComponent,
@@ -25,7 +44,10 @@ import { SuscripcionEmpresaComponent } from './suscripcion-empresa.component';
     @if (loading() && !tenant()) {
       <div class="card"><p class="muted">Cargando información 360° de la empresa…</p></div>
     } @else if (error()) {
-      <div class="alert danger"><span>⚠</span><div>{{ error() }}</div></div>
+      <div class="alert danger">
+        <span>⚠</span>
+        <div>{{ error() }}</div>
+      </div>
     } @else if (tenant(); as t) {
       <div class="crumbs">
         <a routerLink="/admin/plataforma">Plataforma SaaS</a> /
@@ -35,13 +57,17 @@ import { SuscripcionEmpresaComponent } from './suscripcion-empresa.component';
 
       <div class="page-h">
         <div style="display:flex;gap:14px;align-items:center">
-          <span class="logo-t" style="background:#2f5f8a;width:52px;height:52px;font-size:18px">
+          <span
+            class="logo-t"
+            style="background:var(--accent);color:var(--on-accent);width:52px;height:52px;font-size:18px"
+          >
             {{ getInitials(t.trade_name) }}
           </span>
           <div>
             <h1>{{ t.trade_name }}</h1>
             <p class="mono" style="margin:2px 0 0">
-              NIT {{ t.tax_id }} · /{{ t.slug }} · admin: {{ maskEmail(t.contact_email || t.admin_email || '') }}
+              NIT {{ t.tax_id }} · /{{ t.slug }} · admin:
+              {{ maskEmail(t.contact_email || t.admin_email || '') }}
             </p>
           </div>
         </div>
@@ -52,7 +78,13 @@ import { SuscripcionEmpresaComponent } from './suscripcion-empresa.component';
             [class.ok]="t.status === 'ACTIVA' && t.subscription_status !== 'SUSPENDIDA'"
             [class.danger]="t.status === 'INACTIVA' || t.subscription_status === 'SUSPENDIDA'"
           >
-            {{ t.status === 'INACTIVA' ? 'Inactiva' : (t.subscription_status === 'SUSPENDIDA' ? 'Suspendida' : 'Activa') }}
+            {{
+              t.status === 'INACTIVA'
+                ? 'Inactiva'
+                : t.subscription_status === 'SUSPENDIDA'
+                  ? 'Suspendida'
+                  : 'Activa'
+            }}
           </span>
           <span class="badge plan">{{ t.plan_name || 'Básico' }}</span>
           <button class="btn" (click)="resendInvitation()" [disabled]="actionLoading()">
@@ -68,12 +100,19 @@ import { SuscripcionEmpresaComponent } from './suscripcion-empresa.component';
       </div>
 
       @if (actionNotice()) {
-        <div class="alert info" style="margin-bottom:12px"><span>ⓘ</span><div>{{ actionNotice() }}</div></div>
+        <div class="alert info" style="margin-bottom:12px">
+          <span>ⓘ</span>
+          <div>{{ actionNotice() }}</div>
+        </div>
       }
 
       <div class="tabs">
         <a [class.on]="activeTab() === 'resumen'" (click)="setTab('resumen')">Resumen</a>
-        <a [class.on]="activeTab() === 'suscripcion'" (click)="setTab('suscripcion')">Suscripción</a>
+        <a [class.on]="activeTab() === 'suscripcion'" (click)="setTab('suscripcion')"
+          >Suscripción</a
+        >
+        <a [class.on]="activeTab() === 'modulos'" (click)="setTab('modulos')">Módulos</a>
+        <a [class.on]="activeTab() === 'roles'" (click)="setTab('roles')">Roles</a>
         <a [class.on]="activeTab() === 'sucursales'" (click)="setTab('sucursales')">Sucursales</a>
         <a [class.on]="activeTab() === 'usuarios'" (click)="setTab('usuarios')">Usuarios</a>
         <a [class.on]="activeTab() === 'uso'" (click)="setTab('uso')">Uso</a>
@@ -113,11 +152,7 @@ import { SuscripcionEmpresaComponent } from './suscripcion-empresa.component';
               <h3>Cuotas del plan {{ t.plan_name || 'Básico' }}</h3>
               <div style="display:grid;gap:12px;margin-top:12px">
                 @for (q of o.quotas; track q.code) {
-                  <fs-usage-meter
-                    [label]="q.label"
-                    [used]="q.used"
-                    [limit]="q.limit ?? 0"
-                  />
+                  <fs-usage-meter [label]="q.label" [used]="q.used" [limit]="q.limit ?? 0" />
                 }
               </div>
             </div>
@@ -128,7 +163,9 @@ import { SuscripcionEmpresaComponent } from './suscripcion-empresa.component';
                 @for (act of recentActivity(); track $index) {
                   <li>
                     <b>{{ act.action }}</b>
-                    <small>{{ act.description || '' }} · {{ act.created_at | date:'short' }}</small>
+                    <small
+                      >{{ act.description || '' }} · {{ act.created_at | date: 'short' }}</small
+                    >
                   </li>
                 } @empty {
                   <li class="muted">No hay eventos recientes registrados.</li>
@@ -142,6 +179,177 @@ import { SuscripcionEmpresaComponent } from './suscripcion-empresa.component';
       <!-- Tab: Suscripción -->
       @if (activeTab() === 'suscripcion') {
         <fs-suscripcion-empresa />
+      }
+
+      @if (activeTab() === 'modulos') {
+        <div class="module-toolbar">
+          <h2>Módulos de la empresa</h2>
+          @if (session.can('subscriptions.write')) {
+            <button class="primary" (click)="openGrant()">＋ Habilitar módulo</button>
+          }
+        </div>
+        @if (moduleError()) {
+          <p class="alert danger" role="alert">{{ moduleError() }}</p>
+        }
+        @if (modulesLoading()) {
+          <p role="status">Cargando módulos y límites…</p>
+        }
+        <div class="card sp2-table-wrap">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Módulo</th>
+                <th>Origen</th>
+                <th>Vigencia</th>
+                <th>Motivo</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (module of tenantModules(); track module.module_code) {
+                <tr>
+                  <td>
+                    <b>{{ module.module_name }}</b
+                    ><small class="sub"
+                      >{{ module.effective ? 'Habilitado' : 'Sin acceso' }} ·
+                      {{ module.lifecycle }}</small
+                    >
+                  </td>
+                  <td>
+                    <span
+                      class="badge"
+                      [class.warn]="module.origin === 'TRIAL'"
+                      [class.danger]="module.is_blocked"
+                      >{{ etiquetaOrigen(module) }}</span
+                    >
+                  </td>
+                  <td>{{ vigencia(module) }}</td>
+                  <td>{{ module.reason || '—' }}</td>
+                  <td>
+                    <div class="module-actions">
+                      @if (session.can('subscriptions.write') && module.kind !== 'BASE') {
+                        @if (module.is_blocked && module.id) {
+                          <button (click)="requestAction(module, 'revoke')">Desbloquear</button>
+                        } @else {
+                          @if (module.id) {
+                            <button (click)="requestAction(module, 'revoke')">Quitar</button>
+                          }
+                          <button (click)="requestAction(module, 'block')">Bloquear</button
+                          ><button (click)="openGrant(module.module_code)">Dar prueba</button>
+                        }
+                      }
+                    </div>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5">No hay módulos para mostrar.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <section class="card limits-card">
+          <h3>Límites: plan y ajustes de esta empresa</h3>
+          <p class="muted">Los ajustes tienen motivo y vigencia propios.</p>
+          @if (limitError()) {
+            <p class="alert danger" role="alert">{{ limitError() }}</p>
+          }
+          <div class="limit-summary">
+            @for (quota of overview()?.quotas ?? []; track quota.code) {
+              <div>
+                <b>{{ quota.label }}</b
+                ><span>{{ quota.used }} usados · {{ quota.limit ?? 'Sin límite' }} en el plan</span>
+              </div>
+            }
+          </div>
+          @for (limit of tenantLimits(); track limit.id) {
+            <article class="limit-row">
+              <div>
+                <b>{{ limit.limit_code }}: {{ limit.value }}</b
+                ><small>{{ vigencia(limit) }} · {{ limit.reason }}</small>
+              </div>
+              @if (session.can('subscriptions.write')) {
+                <button (click)="requestLimitRemoval(limit)">Quitar ajuste</button>
+              }
+            </article>
+          }
+          @if (session.can('subscriptions.write')) {
+            <div class="limit-form">
+              <label
+                >Límite<select [(ngModel)]="limitCode">
+                  @for (quota of overview()?.quotas ?? []; track quota.code) {
+                    <option [value]="quota.code">{{ quota.label }}</option>
+                  }
+                </select></label
+              ><label>Valor<input type="number" [(ngModel)]="limitValue" min="1" step="1" /></label
+              ><label
+                >Días<input
+                  type="number"
+                  [(ngModel)]="limitDays"
+                  min="1"
+                  max="30"
+                  step="1" /></label
+              ><label>Motivo<input [(ngModel)]="limitReason" maxlength="300" /></label
+              ><button [disabled]="moduleSaving()" (click)="saveLimit()">Fijar límite</button>
+            </div>
+          }
+        </section>
+      }
+      @if (activeTab() === 'roles') {
+        <h2>Roles propios de {{ t.trade_name }}</h2>
+        <p class="muted">
+          Los permisos se agrupan por módulo. Solo se modifica el rol de esta empresa.
+        </p>
+        @if (roleError()) {
+          <p class="alert danger" role="alert">{{ roleError() }}</p>
+        }
+        @if (rolesLoading()) {
+          <p role="status">Cargando roles…</p>
+        }
+        @for (role of tenantRoles(); track role.id) {
+          <article class="card role-card">
+            <header>
+              <div>
+                <h3>{{ role.name }}</h3>
+                <p class="muted">{{ role.description || role.code }}</p>
+              </div>
+              @if (session.can('platform_roles.write')) {
+                <button (click)="editRole(role)">Editar permisos</button>
+              }
+            </header>
+            <p>{{ role.permissions.length }} permisos</p>
+          </article>
+        } @empty {
+          <p>No hay roles de empresa para mostrar.</p>
+        }
+        @if (editingRole(); as role) {
+          <section class="card">
+            <h3>Permisos de {{ role.name }}</h3>
+            @for (group of permissionGroups(); track group.code) {
+              <fieldset>
+                <legend>{{ group.name }}</legend>
+                @for (permission of group.permissions; track permission.id) {
+                  <label class="permission-check"
+                    ><input
+                      type="checkbox"
+                      [checked]="selectedPermissions.includes(permission.id)"
+                      (change)="togglePermission(permission.id)"
+                      [disabled]="!permission.is_active"
+                    /><code>{{ permission.code }}</code
+                    ><span>{{ permission.name }}</span></label
+                  >
+                }
+              </fieldset>
+            }
+            <div class="module-actions">
+              <button (click)="editingRole.set(null)">Cancelar</button
+              ><button class="primary" [disabled]="moduleSaving()" (click)="saveRole()">
+                Guardar permisos
+              </button>
+            </div>
+          </section>
+        }
       }
 
       <!-- Tab: Sucursales -->
@@ -159,7 +367,9 @@ import { SuscripcionEmpresaComponent } from './suscripcion-empresa.component';
             <tbody>
               @for (b of branches(); track b.id) {
                 <tr>
-                  <td><b>{{ b.name }}</b></td>
+                  <td>
+                    <b>{{ b.name }}</b>
+                  </td>
                   <td>{{ b.city_name }}</td>
                   <td>{{ b.cash_points }} caja(s)</td>
                   <td>
@@ -169,7 +379,11 @@ import { SuscripcionEmpresaComponent } from './suscripcion-empresa.component';
                   </td>
                 </tr>
               } @empty {
-                <tr><td colspan="4" class="muted" style="text-align:center;padding:16px">No hay sucursales registradas.</td></tr>
+                <tr>
+                  <td colspan="4" class="muted" style="text-align:center;padding:16px">
+                    No hay sucursales registradas.
+                  </td>
+                </tr>
               }
             </tbody>
           </table>
@@ -178,10 +392,19 @@ import { SuscripcionEmpresaComponent } from './suscripcion-empresa.component';
 
       <!-- Tab: Usuarios -->
       @if (activeTab() === 'usuarios') {
+        <div class="module-toolbar">
+          <h2>Usuarios</h2>
+          @if (session.can('tenant_users.write')) {
+            <button disabled title="El alta de usuarios para esta empresa aún no está disponible">
+              ＋ Nuevo usuario
+            </button>
+          }
+        </div>
         <div class="alert info" style="margin-bottom:12px">
           <span>ⓘ</span>
           <div>
-            <b>Vista de consulta.</b>Para crear, editar o bloquear usuarios de esta empresa inicia una sesión de soporte. Desbloquear y reenviar verificación sí están disponibles desde «Usuarios globales».
+            <b>Personal de esta empresa.</b>Las acciones de cuenta se gestionan desde «Usuarios
+            globales».
           </div>
         </div>
 
@@ -215,13 +438,19 @@ import { SuscripcionEmpresaComponent } from './suscripcion-empresa.component';
                       [class.warn]="!!u.locked_until"
                       [class.neutral]="!u.is_active"
                     >
-                      {{ u.locked_until ? 'Bloqueado' : (u.is_active ? 'Activo' : 'Inactivo') }}
+                      {{ u.locked_until ? 'Bloqueado' : u.is_active ? 'Activo' : 'Inactivo' }}
                     </span>
                   </td>
-                  <td class="muted">{{ u.last_login_at ? (u.last_login_at | date:'short') : '—' }}</td>
+                  <td class="muted">
+                    {{ u.last_login_at ? (u.last_login_at | date: 'short') : '—' }}
+                  </td>
                 </tr>
               } @empty {
-                <tr><td colspan="4" class="muted" style="text-align:center;padding:16px">No hay usuarios registrados.</td></tr>
+                <tr>
+                  <td colspan="4" class="muted" style="text-align:center;padding:16px">
+                    No hay usuarios registrados.
+                  </td>
+                </tr>
               }
             </tbody>
           </table>
@@ -235,11 +464,7 @@ import { SuscripcionEmpresaComponent } from './suscripcion-empresa.component';
           @if (overview(); as o) {
             <div style="display:grid;gap:14px;margin-top:14px">
               @for (q of o.quotas; track q.code) {
-                <fs-usage-meter
-                  [label]="q.label"
-                  [used]="q.used"
-                  [limit]="q.limit ?? 0"
-                />
+                <fs-usage-meter [label]="q.label" [used]="q.used" [limit]="q.limit ?? 0" />
               }
             </div>
           }
@@ -254,7 +479,7 @@ import { SuscripcionEmpresaComponent } from './suscripcion-empresa.component';
             @for (act of recentActivity(); track $index) {
               <li>
                 <b>{{ act.action }}</b>
-                <small>{{ act.description || '' }} · {{ act.created_at | date:'short' }}</small>
+                <small>{{ act.description || '' }} · {{ act.created_at | date: 'short' }}</small>
               </li>
             } @empty {
               <li class="muted">No hay actividad registrada.</li>
@@ -266,10 +491,14 @@ import { SuscripcionEmpresaComponent } from './suscripcion-empresa.component';
       <!-- Tab: Soporte -->
       @if (activeTab() === 'soporte') {
         <div class="card" style="padding:0">
-          <div style="padding:16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line, #e2e8f0)">
+          <div
+            style="padding:16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line, #e2e8f0)"
+          >
             <div>
               <h3 style="margin:0">Sesiones de soporte a esta empresa</h3>
-              <p class="muted" style="margin:4px 0 0;font-size:12.5px">Historial de accesos autorizados realizados por personal de la plataforma.</p>
+              <p class="muted" style="margin:4px 0 0;font-size:12.5px">
+                Historial de accesos autorizados realizados por personal de la plataforma.
+              </p>
             </div>
             <button class="btn primary" (click)="supportOpen.set(true)">
               ⛑ Iniciar nueva sesión de soporte
@@ -294,7 +523,7 @@ import { SuscripcionEmpresaComponent } from './suscripcion-empresa.component';
                     <b>{{ s.platform_user_name || 'Super administrador' }}</b>
                   </td>
                   <td>{{ s.reason }}</td>
-                  <td class="muted">{{ s.started_at | date:'short' }}</td>
+                  <td class="muted">{{ s.started_at | date: 'short' }}</td>
                   <td>{{ s.duration_minutes }} min</td>
                   <td>{{ s.actions_count }} cambio(s)</td>
                   <td>
@@ -304,13 +533,38 @@ import { SuscripcionEmpresaComponent } from './suscripcion-empresa.component';
                   </td>
                 </tr>
               } @empty {
-                <tr><td colspan="6" class="muted" style="text-align:center;padding:16px">No hay sesiones de soporte para esta empresa.</td></tr>
+                <tr>
+                  <td colspan="6" class="muted" style="text-align:center;padding:16px">
+                    No hay sesiones de soporte para esta empresa.
+                  </td>
+                </tr>
               }
             </tbody>
           </table>
         </div>
       }
 
+      @if (grantOpen()) {
+        <fs-habilitar-modulo-dialog
+          [modules]="moduleCatalog()"
+          [tenantName]="t.trade_name"
+          [moduleCode]="grantCode"
+          [busy]="moduleSaving()"
+          [error]="grantError()"
+          (closed)="grantOpen.set(false)"
+          (confirmed)="grant($event)"
+        />
+      }
+      @if (pendingAction(); as action) {
+        <fs-confirm-dialog
+          [open]="true"
+          [title]="actionTitle(action)"
+          message="Este cambio afecta únicamente a la empresa seleccionada y quedará registrado."
+          [requireReason]="true"
+          (confirmed)="confirmAction($event)"
+          (cancelled)="pendingAction.set(null)"
+        />
+      }
       @if (supportOpen()) {
         <fs-iniciar-soporte-dialog
           [tenant]="{ id: tenantId, trade_name: t.trade_name }"
@@ -325,9 +579,20 @@ export class Empresa360Component implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private api = inject(PlataformaApi);
+  session = inject(SessionService);
 
   readonly tenantId = this.route.snapshot.paramMap.get('id') || '';
-  readonly activeTab = signal<'resumen' | 'suscripcion' | 'sucursales' | 'usuarios' | 'uso' | 'actividad' | 'soporte'>('resumen');
+  readonly activeTab = signal<
+    | 'resumen'
+    | 'suscripcion'
+    | 'sucursales'
+    | 'usuarios'
+    | 'modulos'
+    | 'roles'
+    | 'uso'
+    | 'actividad'
+    | 'soporte'
+  >('resumen');
 
   readonly tenant = signal<Tenant | null>(null);
   readonly overview = signal<TenantOverview | null>(null);
@@ -343,11 +608,52 @@ export class Empresa360Component implements OnInit {
   readonly supportOpen = signal(false);
 
   readonly maskEmail = maskEmail;
+  tenantModules = signal<TenantModule[]>([]);
+  moduleCatalog = signal<PlatformModule[]>([]);
+  tenantLimits = signal<TenantLimit[]>([]);
+  tenantRoles = signal<TenantRole[]>([]);
+  permissions = signal<PermissionCatalogItem[]>([]);
+  modulesLoading = signal(false);
+  rolesLoading = signal(false);
+  moduleSaving = signal(false);
+  moduleError = signal('');
+  limitError = signal('');
+  roleError = signal('');
+  grantOpen = signal(false);
+  grantError = signal('');
+  grantCode = '';
+  editingRole = signal<TenantRole | null>(null);
+  selectedPermissions: string[] = [];
+  pendingAction = signal<{
+    kind: 'revoke' | 'block' | 'limit';
+    id: string;
+    code: string;
+    name: string;
+  } | null>(null);
+  limitCode = '';
+  limitValue = 1;
+  limitDays = 7;
+  limitReason = '';
+  etiquetaOrigen = etiquetaOrigen;
+  vigencia = vigencia;
 
   ngOnInit() {
     this.route.queryParamMap.subscribe((params) => {
       const tabParam = params.get('tab') as any;
-      if (tabParam && ['resumen', 'suscripcion', 'sucursales', 'usuarios', 'uso', 'actividad', 'soporte'].includes(tabParam)) {
+      if (
+        tabParam &&
+        [
+          'resumen',
+          'suscripcion',
+          'sucursales',
+          'usuarios',
+          'modulos',
+          'roles',
+          'uso',
+          'actividad',
+          'soporte',
+        ].includes(tabParam)
+      ) {
         this.activeTab.set(tabParam);
       }
     });
@@ -355,7 +661,18 @@ export class Empresa360Component implements OnInit {
     this.cargarBase();
   }
 
-  setTab(tab: 'resumen' | 'suscripcion' | 'sucursales' | 'usuarios' | 'uso' | 'actividad' | 'soporte') {
+  setTab(
+    tab:
+      | 'resumen'
+      | 'suscripcion'
+      | 'sucursales'
+      | 'usuarios'
+      | 'modulos'
+      | 'roles'
+      | 'uso'
+      | 'actividad'
+      | 'soporte',
+  ) {
     this.activeTab.set(tab);
     void this.router.navigate([], {
       relativeTo: this.route,
@@ -363,6 +680,8 @@ export class Empresa360Component implements OnInit {
       queryParamsHandling: 'merge',
     });
 
+    if (tab === 'modulos') void this.loadModules();
+    if (tab === 'roles') void this.loadRoles();
     if (tab === 'sucursales' && !this.branches().length) this.loadBranches();
     if (tab === 'usuarios' && !this.users().length) this.loadUsers();
     if (tab === 'soporte' && !this.supportSessions().length) this.loadSupportSessions();
@@ -393,9 +712,201 @@ export class Empresa360Component implements OnInit {
       error: () => {},
     });
 
+    if (this.activeTab() === 'modulos') void this.loadModules();
+    if (this.activeTab() === 'roles') void this.loadRoles();
     if (this.activeTab() === 'sucursales') this.loadBranches();
     if (this.activeTab() === 'usuarios') this.loadUsers();
     if (this.activeTab() === 'soporte') this.loadSupportSessions();
+  }
+
+  async loadModules() {
+    this.modulesLoading.set(true);
+    this.moduleError.set('');
+    this.limitError.set('');
+    const [modules, catalog, limits] = await Promise.allSettled([
+      firstValueFrom(this.api.tenantModules(this.tenantId)),
+      firstValueFrom(this.api.modules()),
+      firstValueFrom(this.api.tenantLimits(this.tenantId)),
+    ]);
+    if (modules.status === 'fulfilled') this.tenantModules.set(modules.value);
+    else this.moduleError.set(errorMessage(modules.reason));
+    if (catalog.status === 'fulfilled') this.moduleCatalog.set(catalog.value);
+    else this.moduleError.set(errorMessage(catalog.reason));
+    if (limits.status === 'fulfilled') this.tenantLimits.set(limits.value);
+    else
+      this.limitError.set(
+        'No se pudieron consultar los ajustes de límites. ' + errorMessage(limits.reason),
+      );
+    this.modulesLoading.set(false);
+  }
+  async openGrant(code = '') {
+    this.grantCode = code;
+    this.grantError.set('');
+    if (!this.moduleCatalog().length) {
+      try {
+        this.moduleCatalog.set(await firstValueFrom(this.api.modules()));
+      } catch (error) {
+        this.moduleError.set(errorMessage(error));
+        return;
+      }
+    }
+    this.grantOpen.set(true);
+  }
+  async grant(body: TenantModuleGrant) {
+    if (this.moduleSaving()) return;
+    this.moduleSaving.set(true);
+    this.grantError.set('');
+    try {
+      await firstValueFrom(this.api.grantModule(this.tenantId, body));
+      this.grantOpen.set(false);
+      await this.loadModules();
+    } catch (error) {
+      this.grantError.set(errorMessage(error));
+    } finally {
+      this.moduleSaving.set(false);
+    }
+  }
+  requestAction(module: TenantModule, kind: 'revoke' | 'block') {
+    this.pendingAction.set({
+      kind,
+      id: module.id ?? '',
+      code: module.module_code,
+      name: module.module_name,
+    });
+  }
+  requestLimitRemoval(limit: TenantLimit) {
+    this.pendingAction.set({
+      kind: 'limit',
+      id: limit.id,
+      code: limit.limit_code,
+      name: limit.limit_code,
+    });
+  }
+  actionTitle(action: { kind: string; name: string }) {
+    return (
+      (action.kind === 'block'
+        ? 'Bloquear '
+        : action.kind === 'limit'
+          ? 'Quitar límite de '
+          : 'Quitar asignación de ') + action.name
+    );
+  }
+  async confirmAction(reason: string) {
+    const action = this.pendingAction();
+    if (!action || this.moduleSaving() || reason.trim().length < 3) return;
+    this.moduleSaving.set(true);
+    this.moduleError.set('');
+    this.pendingAction.set(null);
+    try {
+      if (action.kind === 'block')
+        await firstValueFrom(
+          this.api.grantModule(this.tenantId, {
+            module_code: action.code,
+            mode: 'BLOQUEADO',
+            reason: reason.trim(),
+          }),
+        );
+      else if (action.kind === 'limit')
+        await firstValueFrom(this.api.revokeTenantLimit(this.tenantId, action.id, reason.trim()));
+      else await firstValueFrom(this.api.revokeModule(this.tenantId, action.id, reason.trim()));
+      await this.loadModules();
+    } catch (error) {
+      this.moduleError.set(errorMessage(error));
+    } finally {
+      this.moduleSaving.set(false);
+    }
+  }
+  async saveLimit() {
+    if (this.moduleSaving()) return;
+    if (
+      !this.limitCode ||
+      !Number.isInteger(this.limitValue) ||
+      this.limitValue < 1 ||
+      !Number.isInteger(this.limitDays) ||
+      this.limitDays < 1 ||
+      this.limitDays > 30 ||
+      this.limitReason.trim().length < 3
+    ) {
+      this.limitError.set('Selecciona límite, valor positivo, vigencia de 1–30 días y motivo.');
+      return;
+    }
+    this.moduleSaving.set(true);
+    this.limitError.set('');
+    try {
+      await firstValueFrom(
+        this.api.setTenantLimit(this.tenantId, {
+          limit_code: this.limitCode,
+          value: this.limitValue,
+          days: this.limitDays,
+          reason: this.limitReason.trim(),
+        }),
+      );
+      this.limitReason = '';
+      await this.loadModules();
+    } catch (error) {
+      this.limitError.set(errorMessage(error));
+    } finally {
+      this.moduleSaving.set(false);
+    }
+  }
+  async loadRoles() {
+    this.rolesLoading.set(true);
+    this.roleError.set('');
+    try {
+      this.tenantRoles.set(await firstValueFrom(this.api.tenantRoles(this.tenantId)));
+    } catch (error) {
+      this.roleError.set(errorMessage(error));
+    } finally {
+      this.rolesLoading.set(false);
+    }
+  }
+  async editRole(role: TenantRole) {
+    this.roleError.set('');
+    try {
+      this.permissions.set(
+        (await firstValueFrom(this.api.permissions())).filter(
+          (permission) => permission.scope === 'tenant',
+        ),
+      );
+      this.selectedPermissions = role.permissions.map((permission) => permission.id);
+      this.editingRole.set(role);
+    } catch (error) {
+      this.roleError.set(errorMessage(error));
+    }
+  }
+  permissionGroups() {
+    const groups = new Map<string, PermissionCatalogItem[]>();
+    for (const permission of this.permissions()) {
+      const key = permission.module || 'base';
+      groups.set(key, [...(groups.get(key) ?? []), permission]);
+    }
+    return [...groups.entries()].map(([code, permissions]) => ({
+      code,
+      name: this.moduleCatalog().find((module) => module.code === code)?.name ?? code,
+      permissions,
+    }));
+  }
+  togglePermission(id: string) {
+    this.selectedPermissions = this.selectedPermissions.includes(id)
+      ? this.selectedPermissions.filter((value) => value !== id)
+      : [...this.selectedPermissions, id];
+  }
+  async saveRole() {
+    const role = this.editingRole();
+    if (!role || this.moduleSaving()) return;
+    this.moduleSaving.set(true);
+    this.roleError.set('');
+    try {
+      await firstValueFrom(
+        this.api.setTenantRolePermissions(this.tenantId, role.id, this.selectedPermissions),
+      );
+      this.editingRole.set(null);
+      await this.loadRoles();
+    } catch (error) {
+      this.roleError.set(errorMessage(error));
+    } finally {
+      this.moduleSaving.set(false);
+    }
   }
 
   loadBranches() {
@@ -444,7 +955,7 @@ export class Empresa360Component implements OnInit {
 
     req.subscribe({
       next: (res: any) => {
-        const updated = (res && 'data' in res) ? res.data : res;
+        const updated = res && 'data' in res ? res.data : res;
         this.tenant.set(updated);
         this.actionNotice.set(isActiva ? 'Empresa suspendida.' : 'Empresa reactivada.');
         this.actionLoading.set(false);

@@ -30,4 +30,16 @@ export class ApiService {
       body: body ?? null,
     });
   }
+  post<T>(path: string, body?: unknown) {
+    return this.write<T>('POST', path, body).pipe(map((r) => r.data));
+  }
+  patch<T>(path: string, body?: unknown) {
+    return this.write<T>('PATCH', path, body).pipe(map((r) => r.data));
+  }
+  put<T>(path: string, body?: unknown) {
+    return this.write<T>('PUT', path, body).pipe(map((r) => r.data));
+  }
+  delete<T>(path: string) {
+    return this.write<T>('DELETE', path).pipe(map((r) => r.data));
+  }
 }

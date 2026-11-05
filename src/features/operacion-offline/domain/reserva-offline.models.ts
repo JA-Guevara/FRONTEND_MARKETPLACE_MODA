@@ -1,7 +1,17 @@
 export type EstadoOperacion =
-  'PENDIENTE' | 'ENVIADA' | 'CONFIRMADA' | 'RECHAZADA' | 'CONFLICTO' | 'ANULADA';
+  | 'PENDIENTE'
+  | 'ENVIADA'
+  | 'CONFIRMADA'
+  | 'RECHAZADA'
+  | 'CONFLICTO'
+  | 'ANULADA';
+
 export type EstadoReservaLocal =
-  'PENDIENTE_CONFIRMACION' | 'ANULADA_LOCAL' | 'CONFIRMADA' | 'RECHAZADA';
+  | 'PENDIENTE_CONFIRMACION'
+  | 'ANULADA_LOCAL'
+  | 'CONFIRMADA'
+  | 'RECHAZADA';
+
 export interface ReservaLocal {
   id: string;
   tenant_id: string;
@@ -12,12 +22,16 @@ export interface ReservaLocal {
   notas: string;
   estado: EstadoReservaLocal;
   creada_en: string;
+  server_id?: string | null;
+  server_ref?: string | null;
 }
+
 export interface ItemReservaLocal {
   reserva_id: string;
   variante_id: string;
   cantidad: number;
 }
+
 export interface CrearReservaPayload {
   branch_id: string;
   scheduled_at: string;
@@ -29,27 +43,39 @@ export interface CrearReservaPayload {
   client_created_at: string;
   customer_id?: string;
 }
+
 export interface OperacionPendiente {
   id: string;
-  tipo: 'RESERVA';
+  tipo: 'RESERVA' | 'VENTA' | 'SALE' | 'RESERVATION';
   estado: EstadoOperacion;
   tenant_id: string;
   sucursal_id: string;
   usuario_id: string;
   dispositivo_id: string;
-  payload: CrearReservaPayload;
+  payload?: any;
+  venta_id?: string;
+  reserva_id?: string;
+  server_ref?: string | null;
+  server_numero?: string | null;
+  conflicto_id?: string | null;
+  motivo_codigo?: string | null;
+  proximo_intento_en?: string | null;
   intentos: number;
-  ultimo_error: string | null;
+  ultimo_error?: string | null;
   creada_en: string;
-  actualizada_en: string;
+  server_id?: string | null;
+  actualizada_en?: string;
 }
+
 export interface ReservaLocalVista {
   reserva: ReservaLocal;
   items: ItemReservaLocal[];
   operacion: OperacionPendiente;
 }
+
 export const MAX_VARIANTES = 20,
   MAX_UNIDADES = 10;
+
 export function puedeAgregar(
   items: Pick<ItemReservaLocal, 'variante_id' | 'cantidad'>[],
   varianteId: string,
@@ -64,11 +90,13 @@ export function puedeAgregar(
   if (current + cantidad > stockLocal) return 'Sin existencia local suficiente';
   return null;
 }
+
 export function validarVisita(fecha: Date, ahora: Date): string | null {
   return !Number.isFinite(fecha.getTime()) || fecha <= ahora
     ? 'La visita debe tener una fecha y hora futura.'
     : null;
 }
+
 export function construirPayload(
   r: ReservaLocal,
   items: ItemReservaLocal[],
@@ -86,6 +114,7 @@ export function construirPayload(
     ...(r.cliente_id ? { customer_id: r.cliente_id } : {}),
   };
 }
+
 export function puedeCancelarLocal(op: Pick<OperacionPendiente, 'estado'>) {
   return op.estado === 'PENDIENTE';
 }

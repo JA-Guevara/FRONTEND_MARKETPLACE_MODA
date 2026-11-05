@@ -71,6 +71,38 @@ export const PLATAFORMA_ROUTES: Routes = [
       import('./presentation/planes-page.component').then((m) => m.PlanesPageComponent),
   },
   {
+    path: 'plataforma/modulos',
+    title: 'Módulos | Plataforma SaaS',
+    canActivate: [authGuard, platformScopeGuard],
+    data: { permission: 'modules.read' },
+    loadComponent: () =>
+      import('./presentation/modulos-page.component').then((m) => m.ModulosPageComponent),
+  },
+  {
+    path: 'plataforma/demo',
+    title: 'Empresa Demo (Sandbox) | Plataforma SaaS',
+    canActivate: [authGuard, platformScopeGuard],
+    data: { permission: 'sandbox.manage' },
+    loadComponent: () =>
+      import('./presentation/demo-sandbox.component').then((m) => m.DemoSandboxComponent),
+  },
+  {
+    path: 'plataforma/roles',
+    title: 'Plantillas de Roles | Plataforma SaaS',
+    canActivate: [authGuard, platformScopeGuard],
+    data: { permission: 'platform_roles.read' },
+    loadComponent: () =>
+      import('./presentation/plantillas-roles.component').then((m) => m.PlantillasRolesComponent),
+  },
+  {
+    path: 'plataforma/equipo',
+    title: 'Equipo de plataforma | Plataforma SaaS',
+    canActivate: [authGuard, platformScopeGuard],
+    data: { permission: 'platform_users.write' },
+    loadComponent: () =>
+      import('./presentation/administradores.component').then((m) => m.AdministradoresComponent),
+  },
+  {
     path: 'plataforma/usuarios',
     title: 'Usuarios globales | Plataforma SaaS',
     canActivate: [authGuard, platformScopeGuard],
@@ -80,11 +112,8 @@ export const PLATAFORMA_ROUTES: Routes = [
   },
   {
     path: 'plataforma/administradores',
-    title: 'Administradores | Plataforma SaaS',
-    canActivate: [authGuard, platformScopeGuard],
-    data: { permission: 'platform_users.write' },
-    loadComponent: () =>
-      import('./presentation/administradores.component').then((m) => m.AdministradoresComponent),
+    redirectTo: 'plataforma/equipo',
+    pathMatch: 'full',
   },
   {
     path: 'plataforma/auditoria',

@@ -77,14 +77,22 @@ export class SessionService {
   );
 
   readonly readOnly = computed(() => {
+    if (this.user()?.read_only || this.support()?.session.mode === 'READ_ONLY') return true;
     const s = this.subscription();
     if (!s) return false;
     const end = new Date(s.end_date + 'T23:59:59');
     return s.status !== 'ACTIVA' || end.getTime() < Date.now();
   });
 
+  readonly modules = computed(() => this.subscription()?.modules ?? []);
+
   hasFeature(code: string) {
-    return this.subscription()?.features[code] === true;
+    const subscription = this.subscription();
+    // Una respuesta nueva enumera los módulos efectivos, incluidos extras/pruebas.
+    // La ausencia del campo conserva compatibilidad con perfiles locales anteriores.
+    return subscription?.modules !== undefined
+      ? subscription.modules.some((module) => module.code === code)
+      : subscription?.features[code] === true;
   }
 
   readonly permissions = computed(() =>

@@ -1,0 +1,82 @@
+:host {
+  display: block;
+}
+nav {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 10px;
+  margin: 18px 0;
+}
+nav button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 8px;
+}
+nav button.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+label {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+input,
+textarea,
+select {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--line);
+}
+fieldset {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin: 18px 0;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+}
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.notice {
+  background: var(--info-soft);
+  color: var(--info);
+  padding: 12px;
+  border-radius: var(--radius);
+  font-size: 12px;
+}
+.event {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+.event small {
+  display: block;
+  margin-top: 6px;
+}
+.badge {
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 4px 8px;
+  border-radius: var(--radius-pill);
+}
+[drawer-footer] {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+code {
+  overflow-wrap: anywhere;
+}

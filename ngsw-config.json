@@ -41,6 +41,25 @@
         "maxSize": 300,
         "maxAge": "7d"
       }
+    },
+    {
+      "name": "marca-tiendas",
+      "urls": [
+        "/api/v1/public/stores/**"
+      ],
+      "cacheConfig": {
+        "strategy": "freshness",
+        "maxSize": 50,
+        "maxAge": "1d",
+        "timeout": "5s"
+      }
     }
+  ],
+  "navigationUrls": [
+    "/**",
+    "!/**/*.*",
+    "!/api/**",
+    "!/sync/**",
+    "!/auth/**"
   ]
 }

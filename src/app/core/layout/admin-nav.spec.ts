@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { ADMIN_NAV, visibleSections, lockedByPlan, NavItem } from './admin-nav';
+import { PLATAFORMA_ROUTES } from '../../../features/plataforma-saas/plataforma.routes';
+import { platformScopeGuard } from '../scope.guard';
 
 describe('admin-nav', () => {
   it('visibleSections con scope platform muestra solo secciones de plataforma', () => {
@@ -12,9 +14,25 @@ describe('admin-nav', () => {
     const titles = sections.map((s) => s.title);
     expect(titles).toEqual([
       'Plataforma SaaS',
+      'Producto',
       'Personas y seguridad',
       'Catálogos globales',
     ]);
+  });
+
+  it('separa Producto y requiere sandbox.manage para la demo', () => {
+    const product = ADMIN_NAV.find((section) => section.title === 'Producto');
+    expect(product?.items.find((item) => item.key === 'demo')?.permission).toBe('sandbox.manage');
+    const security = ADMIN_NAV.find((section) => section.title === 'Personas y seguridad');
+    expect(security?.items.some((item) => item.label === 'Equipo de plataforma' && item.path.endsWith('/equipo'))).toBe(true);
+    expect(security?.items.some((item) => item.label === 'Roles y permisos')).toBe(true);
+  });
+  it('las rutas nuevas conservan guard de plataforma y el enlace anterior del equipo redirige', () => {
+    for (const path of ['plataforma/modulos', 'plataforma/demo', 'plataforma/roles', 'plataforma/equipo']) {
+      expect(PLATAFORMA_ROUTES.find((route) => route.path === path)?.canActivate).toContain(platformScopeGuard);
+    }
+    expect(PLATAFORMA_ROUTES.find((route) => route.path === 'plataforma/demo')?.data?.['permission']).toBe('sandbox.manage');
+    expect(PLATAFORMA_ROUTES.find((route) => route.path === 'plataforma/administradores')?.redirectTo).toBe('plataforma/equipo');
   });
 
   it('scope tenant + isSupport excluye la seccion Sin conexion', () => {

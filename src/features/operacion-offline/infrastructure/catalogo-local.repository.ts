@@ -87,8 +87,8 @@ export class CatalogoLocalRepository {
             (n, o) =>
               n +
               o.payload.items
-                .filter((i) => i.variant_id === x.variant_id)
-                .reduce((m, i) => m + i.quantity, 0),
+                .filter((i: any) => i.variant_id === x.variant_id)
+                .reduce((m: number, i: any) => m + i.quantity, 0),
             0,
           );
         await tx.objectStore('existencias').put({

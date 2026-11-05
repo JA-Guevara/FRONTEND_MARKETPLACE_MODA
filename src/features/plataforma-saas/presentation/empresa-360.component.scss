@@ -1,6 +1,98 @@
 :host {
   display: block;
 }
+.module-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.module-toolbar h2 {
+  font-size: 20px;
+}
+.module-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.limits-card,
+.role-card {
+  margin-top: 18px;
+}
+.limit-summary {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.limit-summary > div {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+}
+.limit-summary span,
+.limit-row small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+.limit-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  padding: 14px 0;
+}
+.limit-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  align-items: end;
+  margin-top: 20px;
+}
+.role-card header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.permission-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+fieldset {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin: 16px 0;
+}
+input,
+textarea,
+select {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--line);
+}
+.tabs {
+  overflow: auto;
+}
+.tabs a {
+  white-space: nowrap;
+}
+@media (max-width: 650px) {
+  .module-toolbar,
+  .role-card header {
+    align-items: start;
+    flex-direction: column;
+  }
+  .permission-check span {
+    width: 100%;
+  }
+}
 
 .logo-t {
   display: inline-flex;

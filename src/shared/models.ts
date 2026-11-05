@@ -31,8 +31,16 @@ export interface Role {
   permissions: Permission[];
 }
 export interface TenantSummary {id:string;slug:string;trade_name:string;status:'ACTIVA'|'INACTIVA'}
-export interface SubscriptionSummary {plan_code:string;plan_name:string;status:string;start_date:string;end_date:string;days_left:number;features:Record<string,boolean>;limits:Record<string,number>}
+export interface EffectiveModuleSummary {
+  code: string;
+  name: string;
+  origin: 'BASE' | 'PLAN' | 'EXTRA' | 'TRIAL' | 'SANDBOX';
+  expires_at: string | null;
+}
+export interface SubscriptionSummary {plan_code:string;plan_name:string;status:string;start_date:string;end_date:string;days_left:number;features:Record<string,boolean>;modules?:EffectiveModuleSummary[];limits:Record<string,number>}
 export interface User {tenant?:TenantSummary|null;subscription?:SubscriptionSummary|null;support?:SupportSession|null;
+  read_only?: boolean;
+  must_change_password?: boolean;
   id: string;
   email: string;
   first_name: string;

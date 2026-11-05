@@ -37,6 +37,19 @@ describe('Restauración después de Stripe', () => {
     expect(service.user()).toBeNull();
     expect(sessionStorage.getItem('fashionstore.refresh')).toBeNull();
   });
+  it('respeta read_only y usa módulos efectivos aun cuando una funcionalidad venía del plan', () => {
+    const service = TestBed.inject(SessionService);
+    service.user.set({...tokens.user, read_only: true, subscription: {
+      plan_code:'BASICO', plan_name:'Básico', status:'ACTIVA', start_date:'2026-01-01', end_date:'2099-12-31',
+      days_left:365, features:{ai_reports:true, sales:true}, limits:{}, modules:[
+        {code:'ai_reports', name:'Reportes IA', origin:'TRIAL', expires_at:'2099-12-31T00:00:00Z'},
+      ],
+    }});
+    expect(service.readOnly()).toBe(true);
+    expect(service.hasFeature('ai_reports')).toBe(true);
+    expect(service.modules()[0].origin).toBe('TRIAL');
+    expect(service.hasFeature('sales')).toBe(false);
+  });
   it('no revive una sesión cerrada mientras se restauraba', async () => {
     sessionStorage.setItem('fashionstore.refresh', 'old');
     const service = TestBed.inject(SessionService);

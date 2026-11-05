@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import {TrendChartComponent} from './trend-chart.component';
 describe('Escala temporal de gráficos',()=>{
   it('conserva la distancia entre fechas con días intermedios ausentes',()=>{

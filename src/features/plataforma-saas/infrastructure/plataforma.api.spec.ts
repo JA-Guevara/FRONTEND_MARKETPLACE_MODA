@@ -48,6 +48,46 @@ describe('Contrato HTTP plataforma', () => {
     expect(r.request.body).toEqual({ reason: 'Renovación mensual' });
     r.flush({ data: {} });
   });
+  it('consulta impacto con diccionario de funcionalidades y confirma conservando el motivo', () => {
+    api.planImpact('p1', { products: true, ai_reports: false }).subscribe();
+    const impact = http.expectOne('/api/v1/platform/plans/p1/impact');
+    expect(impact.request.method).toBe('POST');
+    expect(impact.request.body).toEqual({ products: true, ai_reports: false });
+    impact.flush({ data: {} });
+    api
+      .updatePlan('p1', {
+        features: { products: true },
+        reason: 'Ajuste solicitado',
+        confirm: true,
+      })
+      .subscribe();
+    const save = http.expectOne('/api/v1/platform/plans/p1');
+    expect(save.request.body.reason).toBe('Ajuste solicitado');
+    expect(save.request.body.confirm).toBe(true);
+    save.flush({ data: {} });
+  });
+  it('asigna prueba y revoca sin alterar la empresa ni enviar datos extra', () => {
+    api
+      .grantModule('t1', {
+        module_code: 'ai_reports',
+        mode: 'TRIAL',
+        days: 7,
+        reason: 'Evaluación solicitada',
+      })
+      .subscribe();
+    const grant = http.expectOne('/api/v1/platform/tenants/t1/modules');
+    expect(grant.request.body).toEqual({
+      module_code: 'ai_reports',
+      mode: 'TRIAL',
+      days: 7,
+      reason: 'Evaluación solicitada',
+    });
+    grant.flush({ data: {} });
+    api.revokeModule('t1', 'o1', 'Finalizar prueba').subscribe();
+    const revoke = http.expectOne('/api/v1/platform/tenants/t1/modules/o1/revoke');
+    expect(revoke.request.body).toEqual({ reason: 'Finalizar prueba' });
+    revoke.flush({ data: null });
+  });
   it('plan_limit_exceeded abre aviso y relanza error', () => {
     const error = vi.fn();
     api.changePlan('t1', { plan_code: 'BASICO', reason: 'Ajustar capacidad' }).subscribe({ error });

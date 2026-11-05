@@ -48,6 +48,14 @@ export const routes: Routes = [
       ).then((m) => m.ReservasLocalesComponent),
   },
   {
+    path: 'sin-conexion/operaciones',
+    canActivate: [offlineGuard],
+    loadComponent: () =>
+      import(
+        '../../features/operacion-offline/presentation/operaciones-pendientes.component'
+      ).then((m) => m.OperacionesPendientesComponent),
+  },
+  {
     path: 'sin-conexion/reservas/:id',
     canActivate: [offlineGuard],
     loadComponent: () =>
@@ -210,6 +218,26 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'analitica-ml',
+        title: 'Analítica predictiva ML | FashionStore',
+        canActivate: [authGuard, tenantScopeGuard],
+        data: { permission: 'ml_dashboard.read', feature: 'ml_analytics' },
+        loadComponent: () =>
+          import('../../features/analitica-ml/presentation/dashboard-analitico.component').then(
+            (m) => m.DashboardAnaliticoComponent
+          ),
+      },
+      {
+        path: 'plataforma/ml',
+        title: 'Modelos de Machine Learning | FashionStore',
+        canActivate: [authGuard],
+        data: { permission: 'ml_models.manage' },
+        loadComponent: () =>
+          import('../../features/analitica-ml/presentation/modelos-analiticos.component').then(
+            (m) => m.ModelosAnaliticosComponent
+          ),
+      },
+      {
         path: 'pedidos',
         title: 'Pedidos y pagos | FashionStore',
         canActivate: [authGuard, tenantScopeGuard],
@@ -297,6 +325,56 @@ export const routes: Routes = [
           ).then((m) => m.AdminReturnsComponent),
         canActivate: [authGuard, tenantScopeGuard],
         data: { permission: 'commerce.read' },
+      },
+      {
+        path: 'cambios',
+        title: 'Cambios de prenda | FashionStore',
+        loadComponent: () =>
+          import(
+            '../../features/ventas-pagos/presentation/cambios-page.component'
+          ).then((m) => m.CambiosPageComponent),
+        canActivate: [authGuard, tenantScopeGuard],
+        data: { permission: 'exchanges.read', feature: 'exchanges' },
+      },
+      {
+        path: 'reportes-ia',
+        title: 'Reportes Inteligentes con IA | FashionStore',
+        loadComponent: () =>
+          import(
+            '../../features/ia-reportes/presentation/reportes-ia.component'
+          ).then((m) => m.ReportesIaComponent),
+        canActivate: [authGuard, tenantScopeGuard],
+        data: { permission: 'ai_reports.use', feature: 'ai_reports' },
+      },
+      {
+        path: 'reportes-ia/historial',
+        title: 'Historial de Reportes IA | FashionStore',
+        loadComponent: () =>
+          import(
+            '../../features/ia-reportes/presentation/historial-reportes.component'
+          ).then((m) => m.HistorialReportesComponent),
+        canActivate: [authGuard, tenantScopeGuard],
+        data: { permission: 'ai_reports.use', feature: 'ai_reports' },
+      },
+      {
+        path: 'sincronizacion/conflictos',
+        title: 'Conflictos de sincronización | FashionStore',
+        loadComponent: () =>
+          import(
+            '../../features/operacion-offline/presentation/conflictos.component'
+          ).then((m) => m.ConflictosSyncComponent),
+        canActivate: [authGuard, tenantScopeGuard],
+        data: { permission: 'sync_conflicts.read' },
+      },
+      {
+        path: 'sincronizacion/historial',
+        title: 'Historial de sincronización | FashionStore',
+        loadComponent: () =>
+          import(
+            '../../features/operacion-offline/presentation/historial-sincronizacion.component'
+          ).then((m) => m.HistorialSincronizacionComponent),
+        canActivate: [authGuard, tenantScopeGuard],
+        data: { permission: 'sync_log.read' },
       },
       {
         path: 'bitacora',

@@ -48,6 +48,7 @@ import {
             >
               <fs-icon [name]="item.icon" class="ic" />
               <span style="flex:1">{{ item.label }}</span>
+              @if (isTrial(item)) { <span class="nav-trial">Prueba</span> }
             </a>
           }
         }
@@ -95,6 +96,12 @@ export class AdminSidebarComponent {
 
   isItemLocked(item: NavItem): boolean {
     return lockedByPlan(item, (feat) => this.session.hasFeature(feat));
+  }
+
+  isTrial(item: NavItem): boolean {
+    return !!item.feature && (this.session.modules?.() ?? []).some(
+      (module) => module.code === item.feature && module.origin === 'TRIAL',
+    );
   }
 
   volverConsola(): void {

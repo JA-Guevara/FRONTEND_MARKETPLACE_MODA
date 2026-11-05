@@ -43,6 +43,16 @@ export const EMPRESA_ROUTES: Routes = [
       ),
   },
   {
+    path: 'empresa/dispositivos',
+    title: 'Dispositivos | FashionStore',
+    canActivate: [authGuard, tenantScopeGuard],
+    data: { permission: 'devices.read' },
+    loadComponent: () =>
+      import('./presentation/dispositivos.component').then(
+        (m) => m.DispositivosComponent
+      ),
+  },
+  {
     path: 'mi-suscripcion',
     title: 'Mi suscripción | FashionStore',
     canActivate: [authGuard, tenantScopeGuard],

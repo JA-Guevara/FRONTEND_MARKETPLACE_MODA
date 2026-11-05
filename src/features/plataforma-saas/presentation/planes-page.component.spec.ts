@@ -36,6 +36,7 @@ describe('Pantallas de planes', () => {
         {
           provide: PlataformaApi,
           useValue: {
+            planImpact: () => of({plan_id:'p2',affected_tenants:1,affected_users:2,modules_added:[],modules_removed:[],permissions_gained:[],permissions_lost:[]}),
             updatePlan: () =>
               of({ data: { plan: plans[1], exceeded_tenants: ['Textiles Andinos'] } }),
           },
@@ -46,6 +47,8 @@ describe('Pantallas de planes', () => {
     f.componentRef.setInput('plan', plans[1]);
     f.detectChanges();
     await f.componentInstance.save();
+    expect(f.componentInstance.impact()).not.toBeNull();
+    await f.componentInstance.confirmSave('Revisión de capacidad');
     f.detectChanges();
     expect((f.nativeElement.querySelector('input') as HTMLInputElement).disabled).toBe(true);
     expect(f.nativeElement.textContent).toContain('Textiles Andinos');

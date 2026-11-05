@@ -154,8 +154,8 @@ describe('Consola de plataforma SaaS (Ola 2)', () => {
     fixture.detectChanges();
 
     const text = fixture.nativeElement.textContent;
-    expect(text).toContain('Vista de consulta');
-    expect(text).toContain('Para crear, editar o bloquear usuarios de esta empresa inicia una sesión de soporte');
+    expect(text).toContain('Personal de esta empresa');
+    expect(text).toContain('Las acciones de cuenta se gestionan desde «Usuarios globales»');
     expect(text).toContain('Carla Suárez');
   });
 

@@ -1,0 +1,59 @@
+:host {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+}
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+}
+section {
+  position: relative;
+  background: var(--surface-elev);
+  color: var(--ink);
+  padding: 26px;
+  border: 1px solid var(--line-elev);
+  box-shadow: var(--shadow-3);
+  border-radius: var(--radius-lg);
+  width: min(500px, 94vw);
+  max-height: 90vh;
+  overflow: auto;
+}
+h2 {
+  font-size: 22px;
+}
+label {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+input,
+select,
+textarea {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--line);
+}
+.end {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+.notice {
+  background: var(--info-soft);
+  color: var(--info);
+  padding: 12px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  margin-top: 16px;
+}
+footer {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}

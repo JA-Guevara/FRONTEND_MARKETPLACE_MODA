@@ -1,9 +1,11 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import 'fake-indexeddb/auto';
 import { deleteDB } from 'idb';
 import { openOfflineDb, OFFLINE_DB } from '../../../app/core/offline/offline-db';
 import { CatalogoLocalRepository } from './catalogo-local.repository';
 import { ReservasLocalesRepository } from './reservas-locales.repository';
 import { snapshot, reservation } from './offline-test-fixtures';
+
 describe('Transacciones de catálogo local', () => {
   const repo = new CatalogoLocalRepository();
   beforeEach(async () => {
@@ -15,7 +17,7 @@ describe('Transacciones de catálogo local', () => {
   it('completa persiste nueve almacenes y conteos al reabrir', async () => {
     await repo.guardarInstantanea(snapshot(), 'b');
     const db = await openOfflineDb();
-    expect(db.objectStoreNames.length).toBe(9);
+    expect(db.objectStoreNames.length).toBe(13);
     db.close();
     const data = await new CatalogoLocalRepository().leerDatos('b');
     expect(data.productos).toHaveLength(1);

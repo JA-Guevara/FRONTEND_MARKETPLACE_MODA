@@ -3,6 +3,15 @@
   height: 100%;
 }
 
+.nav-trial {
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: var(--radius-pill);
+  padding: 2px 7px;
+  color: var(--warn);
+  background: var(--warn-soft);
+}
+
 .sidebar {
   background: var(--sidebar, #f3f1eb);
   border-right: 1px solid var(--line);

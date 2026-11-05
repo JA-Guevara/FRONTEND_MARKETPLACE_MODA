@@ -14,6 +14,8 @@ export interface SupportSession {
   end_reason: string | null;
   actions_count: number;
   is_active: boolean;
+  mode?: 'WRITE' | 'READ_ONLY';
+  landing_module?: string | null;
 }
 
 export interface SupportSessionStart {

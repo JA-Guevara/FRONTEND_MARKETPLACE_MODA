@@ -1,6 +1,45 @@
 :host {
   display: block;
 }
+.plan-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+.plan-tabs button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+.plan-tabs button.on {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.matrix-panel {
+  padding: 0;
+}
+.matrix-panel footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 18px;
+  border-top: 1px solid var(--line);
+}
+.module-state {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+}
+.matrix-panel input[type='number'] {
+  width: 140px;
+  max-width: 100%;
+  background: var(--surface);
+  color: var(--ink);
+}
 .sp2-heading {
   display: flex;
   justify-content: space-between;
