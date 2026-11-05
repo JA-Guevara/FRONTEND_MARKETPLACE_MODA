@@ -37,7 +37,7 @@ export interface EffectiveModuleSummary {
   origin: 'BASE' | 'PLAN' | 'EXTRA' | 'TRIAL' | 'SANDBOX';
   expires_at: string | null;
 }
-export interface SubscriptionSummary {plan_code:string;plan_name:string;status:string;start_date:string;end_date:string;days_left:number;features:Record<string,boolean>;modules?:EffectiveModuleSummary[];limits:Record<string,number>}
+export interface SubscriptionSummary {plan_code:string;plan_name:string;status:string;start_date:string;end_date:string;days_left:number;features:Record<string,boolean>;modules?:EffectiveModuleSummary[];limits:Record<string,number>;lifecycle_state?:string;grace_until?:string|null;read_only_since?:string|null;next_notice?:string|null;}
 export interface User {tenant?:TenantSummary|null;subscription?:SubscriptionSummary|null;support?:SupportSession|null;
   read_only?: boolean;
   must_change_password?: boolean;

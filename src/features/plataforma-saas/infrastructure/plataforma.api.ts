@@ -399,6 +399,16 @@ export class PlataformaApi {
     return this.permissionsCatalog();
   }
 
+  // --- Tareas Programadas y Operaciones (PX0.4 / PX0.5) ---
+  jobs(): Observable<any[]> {
+    return this.api.get<any[]>('/platform/ops/jobs');
+  }
+  runJobs(reason: string = 'Ejecución manual desde consola'): Observable<any[]> {
+    return this.api
+      .write<any[]>('POST', '/platform/ops/jobs/run', { reason })
+      .pipe(map((r) => r.data));
+  }
+
   private subpath(id: string) {
     return '/platform/tenants/' + id + '/subscription';
   }

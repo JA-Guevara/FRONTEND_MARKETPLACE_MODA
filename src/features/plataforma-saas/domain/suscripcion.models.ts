@@ -1,4 +1,5 @@
 import { TenantSummary } from '../../../shared/models';
+
 export interface SubscriptionView {
   id: string;
   plan_code: string;
@@ -9,7 +10,14 @@ export interface SubscriptionView {
   days_left: number;
   reason: string | null;
   reference_price?: number | string;
+  lifecycle_state?: 'active' | 'expiring' | 'grace' | 'read_only' | 'canceled' | string;
+  grace_until?: string | null;
+  read_only_since?: string | null;
+  canceled_at?: string | null;
+  data_retention_until?: string | null;
+  next_notice?: string | null;
 }
+
 export interface SubscriptionDetail {
   tenant: TenantSummary;
   current: SubscriptionView;
@@ -18,10 +26,12 @@ export interface SubscriptionDetail {
   limits: Record<string, number>;
   history: SubscriptionView[];
 }
+
 export function downgradeCheck(usage: { active_branches: number }, targetLimit: number) {
   const mustDeactivate = Math.max(0, usage.active_branches - targetLimit);
   return { ok: mustDeactivate === 0, mustDeactivate };
 }
+
 export function expiryTone(daysLeft: number, status: string): 'ok' | 'warn' | 'danger' {
   return status !== 'ACTIVA' ? 'danger' : daysLeft <= 7 ? 'warn' : 'ok';
 }

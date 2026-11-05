@@ -4,6 +4,7 @@ import { SessionService } from '../../../features/usuarios-catalogo/application/
 import { ConnectivityService } from '../offline/connectivity.service';
 import { AdminTopbarComponent } from './admin-topbar.component';
 import { SupportStripComponent } from './support-strip.component';
+import { SubscriptionStripComponent } from './subscription-strip.component';
 import { AdminSidebarComponent } from './admin-sidebar.component';
 import { PlanLimitDialogComponent } from '../../../shared/ui/plan-limit-dialog.component';
 import { CommandPaletteComponent } from './command-palette.component';
@@ -15,6 +16,7 @@ import { CommandPaletteComponent } from './command-palette.component';
     RouterOutlet,
     AdminTopbarComponent,
     SupportStripComponent,
+    SubscriptionStripComponent,
     AdminSidebarComponent,
     PlanLimitDialogComponent,
     CommandPaletteComponent,
@@ -24,6 +26,7 @@ import { CommandPaletteComponent } from './command-palette.component';
     @if (session.isSupport()) {
       <fs-support-strip />
     }
+    <fs-subscription-strip />
     <div class="admin-body">
       <button
         type="button"

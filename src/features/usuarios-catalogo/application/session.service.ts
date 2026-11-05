@@ -83,6 +83,8 @@ export class SessionService {
     if (this.user()?.read_only || this.support()?.session.mode === 'READ_ONLY') return true;
     const s = this.subscription();
     if (!s) return false;
+    if (s.lifecycle_state === 'read_only' || s.lifecycle_state === 'canceled') return true;
+    if (s.lifecycle_state === 'grace' || s.lifecycle_state === 'active' || s.lifecycle_state === 'expiring') return false;
     const end = new Date(s.end_date + 'T23:59:59');
     return s.status !== 'ACTIVA' || end.getTime() < Date.now();
   });
