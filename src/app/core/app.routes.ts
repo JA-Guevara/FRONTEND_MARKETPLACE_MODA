@@ -81,6 +81,32 @@ export const routes: Routes = [
       ).then((m) => m.CatalogPageComponent),
   },
   {
+    path: 'crear-tienda',
+    title: 'Crea tu tienda | FashionStore',
+    loadComponent: () =>
+      import(
+        '../../features/publico/presentation/crear-tienda.component'
+      ).then((m) => m.CrearTiendaComponent),
+  },
+  {
+    path: 'legal/terminos',
+    title: 'Términos del Servicio | FashionStore',
+    loadComponent: () =>
+      import(
+        '../../features/publico/presentation/legal-page.component'
+      ).then((m) => m.LegalPageComponent),
+    data: { docType: 'terminos' },
+  },
+  {
+    path: 'legal/privacidad',
+    title: 'Política de Privacidad | FashionStore',
+    loadComponent: () =>
+      import(
+        '../../features/publico/presentation/legal-page.component'
+      ).then((m) => m.LegalPageComponent),
+    data: { docType: 'privacidad' },
+  },
+  {
     path: 'tienda/:tenantSlug',
     title: 'Catálogo de tienda | FashionStore',
     loadComponent: () =>
