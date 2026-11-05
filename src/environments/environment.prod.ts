@@ -1,4 +1,5 @@
 export const environment = {
+  appEnv: 'production',
   tenantSlug: 'fashionstore',
   production: true,
   demo: false,

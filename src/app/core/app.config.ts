@@ -8,6 +8,7 @@ import { routes } from './app.routes';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { authInterceptor } from './auth.interceptor';
 import { timeoutInterceptor } from './timeout.interceptor';
+import { httpErrorsInterceptor } from './http-errors.interceptor';
 import { SessionService } from '../../features/usuarios-catalogo/application/session.service';
 
 /** Cadena de interceptores, del más EXTERNO al más interno.
@@ -20,7 +21,7 @@ import { SessionService } from '../../features/usuarios-catalogo/application/ses
  *
  * Se exporta para que la prueba pueda fijar ese orden: una vez armada la cadena
  * ya no es observable desde fuera. */
-export const interceptores = [tenantInterceptor, authInterceptor, planNoticeInterceptor, timeoutInterceptor];
+export const interceptores = [tenantInterceptor, authInterceptor, planNoticeInterceptor, httpErrorsInterceptor, timeoutInterceptor];
 
 export const appConfig: ApplicationConfig = {
   providers: [

@@ -1,0 +1,13 @@
+:host { display: block; }
+.env-strip, .service-notice {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem;
+  padding: .65rem clamp(1rem, 3vw, 3rem); border-bottom: 1px solid var(--line);
+  color: var(--ink); background: var(--surface-2);
+  font-size: .82rem;
+}
+.env-strip { background: var(--info-soft, var(--surface-2)); }
+.env-strip strong { color: var(--info, var(--accent)); letter-spacing: .12em; }
+.service-notice { background: var(--warn-soft, var(--surface-2)); }
+.service-notice span { flex: 1; min-width: 14rem; }
+.service-notice button { color: var(--ink); border: 1px solid var(--line); background: var(--surface); padding: .35rem .65rem; cursor: pointer; }
+.maintenance { border-bottom-color: var(--warn, var(--line)); }

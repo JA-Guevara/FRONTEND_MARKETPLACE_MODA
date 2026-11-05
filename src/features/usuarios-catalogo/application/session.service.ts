@@ -21,6 +21,7 @@ import { ApiResponse, Tokens, User } from '../../../shared/models';
 import { environment } from '../../../environments/environment';
 import { errorDeTiempoLimite } from '../../../shared/errors';
 import { LIMITES_HTTP } from '../../../app/core/timeout.interceptor';
+import { HttpErrorsState } from '../../../app/core/http-errors.interceptor';
 import { SupportSessionStart } from '../../plataforma-saas/domain/soporte.models';
 
 @Injectable({ providedIn: 'root' })
@@ -33,12 +34,14 @@ export class SessionService {
   // cubre. Sin este límite propio, un backend congelado dejaba la pantalla de
   // inicio de sesión girando para siempre y `refresh()` sin resolver nunca.
   private limites = inject(LIMITES_HTTP);
+  private operationalNotices = inject(HttpErrorsState);
   private conLimite<T>(peticion: Observable<T>, url: string) {
     return peticion.pipe(
       timeout({
         each: this.limites.normal,
         with: () => throwError(() => errorDeTiempoLimite(url)),
       }),
+      catchError(error => { this.operationalNotices.failed(error); return throwError(() => error); }),
     );
   }
   private tokens: Tokens | null = null;
