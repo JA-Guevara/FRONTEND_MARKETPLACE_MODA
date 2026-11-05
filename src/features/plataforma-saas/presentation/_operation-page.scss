@@ -1,0 +1,22 @@
+:host { display: block; }
+.operation-page { padding: clamp(1rem, 3vw, 2rem); color: var(--ink); max-width: 90rem; margin: auto; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+h1 { font-family: var(--font-display, Georgia, serif); font-size: clamp(1.7rem, 3vw, 2.2rem); margin: .5rem 0; }
+.eyebrow { letter-spacing: .15em; font-size: .72rem; color: var(--muted); }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+article { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius, 10px); padding: 1.2rem; margin-bottom: 1rem; }
+.kpis article { margin: 0; display: grid; gap: .8rem; }
+.kpis span { color: var(--muted); font-size: .85rem; }
+.kpis strong { font-size: 1.45rem; }
+.danger { border-color: var(--danger, var(--accent)); background: var(--danger-soft, var(--surface)); }
+form, nav { display: flex; flex-wrap: wrap; align-items: end; gap: 1rem; margin: 1rem 0; }
+label { display: grid; gap: .4rem; flex: 1; min-width: 15rem; }
+button, input { padding: .65rem .9rem; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: var(--radius-sm, 6px); font: inherit; }
+button { cursor: pointer; } button:disabled { opacity: .55; cursor: default; }
+button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.table-wrap { overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius, 10px); }
+table { border-collapse: collapse; width: 100%; } th, td { text-align: left; padding: .9rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: .8rem; color: var(--muted); } td button { margin-right: .5rem; }
+dl { display: grid; grid-template-columns: minmax(7rem, 1fr) 2fr; gap: .8rem; } dd { overflow-wrap: anywhere; margin: 0; }
+[role=alert] { background: var(--danger-soft, var(--surface-2)); border-left: 3px solid var(--danger, var(--accent)); padding: 1rem; }
+a { color: var(--accent); }

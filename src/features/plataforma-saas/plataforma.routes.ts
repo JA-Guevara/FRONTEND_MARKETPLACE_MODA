@@ -25,6 +25,9 @@ export const citiesResource: Resource = {
 };
 
 export const PLATAFORMA_ROUTES: Routes = [
+  { path: 'plataforma/operacion/continuidad', title: 'Continuidad | Plataforma SaaS', canActivate: [authGuard, platformScopeGuard], data: { permission: 'platform.ops.read' }, loadComponent: () => import('./presentation/continuidad-page.component').then(m => m.ContinuidadPageComponent) },
+  { path: 'plataforma/operacion/despliegues', title: 'Despliegues | Plataforma SaaS', canActivate: [authGuard, platformScopeGuard], data: { permission: 'platform.ops.read' }, loadComponent: () => import('./presentation/despliegues-page.component').then(m => m.DesplieguesPageComponent) },
+  { path: 'plataforma/operacion/salud', title: 'Salud | Plataforma SaaS', canActivate: [authGuard, platformScopeGuard], data: { permission: 'platform.ops.read' }, loadComponent: () => import('./presentation/salud-page.component').then(m => m.SaludPageComponent) },
   {
     path: 'plataforma',
     title: 'Tablero | Plataforma SaaS',

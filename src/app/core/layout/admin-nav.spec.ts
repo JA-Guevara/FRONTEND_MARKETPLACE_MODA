@@ -15,6 +15,7 @@ describe('admin-nav', () => {
     expect(titles).toEqual([
       'Plataforma SaaS',
       'Producto',
+      'Operación',
       'Personas y seguridad',
       'Catálogos globales',
     ]);

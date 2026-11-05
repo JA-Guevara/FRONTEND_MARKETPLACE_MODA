@@ -38,6 +38,15 @@ export const ADMIN_NAV: NavSection[] = [
     ],
   },
   {
+    title: 'Operación',
+    scope: 'platform',
+    items: [
+      { key: 'continuidad', label: 'Continuidad y respaldos', icon: 'box', path: '/admin/plataforma/operacion/continuidad', permission: 'platform.ops.read' },
+      { key: 'despliegues', label: 'Despliegues', icon: 'refresh', path: '/admin/plataforma/operacion/despliegues', permission: 'platform.ops.read' },
+      { key: 'salud', label: 'Salud y seguridad', icon: 'heart', path: '/admin/plataforma/operacion/salud', permission: 'platform.ops.read' },
+    ],
+  },
+  {
     title: 'Personas y seguridad',
     scope: 'platform',
     items: [
