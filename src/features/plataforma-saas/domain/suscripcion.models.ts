@@ -35,3 +35,21 @@ export function downgradeCheck(usage: { active_branches: number }, targetLimit: 
 export function expiryTone(daysLeft: number, status: string): 'ok' | 'warn' | 'danger' {
   return status !== 'ACTIVA' ? 'danger' : daysLeft <= 7 ? 'warn' : 'ok';
 }
+
+export interface SubscriptionInvoice {
+  id: string;
+  number: string;
+  tenant_id: string;
+  subscription_id: string;
+  period_start: string;
+  period_end: string;
+  amount: number;
+  currency: string;
+  status: 'issued' | 'paid' | 'overdue' | 'void' | string;
+  issued_at: string;
+  due_at: string;
+  paid_at?: string | null;
+  paid_reference?: string | null;
+  plan_name?: string | null;
+}
+

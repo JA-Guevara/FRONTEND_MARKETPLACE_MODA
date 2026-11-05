@@ -1,10 +1,12 @@
 import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
+import { environment } from '../../../environments/environment';
 import { ApiService } from '../../../app/core/shared/api.service';
 import { Page } from '../../../shared/models';
 import { Tenant, TenantCreate, TenantStats, ActivityItem } from '../domain/empresa.models';
 import { Plan, PlanDraft, FeatureCatalogItem, PlanSaveResult } from '../domain/plan.models';
-import { SubscriptionDetail } from '../domain/suscripcion.models';
+import { SubscriptionDetail, SubscriptionInvoice } from '../domain/suscripcion.models';
 import { SupportSession, SupportSessionStart } from '../domain/soporte.models';
 import {
   PlatformModule,
@@ -38,6 +40,7 @@ import {
 @Injectable({ providedIn: 'root' })
 export class PlataformaApi {
   private api = inject(ApiService);
+  private http = inject(HttpClient);
   tenants(q: Record<string, unknown> = {}) {
     return this.api.get<Page<Tenant>>('/platform/tenants', q);
   }
@@ -100,6 +103,27 @@ export class PlataformaApi {
   }
   mySubscription() {
     return this.api.get<SubscriptionDetail>('/tenant/subscription');
+  }
+
+  // --- Facturacion / Estado de cuenta ---
+  myInvoices(): Observable<SubscriptionInvoice[]> {
+    return this.api.get<SubscriptionInvoice[]>('/tenant/billing/invoices');
+  }
+
+  downloadInvoicePdf(invoiceId: string): Observable<Blob> {
+    return this.http.get(`${environment.apiUrl}/tenant/billing/invoices/${invoiceId}/pdf`, {
+      responseType: 'blob',
+    });
+  }
+
+  tenantInvoices(tenantId: string): Observable<SubscriptionInvoice[]> {
+    return this.api.get<SubscriptionInvoice[]>(`/platform/tenants/${tenantId}/invoices`);
+  }
+
+  markInvoicePaid(tenantId: string, invoiceId: string, reference: string): Observable<SubscriptionInvoice> {
+    return this.api
+      .write<SubscriptionInvoice>('POST', `/platform/tenants/${tenantId}/invoices/${invoiceId}/mark-paid`, { reference })
+      .pipe(map((r) => r.data));
   }
 
   // --- Soporte ---

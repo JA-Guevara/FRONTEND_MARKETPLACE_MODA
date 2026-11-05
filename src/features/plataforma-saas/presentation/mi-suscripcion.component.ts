@@ -8,11 +8,12 @@ import { CommonModule } from '@angular/common';
 import { PlataformaApi } from '../infrastructure/plataforma.api';
 import { SubscriptionDetail, expiryTone } from '../domain/suscripcion.models';
 import { FEATURE_LABELS } from '../domain/plan.models';
+import { EstadoCuentaComponent } from './estado-cuenta.component';
 
 @Component({
   selector: 'fs-mi-suscripcion',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, EstadoCuentaComponent],
   template: `
     <div class="sp2-heading">
       <div>
@@ -115,6 +116,9 @@ import { FEATURE_LABELS } from '../domain/plan.models';
           </div>
         </div>
       </div>
+
+      <!-- Estado de cuenta (maqueta px-gracia) -->
+      <fs-estado-cuenta />
 
       <div class="sp2-details">
         <section class="card">

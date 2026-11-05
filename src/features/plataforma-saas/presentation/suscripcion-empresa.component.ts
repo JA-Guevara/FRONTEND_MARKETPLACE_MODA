@@ -23,6 +23,7 @@ import { DrawerComponent } from '../../../shared/ui/drawer.component';
 import { ConfirmDialogComponent } from '../../../shared/ui/confirm-dialog.component';
 import { SubscriptionDetail, expiryTone, downgradeCheck } from '../domain/suscripcion.models';
 import { Plan, FEATURE_LABELS } from '../domain/plan.models';
+import { EstadoCuentaComponent } from './estado-cuenta.component';
 @Component({
   selector: 'fs-suscripcion-empresa',
   imports: [
@@ -33,6 +34,7 @@ import { Plan, FEATURE_LABELS } from '../domain/plan.models';
     UsageMeterComponent,
     DrawerComponent,
     ConfirmDialogComponent,
+    EstadoCuentaComponent,
   ],
   template: `<div class="sp2-heading">
       <div>
@@ -96,6 +98,8 @@ import { Plan, FEATURE_LABELS } from '../domain/plan.models';
           }
         </ol>
       </section>
+
+      <fs-estado-cuenta [tenantId]="d.tenant.id" [showConsoleActions]="true" />
     }
     <fs-drawer [open]="changeOpen()" title="Cambiar plan" (closed)="changeOpen.set(false)"
       ><div class="sp2-stack">
