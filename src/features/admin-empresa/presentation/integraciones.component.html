@@ -1,0 +1,291 @@
+<div class="integraciones-shell">
+  <div class="crumbs">Mi empresa</div>
+  <div class="page-h">
+    <div>
+      <h1>Integraciones</h1>
+      <p>Conecta tu ERP, facturador o contabilidad. Disponible en el plan Profesional.</p>
+    </div>
+    <div class="acts">
+      <button
+        type="button"
+        class="btn"
+        (click)="showWebhookForm.set(!showWebhookForm())"
+      >
+        ＋ Webhook
+      </button>
+      <button
+        type="button"
+        class="btn primary"
+        (click)="showKeyForm.set(!showKeyForm())"
+      >
+        ＋ Clave de API
+      </button>
+    </div>
+  </div>
+
+  @if (successMessage()) {
+    <div class="alert ok" role="status">{{ successMessage() }}</div>
+  }
+
+  @if (error()) {
+    <div class="alert danger" role="alert">{{ error() }}</div>
+  }
+
+  @if (newRawKey()) {
+    <div class="alert info">
+      <div>
+        <b>Clave de API creada</b>
+        <p style="margin: 2px 0">Copia esta clave ahora; no se volverá a mostrar completa.</p>
+        <div class="secret-box">
+          <span class="key" style="font-weight: 700">{{ newRawKey() }}</span>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (newWebhookSecret()) {
+    <div class="alert info">
+      <div>
+        <b>Webhook registrado con éxito</b>
+        <p style="margin: 2px 0">Guarda este secreto para validar la firma HMAC-SHA256 en tus servidores.</p>
+        <div class="secret-box">
+          <span class="key" style="font-weight: 700">{{ newWebhookSecret() }}</span>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (showKeyForm()) {
+    <div class="form-panel">
+      <b>Nueva Clave de API</b>
+      <div class="row">
+        <input
+          type="text"
+          placeholder="Nombre descriptivo (ej. ERP Central, Facturador)"
+          [(ngModel)]="keyName"
+        />
+        <input
+          type="text"
+          placeholder="Scopes separados por coma (ej. sales.read, stock.read)"
+          [(ngModel)]="keyScopes"
+        />
+        <button
+          type="button"
+          class="btn primary sm"
+          (click)="createApiKey()"
+          [disabled]="busy() || !keyName.trim()"
+        >
+          Crear
+        </button>
+        <button
+          type="button"
+          class="btn sm"
+          (click)="showKeyForm.set(false)"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  }
+
+  @if (showWebhookForm()) {
+    <div class="form-panel">
+      <b>Nuevo Webhook Saliente</b>
+      <div class="row">
+        <input
+          type="url"
+          placeholder="URL de destino HTTPS (ej. https://api.empresa.com/hooks/fs)"
+          [(ngModel)]="webhookUrl"
+        />
+        <input
+          type="text"
+          placeholder="Eventos separados por coma (ej. sale.confirmed, order.paid)"
+          [(ngModel)]="webhookEvents"
+        />
+        <button
+          type="button"
+          class="btn primary sm"
+          (click)="createWebhook()"
+          [disabled]="busy() || !webhookUrl.trim()"
+        >
+          Guardar
+        </button>
+        <button
+          type="button"
+          class="btn sm"
+          (click)="showWebhookForm.set(false)"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  }
+
+  <div class="grid2">
+    <!-- Columna 1: Claves de API -->
+    <div class="card">
+      <h3>Claves de API</h3>
+      <p class="muted" style="margin: 2px 0 10px; font-size: 12px">
+        Acceso programático seguro mediante tokens Bearer con scopes estrictos.
+      </p>
+
+      @if (apiKeys().length === 0) {
+        <div class="empty-state">No hay claves de API creadas.</div>
+      } @else {
+        <div class="key-list">
+          @for (k of apiKeys(); track k.id) {
+            <div class="key-item" [class.revoked]="k.revoked_at">
+              <span class="key">{{ k.prefix }}…</span>
+              <div class="key-meta">
+                <b>{{ k.name }}</b>
+                <span class="muted">
+                  {{ k.scopes.join(', ') }} ·
+                  {{ k.revoked_at ? 'Revocada' : (k.last_used_at ? 'Usada recientemente' : 'Sin uso aún') }}
+                </span>
+              </div>
+              @if (!k.revoked_at) {
+                <button
+                  type="button"
+                  class="btn sm"
+                  (click)="revokeApiKey(k.id)"
+                  [disabled]="busy()"
+                >
+                  Revocar
+                </button>
+              } @else {
+                <span class="badge danger">Revocada</span>
+              }
+            </div>
+          }
+        </div>
+      }
+
+      <div class="alert info" style="margin-top: 14px">
+        <div>
+          <b>La clave completa se muestra una sola vez</b>
+          Guardamos solo su huella criptográfica SHA256. Cada clave tiene permisos fijos.
+        </div>
+      </div>
+    </div>
+
+    <!-- Columna 2: Webhooks y Entregas -->
+    <div class="card no-pad">
+      <div class="card-title-bar">
+        <h3>Webhooks</h3>
+        <p class="muted" style="margin: 2px 0 0; font-size: 12px">
+          Cada envío va firmado: cabecera X-FS-Signature = HMAC-SHA256 del cuerpo con tu secreto.
+        </p>
+      </div>
+
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>URL</th>
+              <th>Eventos</th>
+              <th>Estado</th>
+              <th style="text-align: right">Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (webhooks().length === 0) {
+              <tr>
+                <td colspan="4" class="empty-state">No hay webhooks configurados.</td>
+              </tr>
+            } @else {
+              @for (w of webhooks(); track w.id) {
+                <tr>
+                  <td class="mono" style="font-size: 12px">{{ w.url }}</td>
+                  <td class="muted">{{ w.events.join(', ') }}</td>
+                  <td>
+                    <span class="badge" [class.ok]="w.is_active" [class.danger]="!w.is_active">
+                      {{ w.is_active ? 'Activo' : 'Inactivo' }}
+                    </span>
+                  </td>
+                  <td style="text-align: right">
+                    <button
+                      type="button"
+                      class="btn sm"
+                      (click)="testWebhook(w.id)"
+                      [disabled]="busy()"
+                      style="margin-right: 4px"
+                    >
+                      Probar
+                    </button>
+                    <button
+                      type="button"
+                      class="btn sm"
+                      (click)="deleteWebhook(w.id)"
+                      [disabled]="busy()"
+                    >
+                      Eliminar
+                    </button>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div style="padding: 12px 14px 4px; border-top: 1px solid var(--line, #e5e7eb)">
+        <h3 style="font-size: 13.5px">Entregas recientes</h3>
+      </div>
+
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Hora</th>
+              <th>Evento</th>
+              <th>HTTP</th>
+              <th>Detalle</th>
+              <th style="text-align: right">Reintento</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (deliveries().length === 0) {
+              <tr>
+                <td colspan="5" class="empty-state">No hay entregas registradas aún.</td>
+              </tr>
+            } @else {
+              @for (d of deliveries(); track d.id) {
+                <tr>
+                  <td class="mono">{{ formatDate(d.created_at) }}</td>
+                  <td class="mono">{{ d.event_id.slice(0, 8) }}</td>
+                  <td>
+                    <span
+                      class="badge"
+                      [class.ok]="d.status === 'delivered'"
+                      [class.warn]="d.status === 'retrying'"
+                      [class.danger]="d.status === 'failed'"
+                    >
+                      {{ d.status_code || d.status }}
+                    </span>
+                  </td>
+                  <td class="muted">
+                    Intento {{ d.attempt }} {{ d.error ? '· ' + d.error : '' }}
+                  </td>
+                  <td style="text-align: right">
+                    @if (d.status !== 'delivered') {
+                      <button
+                        type="button"
+                        class="btn sm"
+                        (click)="redeliver(d.id)"
+                        [disabled]="busy()"
+                      >
+                        Reenviar
+                      </button>
+                    } @else {
+                      <span class="muted" style="font-size: 11px">Entregado</span>
+                    }
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

@@ -53,6 +53,16 @@ export const EMPRESA_ROUTES: Routes = [
       ),
   },
   {
+    path: 'empresa/integraciones',
+    title: 'Integraciones | FashionStore',
+    canActivate: [authGuard, tenantScopeGuard],
+    data: { permission: 'integrations.read' },
+    loadComponent: () =>
+      import('./presentation/integraciones.component').then(
+        (m) => m.IntegracionesComponent
+      ),
+  },
+  {
     path: 'mi-suscripcion',
     title: 'Mi suscripción | FashionStore',
     canActivate: [authGuard, tenantScopeGuard],
