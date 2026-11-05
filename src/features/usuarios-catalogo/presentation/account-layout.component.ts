@@ -15,6 +15,7 @@ export const ACCOUNT_SECTIONS = [
   { path: '/mi-cuenta/favoritos', icon: 'heart', label: 'Mis favoritos', hint: 'Alertas de stock y precio' },
   { path: '/mi-cuenta/reservas', icon: 'calendar', label: 'Mis reservas', hint: 'Prueba en sucursal' },
   { path: '/mi-cuenta/seguridad', icon: 'lock', label: 'Seguridad', hint: 'Cambiar contraseña' },
+  { path: '/mi-cuenta/sesiones', icon: 'clock', label: 'Sesiones activas', hint: 'Dispositivos e inactividad' },
 ];
 
 /**

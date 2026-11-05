@@ -230,6 +230,14 @@ export const routes: Routes = [
         loadComponent: auth,
         data: { mode: 'change' },
       },
+      {
+        path: 'sesiones',
+        title: 'Sesiones activas | FashionStore',
+        loadComponent: () =>
+          import(
+            '../../features/cuenta/presentation/sesiones.component'
+          ).then((m) => m.SesionesComponent),
+      },
     ],
   },
   {

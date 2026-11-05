@@ -1,0 +1,106 @@
+<div class="sesiones-shell">
+  <div class="crumbs">Mi cuenta</div>
+  <div class="page-h">
+    <div>
+      <h1>Sesiones activas</h1>
+      <p>Dónde está abierta tu cuenta. Cierra lo que no reconozcas.</p>
+    </div>
+    <div class="acts">
+      @if (hasOtherSessions()) {
+        <button
+          type="button"
+          class="btn"
+          (click)="revokeOthers()"
+          [disabled]="busy()"
+        >
+          {{ busy() ? 'Cerrando…' : 'Cerrar todas las demás' }}
+        </button>
+      }
+    </div>
+  </div>
+
+  @if (successMessage()) {
+    <div class="alert ok" role="status">{{ successMessage() }}</div>
+  }
+
+  @if (error()) {
+    <div class="alert danger" role="alert">{{ error() }}</div>
+  }
+
+  <div class="card">
+    @if (loading()) {
+      <div class="empty-state">Cargando sesiones activas…</div>
+    } @else if (sessions().length === 0) {
+      <div class="empty-state">No hay sesiones activas registradas.</div>
+    } @else {
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th style="width: 36px"></th>
+              <th>Dispositivo</th>
+              <th>Ubicación aproximada</th>
+              <th>Última actividad</th>
+              <th style="text-align: right">Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (session of sessions(); track session.id; let i = $index) {
+              <tr>
+                <td class="icon-col">
+                  <span>{{ getDeviceIcon(session.device_label) }}</span>
+                </td>
+                <td>
+                  <div class="dev-name">
+                    <b>{{ session.device_label || 'Navegador web' }}</b>
+                    @if (isCurrent(i)) {
+                      <span class="sub">Esta sesión</span>
+                    }
+                  </div>
+                </td>
+                <td class="mono">
+                  {{ session.ip_prefix || 'IP local' }}
+                </td>
+                <td class="muted">
+                  {{ isCurrent(i) ? 'Ahora' : formatRelativeTime(session.last_used_at || session.created_at) }}
+                </td>
+                <td style="text-align: right">
+                  @if (isCurrent(i)) {
+                    <span class="badge ok">Actual</span>
+                  } @else {
+                    <button
+                      type="button"
+                      class="btn sm danger-outline"
+                      (click)="revokeSession(session.id)"
+                      [disabled]="busy()"
+                    >
+                      Cerrar
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+
+  <div class="grid3">
+    <div class="card kpi">
+      <span class="lbl">Inactividad</span>
+      <span class="val">30 min</span>
+      <span class="dlt">Roles de administración: se pide iniciar sesión de nuevo (7 días para clientes)</span>
+    </div>
+    <div class="card kpi">
+      <span class="lbl">Duración máxima</span>
+      <span class="val">7 días</span>
+      <span class="dlt">Aunque haya actividad continuada en el dispositivo</span>
+    </div>
+    <div class="card kpi">
+      <span class="lbl">Al cambiar la contraseña</span>
+      <span class="val">Cierra todo</span>
+      <span class="dlt">Cierra todas las sesiones para proteger la cuenta</span>
+    </div>
+  </div>
+</div>
