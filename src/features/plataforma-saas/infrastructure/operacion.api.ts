@@ -5,6 +5,7 @@ import { Page } from '../../../shared/models';
 import { environment } from '../../../environments/environment';
 
 export interface CheckRespaldo { name: string; ok: boolean; details: Record<string, number | string | null>; }
+export interface ConfigCheck { code: string; level: 'error' | 'warning' | 'info'; message: string; }
 export interface Respaldo {
   id: string; kind: string; finished_at: string; size_bytes: number;
   sha256: string | null; storage_ref: string | null; alembic_revision: string | null;
@@ -12,6 +13,7 @@ export interface Respaldo {
   verify_report: { ok: boolean; duration_seconds: number; checks: CheckRespaldo[] } | null;
 }
 export interface EstadoOperacion {
+  config_checks: ConfigCheck[];
   version: string; git_sha: string | null; app_env: string;
   revision_bd: string | null; cabeza_codigo: string; migraciones_pendientes: boolean;
   ultimo_respaldo: { id: string; finished_at: string; age_hours: number; alembic_revision: string } | null;

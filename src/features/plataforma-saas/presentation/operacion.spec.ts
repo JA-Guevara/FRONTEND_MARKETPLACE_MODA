@@ -12,7 +12,7 @@ describe('Consola de Operación', () => {
   let api: { estado: ReturnType<typeof vi.fn>; respaldos: ReturnType<typeof vi.fn>; respaldarAhora: ReturnType<typeof vi.fn> };
   const session = { scope: () => 'platform', can: (p?: string) => !p || ['platform.ops.read', 'platform.ops.write'].includes(p) };
   beforeEach(() => {
-    status = { version: '1', git_sha: 'sha', app_env: 'test', revision_bd: '0031', cabeza_codigo: '0032', migraciones_pendientes: true, mantenimiento: false,
+    status = { config_checks: [], version: '1', git_sha: 'sha', app_env: 'test', revision_bd: '0031', cabeza_codigo: '0032', migraciones_pendientes: true, mantenimiento: false,
       ultimo_respaldo: { id: 'b1', finished_at: '2026-11-04T00:00:00Z', age_hours: 27, alembic_revision: '0031' },
       contadores: { rate_limited: 0, sync_rechazadas_24h: 0, cuentas_bloqueadas: 0, mfa_adopcion: { total: 1, habilitadas: null } } };
     api = { estado: vi.fn(() => of(status)), respaldos: vi.fn(() => of({ items: [], total: 0, page: 1, page_size: 20, pages: 0 })), respaldarAhora: vi.fn() };
