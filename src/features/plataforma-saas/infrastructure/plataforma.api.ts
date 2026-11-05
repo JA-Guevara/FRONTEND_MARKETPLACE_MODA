@@ -105,10 +105,28 @@ export class PlataformaApi {
   // --- Soporte ---
   startSupport(
     tenantId: string,
-    body: { reason: string; duration_minutes: number },
+    body: { reason: string; duration_minutes: number; mode?: string },
   ): Observable<SupportSessionStart> {
     return this.api
       .write<SupportSessionStart>('POST', `/platform/tenants/${tenantId}/support-sessions`, body)
+      .pipe(map((r) => r.data));
+  }
+  getSupportSession(id: string): Observable<SupportSession> {
+    return this.api.get<SupportSession>(`/platform/support/sessions/${id}`);
+  }
+  enterSupportSession(id: string): Observable<SupportSessionStart> {
+    return this.api
+      .write<SupportSessionStart>('POST', `/platform/support/sessions/${id}/enter`)
+      .pipe(map((r) => r.data));
+  }
+  emergencySupport(body: {
+    tenant_id: string;
+    reason: string;
+    duration_minutes: number;
+    landing_module?: string | null;
+  }): Observable<SupportSessionStart> {
+    return this.api
+      .write<SupportSessionStart>('POST', '/platform/support/sessions/emergency', body)
       .pipe(map((r) => r.data));
   }
   extendSupport(id: string, minutes = 30): Observable<SupportSession> {

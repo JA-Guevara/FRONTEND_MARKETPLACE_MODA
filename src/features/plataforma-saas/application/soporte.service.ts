@@ -92,11 +92,25 @@ export class SoporteService {
   async iniciar(
     tenant: { id: string; trade_name: string; slug?: string },
     reason: string,
-    minutes: number
-  ): Promise<void> {
+    minutes: number,
+    mode: 'WRITE' | 'READ_ONLY' = 'WRITE',
+  ): Promise<SupportSessionStart> {
     const start = await firstValueFrom(
-      this.api.startSupport(tenant.id, { reason, duration_minutes: minutes })
+      this.api.startSupport(tenant.id, { reason, duration_minutes: minutes, mode })
     );
+    if (start.session?.status !== 'pending_approval' && start.access_token) {
+      this.session.startSupport(start);
+      this.addReciente(tenant);
+      this.initCountdown();
+      await this.router.navigate(['/admin']);
+    }
+    return start;
+  }
+
+  async entrar(
+    start: SupportSessionStart,
+    tenant: { id: string; trade_name: string; slug?: string },
+  ): Promise<void> {
     this.session.startSupport(start);
     this.addReciente(tenant);
     this.initCountdown();

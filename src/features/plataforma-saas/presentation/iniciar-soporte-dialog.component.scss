@@ -115,3 +115,42 @@
   gap: 10px;
   margin-top: 8px;
 }
+
+.chk {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: var(--radius, 8px);
+  overflow: hidden;
+
+  & > div {
+    display: grid;
+    grid-template-columns: 24px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px dashed var(--line, #e2e8f0);
+    font-size: 13px;
+
+    &:last-child {
+      border-bottom: 0;
+    }
+  }
+
+  .y {
+    color: var(--ok, #10b981);
+    font-weight: 700;
+  }
+  .p {
+    color: var(--muted, #64748b);
+  }
+  .w {
+    color: var(--warn, #f59e0b);
+    font-weight: 700;
+  }
+}
+
+.mono {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+}

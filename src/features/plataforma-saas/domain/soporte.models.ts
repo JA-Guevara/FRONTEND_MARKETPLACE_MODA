@@ -16,15 +16,21 @@ export interface SupportSession {
   is_active: boolean;
   mode?: 'WRITE' | 'READ_ONLY';
   landing_module?: string | null;
+  status?: string;
+  approved_by_user_id?: string | null;
+  approved_at?: string | null;
+  decision_reason?: string | null;
+  request_expires_at?: string | null;
+  is_emergency?: boolean;
 }
 
 export interface SupportSessionStart {
   session: SupportSession;
-  access_token: string;
-  expires_in: number;
+  access_token?: string;
+  expires_in?: number;
   tenant: TenantSummary;
   subscription: SubscriptionSummary | null;
-  permissions: string[];
+  permissions?: string[];
 }
 
 export interface TenantLite {
