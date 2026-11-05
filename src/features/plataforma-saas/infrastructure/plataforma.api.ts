@@ -16,6 +16,7 @@ import {
   TenantModuleGrant,
   TenantLimit,
   TenantLimitDraft,
+  EffectiveTenantLimit,
   GlobalUserCreate,
   GlobalUserUpdate,
   EffectivePermissions,
@@ -322,15 +323,17 @@ export class PlataformaApi {
       .write<TenantRole>('PATCH', `/platform/tenants/${id}/roles/${roleId}`, body)
       .pipe(map((r) => r.data));
   }
-  setTenantRolePermissions(id: string, roleId: string, permissionIds: string[]) {
+  setTenantRolePermissions(
+    id: string,
+    roleId: string,
+    body: { permission_codes: string[]; reason: string },
+  ) {
     return this.api
-      .write<TenantRole>('PUT', `/platform/tenants/${id}/roles/${roleId}/permissions`, {
-        permission_ids: permissionIds,
-      })
+      .write<TenantRole>('PUT', `/platform/tenants/${id}/roles/${roleId}/permissions`, body)
       .pipe(map((r) => r.data));
   }
   tenantLimits(id: string) {
-    return this.api.get<TenantLimit[]>(`/platform/tenants/${id}/limits`);
+    return this.api.get<EffectiveTenantLimit[]>(`/platform/tenants/${id}/limits`);
   }
   setTenantLimit(id: string, body: TenantLimitDraft) {
     return this.api

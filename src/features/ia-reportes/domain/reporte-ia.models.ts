@@ -85,7 +85,7 @@ export interface DefinicionReporte {
 export interface SolicitudHistorial {
   id: string;
   created_at: string;
-  prompt_text: string;
+  prompt_length: number;
   title: string;
   definition_code?: string;
   user_name: string;

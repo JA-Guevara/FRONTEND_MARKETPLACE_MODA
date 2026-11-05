@@ -1,7 +1,11 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
-import { SolicitudHistorial } from '../domain/reporte-ia.models';
+import {
+  chipsDeSpec,
+  ReportSpec,
+  SolicitudHistorial,
+} from '../domain/reporte-ia.models';
 import { ReportesIaApi } from '../infrastructure/reportes-ia.api';
 
 @Component({
@@ -34,7 +38,7 @@ import { ReportesIaApi } from '../infrastructure/reportes-ia.api';
             <thead>
               <tr>
                 <th>Fecha / Hora</th>
-                <th>Consulta / Prompt</th>
+                <th>Consulta</th>
                 <th>Reporte generado</th>
                 <th>Usuario</th>
                 <th>Canal</th>
@@ -47,7 +51,7 @@ import { ReportesIaApi } from '../infrastructure/reportes-ia.api';
               <tr *ngFor="let item of items()">
                 <td class="col-date">{{ formatearFecha(item.created_at) }}</td>
                 <td class="col-prompt">
-                  <strong>"{{ item.prompt_text }}"</strong>
+                  <strong>{{ resumen(item) }}</strong>
                 </td>
                 <td>{{ item.title }}</td>
                 <td>{{ item.user_name }}</td>
@@ -190,6 +194,19 @@ export class HistorialReportesComponent implements OnInit {
     } finally {
       this.cargando.set(false);
     }
+  }
+
+  resumen(item: SolicitudHistorial): string {
+    const tipo = item.title || item.definition_code || 'Reporte';
+    return `Consulta de ${item.prompt_length} caracteres · ${tipo} · ${this.filtros(item.spec)}`;
+  }
+
+  private filtros(spec: unknown): string {
+    if (!spec || typeof spec !== 'object' || !(spec as ReportSpec).filters) return 'Sin filtros';
+    const chips = chipsDeSpec(spec as ReportSpec);
+    return chips.length
+      ? chips.map((chip) => `${chip.etiqueta}: ${chip.valor}`).join(' · ')
+      : 'Sin filtros';
   }
 
   formatearFecha(iso: string): string {

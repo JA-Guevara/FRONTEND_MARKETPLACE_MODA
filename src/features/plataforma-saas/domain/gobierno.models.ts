@@ -126,6 +126,17 @@ export interface TenantLimitDraft {
   reason: string;
 }
 
+export interface EffectiveTenantLimit {
+  limit_code: string;
+  plan_value: number | null;
+  effective_value: number | null;
+  usage: number;
+  source: 'PLAN' | 'EMPRESA';
+  subscription_end_date: string | null;
+  override_active: boolean;
+  override: TenantLimit | null;
+}
+
 export interface GlobalUserCreate {
   kind: 'tenant' | 'platform';
   tenant_id?: string | null;

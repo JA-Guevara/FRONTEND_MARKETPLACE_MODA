@@ -58,6 +58,12 @@
   justify-content: space-between;
   gap: 16px;
 }
+.role-reason {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+  min-width: 220px;
+}
 .permission-check {
   display: flex;
   align-items: center;

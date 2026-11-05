@@ -201,6 +201,7 @@ describe('Consola RS2 · módulos, impacto y empresa360', () => {
       is_active: true,
       permissions: [],
     });
+    fixture.componentInstance.roleReason = 'Motivo de prueba';
     await fixture.componentInstance.saveRole();
     expect(fixture.componentInstance.roleError()).toContain('Endpoint de permisos pendiente');
     expect(fixture.componentInstance.editingRole()).not.toBeNull();

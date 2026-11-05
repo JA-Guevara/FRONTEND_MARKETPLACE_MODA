@@ -17,6 +17,7 @@ import {
   TenantModuleGrant,
   PlatformModule,
   TenantLimit,
+  EffectiveTenantLimit,
   TenantRole,
   PermissionCatalogItem,
   etiquetaOrigen,
@@ -255,31 +256,33 @@ import { errorMessage } from '../../../shared/errors';
           @if (limitError()) {
             <p class="alert danger" role="alert">{{ limitError() }}</p>
           }
-          <div class="limit-summary">
-            @for (quota of overview()?.quotas ?? []; track quota.code) {
-              <div>
-                <b>{{ quota.label }}</b
-                ><span>{{ quota.used }} usados · {{ quota.limit ?? 'Sin límite' }} en el plan</span>
-              </div>
-            }
-          </div>
-          @for (limit of tenantLimits(); track limit.id) {
+          @for (limit of tenantLimits(); track limit.limit_code) {
             <article class="limit-row">
               <div>
-                <b>{{ limit.limit_code }}: {{ limit.value }}</b
-                ><small>{{ vigencia(limit) }} · {{ limit.reason }}</small>
+                <b>{{ limit.limit_code }}: {{ limit.effective_value ?? 'Sin límite' }}</b>
+                <small>
+                  Plan: {{ limit.plan_value ?? 'Sin límite' }} ·
+                  {{ limit.source === 'EMPRESA' ? 'Forzado por la empresa' : 'Valor del plan' }}
+                  @if (limit.override_active && limit.override) {
+                    · {{ limit.override.reason }} · {{ vigencia(limit.override) }}
+                  }
+                </small>
               </div>
-              @if (session.can('subscriptions.write')) {
-                <button (click)="requestLimitRemoval(limit)">Quitar ajuste</button>
+              @if (limit.override_active && limit.override && session.can('subscriptions.write')) {
+                <button (click)="requestLimitRemoval(limit.override!)">Quitar ajuste</button>
               }
             </article>
+          } @empty {
+            <p class="muted">No se pudieron consultar los límites de la empresa.</p>
           }
           @if (session.can('subscriptions.write')) {
             <div class="limit-form">
               <label
                 >Límite<select [(ngModel)]="limitCode">
-                  @for (quota of overview()?.quotas ?? []; track quota.code) {
-                    <option [value]="quota.code">{{ quota.label }}</option>
+                  @for (limit of tenantLimits(); track limit.limit_code) {
+                    <option [value]="limit.limit_code">
+                      {{ etiquetaLimite(limit.limit_code) }}
+                    </option>
                   }
                 </select></label
               ><label>Valor<input type="number" [(ngModel)]="limitValue" min="1" step="1" /></label
@@ -329,12 +332,12 @@ import { errorMessage } from '../../../shared/errors';
             @for (group of permissionGroups(); track group.code) {
               <fieldset>
                 <legend>{{ group.name }}</legend>
-                @for (permission of group.permissions; track permission.id) {
+                @for (permission of group.permissions; track permission.code) {
                   <label class="permission-check"
                     ><input
                       type="checkbox"
-                      [checked]="selectedPermissions.includes(permission.id)"
-                      (change)="togglePermission(permission.id)"
+                      [checked]="selectedPermissions.includes(permission.code)"
+                      (change)="togglePermission(permission.code)"
                       [disabled]="!permission.is_active"
                     /><code>{{ permission.code }}</code
                     ><span>{{ permission.name }}</span></label
@@ -343,7 +346,15 @@ import { errorMessage } from '../../../shared/errors';
               </fieldset>
             }
             <div class="module-actions">
-              <button (click)="editingRole.set(null)">Cancelar</button
+              <label class="role-reason"
+                >Motivo del cambio
+                <input
+                  [(ngModel)]="roleReason"
+                  maxlength="300"
+                  placeholder="Explica por qué cambian los permisos"
+                />
+              </label>
+              <button (click)="cancelRoleEdit()">Cancelar</button
               ><button class="primary" [disabled]="moduleSaving()" (click)="saveRole()">
                 Guardar permisos
               </button>
@@ -610,7 +621,7 @@ export class Empresa360Component implements OnInit {
   readonly maskEmail = maskEmail;
   tenantModules = signal<TenantModule[]>([]);
   moduleCatalog = signal<PlatformModule[]>([]);
-  tenantLimits = signal<TenantLimit[]>([]);
+  tenantLimits = signal<EffectiveTenantLimit[]>([]);
   tenantRoles = signal<TenantRole[]>([]);
   permissions = signal<PermissionCatalogItem[]>([]);
   modulesLoading = signal(false);
@@ -624,6 +635,7 @@ export class Empresa360Component implements OnInit {
   grantCode = '';
   editingRole = signal<TenantRole | null>(null);
   selectedPermissions: string[] = [];
+  roleReason = '';
   pendingAction = signal<{
     kind: 'revoke' | 'block' | 'limit';
     id: string;
@@ -862,17 +874,22 @@ export class Empresa360Component implements OnInit {
   }
   async editRole(role: TenantRole) {
     this.roleError.set('');
+    this.roleReason = '';
     try {
       this.permissions.set(
         (await firstValueFrom(this.api.permissions())).filter(
           (permission) => permission.scope === 'tenant',
         ),
       );
-      this.selectedPermissions = role.permissions.map((permission) => permission.id);
+      this.selectedPermissions = role.permissions.map((permission) => permission.code);
       this.editingRole.set(role);
     } catch (error) {
       this.roleError.set(errorMessage(error));
     }
+  }
+  cancelRoleEdit() {
+    this.editingRole.set(null);
+    this.roleReason = '';
   }
   permissionGroups() {
     const groups = new Map<string, PermissionCatalogItem[]>();
@@ -886,27 +903,39 @@ export class Empresa360Component implements OnInit {
       permissions,
     }));
   }
-  togglePermission(id: string) {
-    this.selectedPermissions = this.selectedPermissions.includes(id)
-      ? this.selectedPermissions.filter((value) => value !== id)
-      : [...this.selectedPermissions, id];
+  togglePermission(code: string) {
+    this.selectedPermissions = this.selectedPermissions.includes(code)
+      ? this.selectedPermissions.filter((value) => value !== code)
+      : [...this.selectedPermissions, code];
   }
   async saveRole() {
     const role = this.editingRole();
     if (!role || this.moduleSaving()) return;
+    const reason = this.roleReason.trim();
+    if (reason.length < 3) {
+      this.roleError.set('Escribe el motivo del cambio de permisos (mínimo 3 caracteres).');
+      return;
+    }
     this.moduleSaving.set(true);
     this.roleError.set('');
     try {
       await firstValueFrom(
-        this.api.setTenantRolePermissions(this.tenantId, role.id, this.selectedPermissions),
+        this.api.setTenantRolePermissions(this.tenantId, role.id, {
+          permission_codes: this.selectedPermissions,
+          reason,
+        }),
       );
       this.editingRole.set(null);
+      this.roleReason = '';
       await this.loadRoles();
     } catch (error) {
       this.roleError.set(errorMessage(error));
     } finally {
       this.moduleSaving.set(false);
     }
+  }
+  etiquetaLimite(code: string): string {
+    return this.overview()?.quotas.find((quota) => quota.code === code)?.label ?? code;
   }
 
   loadBranches() {
