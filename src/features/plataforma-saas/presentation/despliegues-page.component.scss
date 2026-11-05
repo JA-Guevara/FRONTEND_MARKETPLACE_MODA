@@ -1,1 +1,17 @@
 @use './operation-page';
+
+.production-config { width: 100%; box-sizing: border-box; }
+.config-checks { display: grid; gap: .75rem; margin: 1rem 0; padding: 0; list-style: none; }
+.config-check { display: grid; grid-template-columns: 7rem minmax(0, 1fr); align-items: start; gap: 1rem; padding: .8rem 1rem; border-radius: var(--radius-sm, 6px); overflow-wrap: break-word; }
+.config-level { font-weight: 600; }
+.config-check--error { background: var(--danger-soft, var(--surface-2)); border-left: 3px solid var(--danger); }
+.config-check--warning { background: var(--warn-soft, var(--surface-2)); border-left: 3px solid var(--warn); }
+.config-check--info { background: var(--info-soft, var(--surface-2)); border-left: 3px solid var(--info); }
+.config-complete { color: var(--ok); background: var(--ok-soft, var(--surface-2)); padding: .85rem 1rem; border-radius: var(--radius-sm, 6px); }
+.config-footnote { color: var(--muted); font-size: .85rem; line-height: 1.5; }
+.config-skeleton { display: grid; gap: 1rem; padding: 1.5rem; margin: 1rem 0; border: 1px solid var(--line); border-radius: var(--radius, 10px); background: var(--surface); }
+.config-skeleton span { display: block; height: 1rem; border-radius: var(--radius-sm, 6px); background: var(--surface-2); }
+.config-skeleton span:first-child { width: 55%; }
+@media (max-width: 639px) {
+  .config-check { grid-template-columns: minmax(0, 1fr); gap: .4rem; }
+}
