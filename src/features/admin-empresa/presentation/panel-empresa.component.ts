@@ -3,6 +3,7 @@ import {
   effect,
   inject,
   signal,
+  computed,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { CurrencyPipe, DatePipe } from '@angular/common';
@@ -35,6 +36,20 @@ import { UpgradeCardComponent } from '../../../shared/ui/upgrade-card.component'
     </div>
 
     @if (dashboard(); as d) {
+      @if (storeSlug(); as slug) {
+        <div class="card" style="margin-bottom:14px;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;background:var(--surface, #fafafa);border:1px solid var(--line)">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:16px">🌐</span>
+            <span style="font-size:13px"><b>Tu tienda en línea:</b></span>
+            <code class="mono" style="font-size:12.5px;padding:2px 6px;background:var(--paper);border-radius:4px">{{ storeUrl() }}</code>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn sm" (click)="copyStoreUrl()">{{ copied() ? '✔ Copiado' : '📋 Copiar enlace' }}</button>
+            <a [href]="'/tienda/' + slug" target="_blank" class="btn sm primary">↗ Ver catálogo</a>
+          </div>
+        </div>
+      }
+
       <div class="grid4">
         <div class="card kpi">
           <span class="lbl">Ventas del día</span>
@@ -160,6 +175,31 @@ export class PanelEmpresaComponent {
   private api = inject(EmpresaAdminApi);
 
   dashboard = signal<TenantDashboard | null>(null);
+  readonly storeSlug = computed(() => this.session.tenant()?.slug ?? null);
+  readonly copied = signal(false);
+
+  storeUrl(): string {
+    const slug = this.storeSlug();
+    if (!slug) return '';
+    if (typeof window !== 'undefined' && window.location) {
+      return `${window.location.origin}/tienda/${slug}`;
+    }
+    return `/tienda/${slug}`;
+  }
+
+  async copyStoreUrl() {
+    const url = this.storeUrl();
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+      }
+      this.copied.set(true);
+      setTimeout(() => this.copied.set(false), 2500);
+    } catch {
+      this.copied.set(true);
+      setTimeout(() => this.copied.set(false), 2500);
+    }
+  }
 
   constructor() {
     effect(() => {

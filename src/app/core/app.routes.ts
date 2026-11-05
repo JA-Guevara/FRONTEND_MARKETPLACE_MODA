@@ -81,6 +81,30 @@ export const routes: Routes = [
       ).then((m) => m.CatalogPageComponent),
   },
   {
+    path: 'tienda/:tenantSlug',
+    title: 'Catálogo de tienda | FashionStore',
+    loadComponent: () =>
+      import(
+        '../../features/usuarios-catalogo/presentation/catalog-page.component'
+      ).then((m) => m.CatalogPageComponent),
+  },
+  {
+    path: 'tienda/:tenantSlug/prendas/:slug',
+    title: 'Prenda | FashionStore',
+    loadComponent: () =>
+      import(
+        '../../features/usuarios-catalogo/presentation/product-page.component'
+      ).then((m) => m.ProductPageComponent),
+  },
+  {
+    path: 'tienda/:tenantSlug/sucursales',
+    title: 'Sucursales de la tienda | FashionStore',
+    loadComponent: () =>
+      import(
+        '../../features/inventario-sucursales/presentation/branches-page.component'
+      ).then((m) => m.BranchesPageComponent),
+  },
+  {
     path: 'prendas/:slug',
     title: 'Prenda | FashionStore',
     loadComponent: () =>

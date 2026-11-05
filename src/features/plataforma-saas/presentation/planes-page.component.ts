@@ -79,6 +79,9 @@ import { errorMessage } from '../../../shared/errors';
                 ><button (click)="target.set(p)">
                   {{ p.is_active ? 'Desactivar' : 'Activar' }}
                 </button>
+                @if (p.tenants_count === 0) {
+                  <button class="btn danger" (click)="confirmDelete(p)">Eliminar</button>
+                }
               </div>
             }
           </article>
@@ -220,6 +223,13 @@ import { errorMessage } from '../../../shared/errors';
       message="Las empresas con suscripciones vigentes conservan su plan. Los planes desactivados no se ofrecen a nuevas empresas."
       (confirmed)="toggle()"
       (cancelled)="target.set(null)"
+    />
+    <fs-confirm-dialog
+      [open]="!!deletingPlan()"
+      title="¿Eliminar plan definitivamente?"
+      [message]="'¿Estás seguro de eliminar el plan ' + (deletingPlan()?.name ?? '') + '? Esta acción no se puede deshacer.'"
+      (confirmed)="executeDeletePlan(deletingPlan()!.id)"
+      (cancelled)="deletingPlan.set(null)"
     />`,
   styleUrl: './planes-page.component.scss',
 })
@@ -235,6 +245,7 @@ export class PlanesPageComponent {
   selected = signal<Plan | null>(null);
   editor = signal(false);
   target = signal<Plan | null>(null);
+  deletingPlan = signal<Plan | null>(null);
   error = signal('');
   tab = signal<'planes' | 'modulos' | 'limites'>('planes');
   governance = signal<ModuleMatrix | null>(null);
@@ -371,6 +382,21 @@ export class PlanesPageComponent {
       await this.load();
     } catch {
       this.error.set('No se pudo cambiar el estado del plan.');
+    }
+  }
+
+  confirmDelete(p: Plan) {
+    this.deletingPlan.set(p);
+  }
+
+  async executeDeletePlan(id: string) {
+    this.deletingPlan.set(null);
+    this.error.set('');
+    try {
+      await firstValueFrom(this.api.deletePlan(id));
+      await this.load();
+    } catch (e: any) {
+      this.error.set(e?.error?.message ?? 'No se pudo eliminar el plan.');
     }
   }
 }

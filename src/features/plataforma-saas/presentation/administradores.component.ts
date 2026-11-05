@@ -14,11 +14,11 @@ import { ConfirmDialogComponent } from '../../../shared/ui/confirm-dialog.compon
     <div class="crumbs">Personas y seguridad</div>
     <div class="page-h">
       <div>
-        <h1>Administradores de la plataforma</h1>
+        <h1>Superadministradores de la plataforma</h1>
         <p>Cuentas con rol de super administrador con acceso completo al plano de control de FashionStore.</p>
       </div>
       <div class="acts">
-        <button class="btn primary" (click)="openDrawer()">＋ Invitar administrador</button>
+        <button class="btn primary" (click)="openDrawer()">＋ Invitar superadministrador</button>
       </div>
     </div>
 
@@ -40,7 +40,7 @@ import { ConfirmDialogComponent } from '../../../shared/ui/confirm-dialog.compon
               <th>Correo electrónico</th>
               <th>Estado</th>
               <th>Fecha de registro</th>
-              <th></th>
+              <th style="text-align:right">Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -63,9 +63,16 @@ import { ConfirmDialogComponent } from '../../../shared/ui/confirm-dialog.compon
                 </td>
                 <td class="muted">{{ adm.created_at | date:'short' }}</td>
                 <td style="text-align:right">
-                  @if (adm.is_active) {
-                    <button class="btn sm danger" (click)="confirmDeactivate(adm)">Desactivar</button>
-                  }
+                  <div style="display:flex;gap:6px;justify-content:flex-end">
+                    <button class="btn sm" (click)="openEdit(adm)" title="Editar datos">Editar</button>
+                    <button class="btn sm" (click)="confirmResetPassword(adm)" title="Restablecer contraseña">🔑 Clave</button>
+                    @if (adm.is_active) {
+                      <button class="btn sm danger" (click)="confirmDeactivate(adm)">Desactivar</button>
+                    } @else {
+                      <button class="btn sm ok" (click)="executeActivate(adm.id)">Activar</button>
+                      <button class="btn sm danger" (click)="confirmDelete(adm)">Eliminar</button>
+                    }
+                  </div>
                 </td>
               </tr>
             } @empty {
@@ -141,12 +148,87 @@ import { ConfirmDialogComponent } from '../../../shared/ui/confirm-dialog.compon
       </form>
     </fs-drawer>
 
+    <!-- Drawer de edición -->
+    <fs-drawer
+      [open]="editDrawerOpen()"
+      title="Editar super administrador"
+      (closed)="editDrawerOpen.set(false)"
+    >
+      <form (ngSubmit)="submitEdit()" class="sp2-stack">
+        <div>
+          <label><b>Nombre *</b></label>
+          <input
+            class="input"
+            style="width:100%;margin-top:4px"
+            [(ngModel)]="editForm.first_name"
+            name="editFirstName"
+            required
+            minlength="2"
+            maxlength="80"
+          />
+        </div>
+
+        <div>
+          <label><b>Apellido *</b></label>
+          <input
+            class="input"
+            style="width:100%;margin-top:4px"
+            [(ngModel)]="editForm.last_name"
+            name="editLastName"
+            required
+            minlength="2"
+            maxlength="80"
+          />
+        </div>
+
+        <div>
+          <label><b>Teléfono de contacto</b></label>
+          <input
+            class="input"
+            style="width:100%;margin-top:4px"
+            [(ngModel)]="editForm.phone"
+            name="editPhone"
+            placeholder="Ej. +591 70000000"
+          />
+        </div>
+
+        @if (drawerError()) {
+          <div class="alert danger"><span>⚠</span><div>{{ drawerError() }}</div></div>
+        }
+
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+          <button type="button" class="btn ghost" (click)="editDrawerOpen.set(false)">Cancelar</button>
+          <button type="submit" class="btn primary" [disabled]="submitting()">
+            {{ submitting() ? 'Guardando…' : 'Guardar cambios' }}
+          </button>
+        </div>
+      </form>
+    </fs-drawer>
+
     @if (deactivatingAdmin(); as adm) {
       <fs-confirm-dialog
         title="¿Desactivar administrador?"
         [message]="'El super administrador ' + adm.first_name + ' ' + adm.last_name + ' perderá acceso inmediato a la consola de plataforma.'"
         (confirmed)="executeDeactivate(adm.id)"
         (cancelled)="deactivatingAdmin.set(null)"
+      />
+    }
+
+    @if (deletingAdmin(); as adm) {
+      <fs-confirm-dialog
+        title="¿Eliminar administrador?"
+        [message]="'¿Estás seguro de eliminar permanentemente la cuenta de ' + adm.first_name + ' ' + adm.last_name + ' (' + adm.email + ')? Esta acción no se puede deshacer.'"
+        (confirmed)="executeDelete(adm.id)"
+        (cancelled)="deletingAdmin.set(null)"
+      />
+    }
+
+    @if (resettingAdmin(); as adm) {
+      <fs-confirm-dialog
+        title="¿Restablecer contraseña?"
+        [message]="'Se enviará un correo a ' + adm.email + ' para que establezca una nueva contraseña de acceso.'"
+        (confirmed)="executeResetPassword(adm.id)"
+        (cancelled)="resettingAdmin.set(null)"
       />
     }
   `,
@@ -162,13 +244,23 @@ export class AdministradoresComponent implements OnInit {
   readonly notice = signal<string | null>(null);
 
   readonly drawerOpen = signal(false);
+  readonly editDrawerOpen = signal(false);
   readonly drawerError = signal<string | null>(null);
   readonly deactivatingAdmin = signal<GlobalUser | null>(null);
+  readonly deletingAdmin = signal<GlobalUser | null>(null);
+  readonly resettingAdmin = signal<GlobalUser | null>(null);
+  readonly currentEditingId = signal<string | null>(null);
 
   inviteForm = {
     first_name: '',
     last_name: '',
     email: '',
+  };
+
+  editForm = {
+    first_name: '',
+    last_name: '',
+    phone: '',
   };
 
   ngOnInit() {
@@ -194,6 +286,17 @@ export class AdministradoresComponent implements OnInit {
     this.inviteForm = { first_name: '', last_name: '', email: '' };
     this.drawerError.set(null);
     this.drawerOpen.set(true);
+  }
+
+  openEdit(adm: GlobalUser) {
+    this.currentEditingId.set(adm.id);
+    this.editForm = {
+      first_name: adm.first_name,
+      last_name: adm.last_name,
+      phone: adm.phone ?? '',
+    };
+    this.drawerError.set(null);
+    this.editDrawerOpen.set(true);
   }
 
   isInviteValid(): boolean {
@@ -228,6 +331,30 @@ export class AdministradoresComponent implements OnInit {
     });
   }
 
+  submitEdit() {
+    const id = this.currentEditingId();
+    if (!id) return;
+    this.submitting.set(true);
+    this.drawerError.set(null);
+
+    this.api.updateAdmin(id, {
+      first_name: this.editForm.first_name.trim(),
+      last_name: this.editForm.last_name.trim(),
+      phone: this.editForm.phone.trim() || undefined,
+    }).subscribe({
+      next: () => {
+        this.submitting.set(false);
+        this.editDrawerOpen.set(false);
+        this.notice.set('Datos del administrador actualizados.');
+        this.cargar();
+      },
+      error: (err) => {
+        this.submitting.set(false);
+        this.drawerError.set(err?.error?.message ?? 'Error al actualizar el administrador.');
+      },
+    });
+  }
+
   confirmDeactivate(adm: GlobalUser) {
     this.deactivatingAdmin.set(adm);
   }
@@ -249,6 +376,60 @@ export class AdministradoresComponent implements OnInit {
         } else {
           this.error.set(err?.error?.message ?? 'Error al desactivar al administrador.');
         }
+      },
+    });
+  }
+
+  executeActivate(id: string) {
+    this.error.set(null);
+    this.notice.set(null);
+
+    this.api.activateAdmin(id).subscribe({
+      next: () => {
+        this.notice.set('Administrador reactivado correctamente.');
+        this.cargar();
+      },
+      error: (err) => {
+        this.error.set(err?.error?.message ?? 'Error al reactivar al administrador.');
+      },
+    });
+  }
+
+  confirmDelete(adm: GlobalUser) {
+    this.deletingAdmin.set(adm);
+  }
+
+  executeDelete(id: string) {
+    this.deletingAdmin.set(null);
+    this.error.set(null);
+    this.notice.set(null);
+
+    this.api.deleteAdmin(id).subscribe({
+      next: () => {
+        this.notice.set('Administrador eliminado correctamente.');
+        this.cargar();
+      },
+      error: (err) => {
+        this.error.set(err?.error?.message ?? 'No se pudo eliminar el administrador.');
+      },
+    });
+  }
+
+  confirmResetPassword(adm: GlobalUser) {
+    this.resettingAdmin.set(adm);
+  }
+
+  executeResetPassword(id: string) {
+    this.resettingAdmin.set(null);
+    this.error.set(null);
+    this.notice.set(null);
+
+    this.api.resetAdminPassword(id).subscribe({
+      next: () => {
+        this.notice.set('Enlace de restablecimiento de contraseña enviado correctamente.');
+      },
+      error: (err) => {
+        this.error.set(err?.error?.message ?? 'No se pudo enviar el restablecimiento de contraseña.');
       },
     });
   }

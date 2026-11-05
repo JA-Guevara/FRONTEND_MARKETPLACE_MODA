@@ -24,7 +24,7 @@ export const ADMIN_NAV: NavSection[] = [
     items: [
       { key: 'tablero', label: 'Tablero', icon: 'grid', path: '/admin/plataforma', permission: 'tenants.read' },
       { key: 'empresas', label: 'Empresas', icon: 'users', path: '/admin/plataforma/empresas', permission: 'tenants.read' },
-      { key: 'planes', label: 'Planes y precios', icon: 'tag', path: '/admin/plataforma/planes', permission: 'plans.read' },
+      { key: 'planes', label: 'Planes de suscripción', icon: 'tag', path: '/admin/plataforma/planes', permission: 'plans.read' },
       { key: 'suscripciones', label: 'Suscripciones', icon: 'refresh', path: '/admin/plataforma/suscripciones', permission: 'subscriptions.read' },
     ],
   },
@@ -43,7 +43,7 @@ export const ADMIN_NAV: NavSection[] = [
     items: [
       { key: 'usuarios', label: 'Usuarios globales', icon: 'users', path: '/admin/plataforma/usuarios', permission: 'platform_users.read' },
       { key: 'roles', label: 'Roles y permisos', icon: 'lock', path: '/admin/plataforma/roles', permission: 'platform_roles.read' },
-      { key: 'admins', label: 'Equipo de plataforma', icon: 'lock', path: '/admin/plataforma/equipo', permission: 'platform_users.write' },
+      { key: 'admins', label: 'Superadministradores', icon: 'users', path: '/admin/plataforma/equipo', permission: 'platform_users.write' },
       { key: 'auditoria', label: 'Auditoría global', icon: 'list', path: '/admin/plataforma/auditoria', permission: 'platform_audit.read' },
       { key: 'soporte', label: 'Sesiones de soporte', icon: 'heart', path: '/admin/plataforma/soporte', permission: 'platform_audit.read' },
     ],

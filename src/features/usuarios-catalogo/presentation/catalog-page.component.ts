@@ -13,7 +13,14 @@ import { RecommendedProduct } from '../../ventas-pagos/domain/commerce.models';
 @Component({
   selector: 'fs-catalog-page',
   imports: [FormsModule, RouterLink, DecimalPipe],
-  template: ` <section class="catalog-hero">
+  template: `
+    @if (storeSlug()) {
+      <div class="storefront-strip" style="background:var(--accent,#4f46e5);color:var(--on-accent,#fff);padding:10px 16px;text-align:center;font-size:13.5px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:10px">
+        <span>🏢 <strong>Tienda oficial:</strong> {{ storeSlug() }}</span>
+        <span style="opacity:0.85">· Estás viendo el catálogo y existencias exclusivas de esta marca</span>
+      </div>
+    }
+    <section class="catalog-hero">
       <div class="container hero-inner">
         <div>
           <p class="eyebrow">FASHIONSTORE · HECHO PARA TU DÍA</p>
@@ -209,7 +216,8 @@ export class CatalogPageComponent {
   private commerce = inject(CommerceService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
-  private destroy = inject(DestroyRef);
+  destroy = inject(DestroyRef);
+  storeSlug = signal<string | null>(null);
   result = signal<Page<Product> | null>(null);
   recommendations = signal<RecommendedProduct[]>([]);
   private recommendationVersion = 0;
@@ -228,6 +236,10 @@ export class CatalogPageComponent {
     { key: 'color_id', label: 'Color', resource: 'colors' },
   ];
   constructor() {
+    this.route.paramMap.pipe(takeUntilDestroyed(this.destroy)).subscribe((params) => {
+      const slug = params.get('tenantSlug');
+      this.storeSlug.set(slug);
+    });
     this.clearFields();
     void this.loadReferences();
     this.route.queryParams

@@ -103,6 +103,24 @@ import { SessionService } from '../../usuarios-catalogo/application/session.serv
           </div>
         </form>
       </div>
+
+      <div class="card" style="margin-top:14px;background:var(--surface, #fafafa);border:1px solid var(--line)">
+        <h3 style="margin:0 0 6px">🌐 Tu Tienda y Catálogo Público Segmentado</h3>
+        <p class="muted" style="margin:0 0 12px;font-size:13px">
+          Comparte este enlace directo con tus clientes para que accedan exclusivamente al catálogo, sucursales y vestidor de <b>{{ p.trade_name }}</b>.
+        </p>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <code class="mono" style="padding:8px 12px;background:var(--paper);border:1px solid var(--line);border-radius:6px;font-size:13.5px">
+            {{ getStorefrontUrl(p.slug) }}
+          </code>
+          <button type="button" class="btn sm" (click)="copyStorefrontUrl(p.slug)">
+            {{ copied() ? '✔ ¡Enlace copiado!' : '📋 Copiar enlace' }}
+          </button>
+          <a [href]="'/tienda/' + p.slug" target="_blank" class="btn sm primary">
+            ↗ Ver mi catálogo en vivo
+          </a>
+        </div>
+      </div>
     }
   `,
   styleUrl: './perfil-empresa.component.scss',
@@ -116,6 +134,7 @@ export class PerfilEmpresaComponent implements OnInit {
   readonly saving = signal(false);
   readonly error = signal<string | null>(null);
   readonly notice = signal<string | null>(null);
+  readonly copied = signal(false);
 
   form = {
     trade_name: '',
@@ -125,6 +144,27 @@ export class PerfilEmpresaComponent implements OnInit {
 
   canEdit(): boolean {
     return this.session.can('tenant_profile.write');
+  }
+
+  getStorefrontUrl(slug: string): string {
+    if (typeof window !== 'undefined' && window.location) {
+      return `${window.location.origin}/tienda/${slug}`;
+    }
+    return `/tienda/${slug}`;
+  }
+
+  async copyStorefrontUrl(slug: string) {
+    const url = this.getStorefrontUrl(slug);
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+      }
+      this.copied.set(true);
+      setTimeout(() => this.copied.set(false), 2500);
+    } catch {
+      this.copied.set(true);
+      setTimeout(() => this.copied.set(false), 2500);
+    }
   }
 
   ngOnInit() {

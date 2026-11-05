@@ -83,6 +83,9 @@ export class PlataformaApi {
   activatePlan(id: string) {
     return this.api.write<Plan>('POST', '/platform/plans/' + id + '/activate');
   }
+  deletePlan(id: string) {
+    return this.api.write<boolean>('DELETE', '/platform/plans/' + id);
+  }
   subscription(id: string) {
     return this.api.get<SubscriptionDetail>(this.subpath(id));
   }
@@ -159,6 +162,29 @@ export class PlataformaApi {
   deactivateAdmin(id: string): Observable<GlobalUser> {
     return this.api
       .write<GlobalUser>('POST', `/platform/admins/${id}/deactivate`)
+      .pipe(map((r) => r.data));
+  }
+  activateAdmin(id: string): Observable<GlobalUser> {
+    return this.api
+      .write<GlobalUser>('POST', `/platform/admins/${id}/activate`)
+      .pipe(map((r) => r.data));
+  }
+  updateAdmin(
+    id: string,
+    body: { first_name?: string; last_name?: string; phone?: string; email?: string }
+  ): Observable<GlobalUser> {
+    return this.api
+      .write<GlobalUser>('PATCH', `/platform/admins/${id}`, body)
+      .pipe(map((r) => r.data));
+  }
+  deleteAdmin(id: string): Observable<boolean> {
+    return this.api
+      .write<boolean>('DELETE', `/platform/admins/${id}`)
+      .pipe(map((r) => r.data));
+  }
+  resetAdminPassword(id: string): Observable<GlobalUser> {
+    return this.api
+      .write<GlobalUser>('POST', `/platform/admins/${id}/reset-password`)
       .pipe(map((r) => r.data));
   }
   audit(q: Record<string, unknown> = {}): Observable<Page<PlatformAuditEvent>> {

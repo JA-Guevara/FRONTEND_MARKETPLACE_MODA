@@ -24,7 +24,7 @@ describe('admin-nav', () => {
     const product = ADMIN_NAV.find((section) => section.title === 'Producto');
     expect(product?.items.find((item) => item.key === 'demo')?.permission).toBe('sandbox.manage');
     const security = ADMIN_NAV.find((section) => section.title === 'Personas y seguridad');
-    expect(security?.items.some((item) => item.label === 'Equipo de plataforma' && item.path.endsWith('/equipo'))).toBe(true);
+    expect(security?.items.some((item) => item.label === 'Superadministradores' && item.path.endsWith('/equipo'))).toBe(true);
     expect(security?.items.some((item) => item.label === 'Roles y permisos')).toBe(true);
   });
   it('las rutas nuevas conservan guard de plataforma y el enlace anterior del equipo redirige', () => {

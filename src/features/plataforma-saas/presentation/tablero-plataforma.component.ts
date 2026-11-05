@@ -2,7 +2,8 @@ import { Component, inject, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { PlataformaApi } from '../infrastructure/plataforma.api';
-import { PlatformDashboard } from '../domain/consola.models';
+import { PlatformDashboard, GlobalUser } from '../domain/consola.models';
+import { Plan } from '../domain/plan.models';
 import { KpiCardComponent } from '../../../shared/ui/kpi-card.component';
 import { UsageMeterComponent } from '../../../shared/ui/usage-meter.component';
 
@@ -23,8 +24,11 @@ import { UsageMeterComponent } from '../../../shared/ui/usage-meter.component';
           }
         </p>
       </div>
-      <div class="acts">
-        <a class="btn primary" routerLink="/admin/plataforma/empresas">＋ Nueva empresa</a>
+      <div class="acts" style="display:flex;gap:8px;flex-wrap:wrap">
+        <a class="btn primary" routerLink="/admin/plataforma/empresas">🏢 + Nueva empresa</a>
+        <a class="btn" routerLink="/admin/plataforma/planes">💳 + Nuevo plan</a>
+        <a class="btn" routerLink="/admin/plataforma/equipo">🛡️ + Invitar superadmin</a>
+        <a class="btn ghost" routerLink="/admin/plataforma/demo">🧪 Tienda demo</a>
       </div>
     </div>
 
@@ -168,6 +172,76 @@ import { UsageMeterComponent } from '../../../shared/ui/usage-meter.component';
           }
         </div>
       </div>
+
+      <div class="grid2" style="margin-top:14px">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <h3 style="margin:0">Planes de suscripción</h3>
+            <a routerLink="/admin/plataforma/planes" class="btn sm">Gestionar planes →</a>
+          </div>
+          @if (plans().length === 0) {
+            <p class="muted">No hay planes registrados o cargando…</p>
+          } @else {
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>Plan</th>
+                  <th>Precio</th>
+                  <th>Empresas</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (p of plans(); track p.id) {
+                  <tr>
+                    <td><b>{{ p.name }}</b> <span class="sub">{{ p.code }}</span></td>
+                    <td>Bs {{ p.reference_price }} <small class="muted">/ {{ p.duration_days }}d</small></td>
+                    <td>{{ p.tenants_count }}</td>
+                    <td>
+                      <span class="badge" [class.ok]="p.is_active" [class.neutral]="!p.is_active">
+                        {{ p.is_active ? 'Activo' : 'Inactivo' }}
+                      </span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </div>
+
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <h3 style="margin:0">Superadministradores</h3>
+            <a routerLink="/admin/plataforma/equipo" class="btn sm">Gestionar equipo →</a>
+          </div>
+          @if (admins().length === 0) {
+            <p class="muted">No hay administradores registrados o cargando…</p>
+          } @else {
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Correo</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (adm of admins(); track adm.id) {
+                  <tr>
+                    <td><b>{{ adm.first_name }} {{ adm.last_name }}</b></td>
+                    <td class="mono" style="font-size:12px">{{ adm.email }}</td>
+                    <td>
+                      <span class="badge" [class.ok]="adm.is_active" [class.neutral]="!adm.is_active">
+                        {{ adm.is_active ? 'Activo' : 'Inactivo' }}
+                      </span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </div>
+      </div>
     }
   `,
   styleUrl: './tablero-plataforma.component.scss',
@@ -176,6 +250,8 @@ export class TableroPlataformaComponent implements OnInit {
   private api = inject(PlataformaApi);
 
   readonly dashboard = signal<PlatformDashboard | null>(null);
+  readonly plans = signal<Plan[]>([]);
+  readonly admins = signal<GlobalUser[]>([]);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
 
@@ -201,6 +277,20 @@ export class TableroPlataformaComponent implements OnInit {
         this.loading.set(false);
       },
     });
+
+    if (this.api.plans) {
+      this.api.plans(true).subscribe({
+        next: (p) => this.plans.set(p),
+        error: () => {},
+      });
+    }
+
+    if (this.api.admins) {
+      this.api.admins().subscribe({
+        next: (a) => this.admins.set(a),
+        error: () => {},
+      });
+    }
   }
 
   formatCurrency(value: number): string {
