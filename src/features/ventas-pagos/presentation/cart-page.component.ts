@@ -209,7 +209,9 @@ import { IconComponent } from '../../../shared/icon.component';
                 <label
                   >Cómo querés pagar<select name="method" [(ngModel)]="method">
                     <option value="manual">Coordinar efectivo o transferencia</option>
-                    <option value="stripe">Tarjeta · Stripe (prueba)</option>
+                    @if (cart()?.card_payments_available) {
+                      <option value="stripe">Tarjeta · Stripe (prueba)</option>
+                    }
                   </select></label
                 >
                 <p class="muted">
@@ -288,7 +290,7 @@ export class CartPageComponent {
     this.busy.set(true);
     this.error.set('');
     try {
-      this.cart.set(await this.api.cart(this.branch, this.coupon));
+      this.setQuote(await this.api.cart(this.branch, this.coupon));
     } catch (e) {
       this.cart.set(null);
       this.error.set(errorMessage(e));
@@ -296,6 +298,11 @@ export class CartPageComponent {
       this.busy.set(false);
     }
   }
+  private setQuote(quote: Cart) {
+    this.cart.set(quote);
+    if (this.method === 'stripe' && !quote.card_payments_available) this.method = 'manual';
+  }
+
   canBuy() {
     return (
       !!this.branch &&
@@ -312,7 +319,7 @@ export class CartPageComponent {
       // Si el código no es válido se conserva el carrito que el cliente ya
       // estaba revisando; una validación de cupón no debe vaciar la pantalla.
       const quoted = await this.api.cart(this.branch, this.coupon);
-      this.cart.set(quoted);
+      this.setQuote(quoted);
       const applied = quoted.discounts?.find((row) => row.code === this.coupon);
       this.couponMessage.set(applied ? 'Cupón aplicado al total.' : 'No hay un beneficio asociado a este cupón.');
       this.couponError.set(!applied);
@@ -414,6 +421,11 @@ export class CartPageComponent {
     if (this.busy() || !this.canBuy()) return;
     this.busy.set(true);
     this.error.set('');
+    if (this.method === 'stripe' && !this.cart()?.card_payments_available) {
+      this.busy.set(false);
+      this.error.set('La tienda no tiene habilitado el pago con tarjeta.');
+      return;
+    }
     try {
       const order = await this.api.write<Order>('POST', '/orders', {
         branch_id: this.branch,

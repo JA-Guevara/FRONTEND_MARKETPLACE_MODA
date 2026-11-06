@@ -12,6 +12,7 @@ export interface CartItem {
   line_total: string;
 }
 export interface Cart {
+  card_payments_available?: boolean;
   items: CartItem[];
   subtotal?: string;
   discount_total?: string;
