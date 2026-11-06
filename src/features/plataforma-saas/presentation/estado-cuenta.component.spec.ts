@@ -164,6 +164,6 @@ describe('EstadoCuentaComponent', () => {
     await fixture.whenStable();
 
     const text = fixture.nativeElement.textContent;
-    expect(text).toContain('No se han emitido comprobantes aún.');
+    expect(text).toContain('Todavía no hay comprobantes.');
   });
 });

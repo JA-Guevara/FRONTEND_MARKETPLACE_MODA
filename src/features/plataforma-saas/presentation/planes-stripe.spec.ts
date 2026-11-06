@@ -30,13 +30,14 @@ describe('Planes con precio Stripe', () => {
   it('solo lectura no puede cambiar el precio ni invocar la escritura', async () => {
     const api = configure(false); const fixture = TestBed.createComponent(PlanEditorComponent);
     fixture.componentRef.setInput('plan', plans[0]); fixture.detectChanges();
+    await fixture.whenStable(); fixture.detectChanges();
     expect((fixture.nativeElement.querySelector('#stripe-price-month') as HTMLInputElement).disabled).toBe(true);
     fixture.componentInstance.stripePrice = 'price_test_profesional_mes'; await fixture.componentInstance.saveStripePrice();
     expect(api.planPrice).not.toHaveBeenCalled();
   });
   it('el catálogo indica Sin precio y explica cuando ningún plan está listo', async () => {
     configure(false); const fixture = TestBed.createComponent(PlanesPageComponent);
-    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    fixture.detectChanges(); await fixture.componentInstance.load(); fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Sin precio');
     expect(fixture.nativeElement.textContent).toContain('Ningún plan se puede pagar con tarjeta todavía.');
   });

@@ -1,3 +1,4 @@
+import { StripeSaasApi } from '../infrastructure/stripe-saas.api';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { of } from 'rxjs';
@@ -10,6 +11,7 @@ describe('Pantallas de suscripción', () => {
   it('bloquea downgrade y pide motivo antes de permitir cambio', async () => {
     TestBed.configureTestingModule({
       providers: [
+        { provide: StripeSaasApi, useValue: { plans: () => of([]) } },
         provideRouter([]),
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: new Map([['id', 't1']]) } } },
         { provide: SessionService, useValue: session },
@@ -32,6 +34,7 @@ describe('Pantallas de suscripción', () => {
   it('mi suscripción avisa al quedar seis días de vigencia', async () => {
     TestBed.configureTestingModule({
       providers: [
+        { provide: StripeSaasApi, useValue: { plans: () => of([]) } },
         provideRouter([]),
         { provide: SessionService, useValue: session },
         { provide: PlataformaApi, useValue: { mySubscription: () => of(detail()) } },

@@ -3,12 +3,18 @@ import {
   inject,
   signal,
   computed,
+  DestroyRef,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute } from '@angular/router';
+import { finalize, forkJoin, of } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { PlataformaApi } from '../infrastructure/plataforma.api';
 import { SubscriptionDetail, expiryTone } from '../domain/suscripcion.models';
 import { FEATURE_LABELS } from '../domain/plan.models';
 import { EstadoCuentaComponent } from './estado-cuenta.component';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
+import { StripeSaasApi, TenantBillingPlan } from '../infrastructure/stripe-saas.api';
 
 @Component({
   selector: 'fs-mi-suscripcion',
@@ -26,7 +32,35 @@ import { EstadoCuentaComponent } from './estado-cuenta.component';
       </a>
     </div>
 
+    @if (loading()) {
+      <div class="card subscription-skeleton" role="status" aria-label="Cargando suscripción"><span></span><span></span><span></span></div>
+    }
+    @if (returnedFromPayment) {
+      <p class="alert info" role="status">Recibimos tu pago. La suscripción se actualiza en unos segundos.</p>
+    }
     @if (detail(); as d) {
+      @if (canManage()) {
+        <section class="card stripe-billing" aria-label="Pago de la suscripción">
+          <h2>Paga o cambia tu plan</h2>
+          <div class="sp2-grid">
+            @for (plan of availablePlans(); track plan.code) {
+              <article class="panel">
+                <h3>{{ plan.name }}</h3><p>Bs {{ plan.reference_price | number:'1.2-2' }} / mes</p>
+                <p>{{ plan.code === d.current.plan_code ? 'Plan actual' : 'Disponible' }}</p>
+                <button class="btn" [disabled]="paymentBusy() || !plan.stripe_ready" (click)="payPlan(plan.code)">
+                  {{ paymentBusy() ? 'Abriendo el pago seguro de Stripe…' : plan.code === d.current.plan_code ? 'Pagar con tarjeta' : 'Elegir' }}
+                </button>
+                @if (!plan.stripe_ready) { <small class="muted">Pago manual disponible</small> }
+              </article>
+            }
+          </div>
+          @if (!availablePlans().length) { <p class="muted">Consulta con la plataforma los planes disponibles para pago manual.</p> }
+          <button class="btn" [disabled]="paymentBusy()" (click)="openPortal()">Administrar tarjeta y facturas</button>
+          @if (paymentBusy()) { <p role="status">Abriendo el pago seguro de Stripe…</p> }
+          @if (paymentError()) { <p class="alert warn" role="alert">{{ paymentError() }}</p> }
+          <p class="muted">Pagos procesados por Stripe en modo prueba. FashionStore no guarda los datos de tu tarjeta.</p>
+        </section>
+      }
       @if (lifecycleState() === 'grace') {
         <div class="alert danger">
           <div>
@@ -148,13 +182,23 @@ import { EstadoCuentaComponent } from './estado-cuenta.component';
     }
 
     @if (error()) {
-      <p class="alert danger">{{ error() }}</p>
+      <p class="alert danger" role="alert">{{ error() }}</p><button class="btn" (click)="load()">Reintentar</button>
     }
   `,
   styleUrl: './mi-suscripcion.component.scss',
+  styles: ['.stripe-billing .sp2-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 1rem; margin-bottom: 1rem; } .subscription-skeleton { display: grid; gap: 1rem; } .subscription-skeleton span { height: 1rem; border-radius: 4px; background: var(--surface-2); } .subscription-skeleton span:first-child { width: 60%; } @media(max-width: 639px) { .stripe-billing button { width: 100%; } }'],
 })
 export class MiSuscripcionComponent {
   private api = inject(PlataformaApi);
+  private readonly stripe = inject(StripeSaasApi);
+  private readonly session = inject(SessionService);
+  private readonly destroy = inject(DestroyRef);
+  readonly returnedFromPayment = inject(ActivatedRoute).snapshot.queryParamMap.get('pago') === 'ok';
+  readonly loading = signal(true);
+  readonly availablePlans = signal<TenantBillingPlan[]>([]);
+  readonly paymentBusy = signal(false);
+  readonly paymentError = signal('');
+  readonly canManage = computed(() => this.session.can('billing.manage'));
   detail = signal<SubscriptionDetail | null>(null);
   error = signal('');
   tone = expiryTone;
@@ -205,9 +249,40 @@ export class MiSuscripcionComponent {
   });
 
   constructor() {
-    this.api.mySubscription().subscribe({
-      next: (d) => this.detail.set(d),
-      error: () => this.error.set('No se pudo consultar tu suscripción.'),
+    this.load();
+  }
+  load() {
+    this.loading.set(true); this.error.set(''); this.detail.set(null);
+    forkJoin({ detail: this.api.mySubscription(), plans: this.canManage() ? this.stripe.plans() : of([]) })
+      .pipe(takeUntilDestroyed(this.destroy), finalize(() => this.loading.set(false))).subscribe({
+      next: ({ detail, plans }) => { this.detail.set(detail); this.availablePlans.set(plans); },
+      error: () => this.error.set('No se pudo cargar la información.'),
     });
+  }
+  payPlan(code: string) {
+    if (!this.canManage() || this.paymentBusy() || !this.availablePlans().some(p => p.code === code && p.stripe_ready)) return;
+    this.paymentBusy.set(true); this.paymentError.set('');
+    let redirected = false;
+    this.stripe.checkout(code).pipe(takeUntilDestroyed(this.destroy), finalize(() => { if (!redirected) this.paymentBusy.set(false); })).subscribe({
+      next: result => { redirected = this.stripe.redirect(result.checkout_url, 'checkout'); if (!redirected) this.paymentError.set('No se pudo abrir el pago seguro. Reintenta.'); },
+      error: error => this.paymentError.set(this.billingError(error)),
+    });
+  }
+  openPortal() {
+    if (!this.canManage() || this.paymentBusy()) return;
+    this.paymentBusy.set(true); this.paymentError.set('');
+    let redirected = false;
+    this.stripe.portal().pipe(takeUntilDestroyed(this.destroy), finalize(() => { if (!redirected) this.paymentBusy.set(false); })).subscribe({
+      next: result => { redirected = this.stripe.redirect(result.portal_url, 'portal'); if (!redirected) this.paymentError.set('No se pudo abrir el portal seguro. Reintenta.'); },
+      error: error => this.paymentError.set(this.billingError(error)),
+    });
+  }
+  private billingError(error: { error?: { error?: { code?: string } } }): string {
+    const code = error?.error?.error?.code;
+    return code === 'billing_not_configured' ? 'El cobro con tarjeta no está configurado. Usa el pago manual.'
+      : code === 'billing_customer_missing' ? 'Primero paga un plan con tarjeta.'
+      : code === 'plan_not_available' ? 'Este plan no está disponible para pago con tarjeta. Usa el pago manual.'
+      : code === 'permission_denied' ? 'No tienes permiso para gestionar los pagos de la empresa.'
+      : 'No se pudo abrir el pago seguro. Reintenta.';
   }
 }

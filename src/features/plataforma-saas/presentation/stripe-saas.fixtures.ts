@@ -77,3 +77,21 @@ export const precioPlanRespuesta = {
     "stripe_ready": true
   }
 } as const;
+export const billingCheckoutPeticion = {
+  "plan_code": "PROFESIONAL",
+  "interval": "month"
+} as const;
+export const precioPlanPeticion = {
+  "stripe_price_id_month": "price_test_profesional_mes"
+} as const;
+export const billingPlanesDisponibles = {
+  "success": true,
+  "data": [
+    {
+      "code": "PROFESIONAL",
+      "name": "Profesional",
+      "reference_price": "199.00",
+      "stripe_ready": true
+    }
+  ]
+} as const;

@@ -41,7 +41,7 @@ import { SessionService } from '../../usuarios-catalogo/application/session.serv
       @if (loading()) {
         <div class="empty-state">Cargando comprobantes...</div>
       } @else if (invoices().length === 0) {
-        <div class="empty-state">No se han emitido comprobantes aún.</div>
+        <div class="empty-state">Todavía no hay comprobantes.</div>
       } @else {
         <div class="table-wrap">
           <table class="tbl">

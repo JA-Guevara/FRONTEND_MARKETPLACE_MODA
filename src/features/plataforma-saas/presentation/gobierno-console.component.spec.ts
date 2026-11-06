@@ -1,3 +1,4 @@
+import { StripeSaasApi } from '../infrastructure/stripe-saas.api';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, ActivatedRoute, convertToParamMap } from '@angular/router';
 import { of, throwError } from 'rxjs';
@@ -47,6 +48,7 @@ describe('Consola RS2 · módulos, impacto y empresa360', () => {
   function configure(api: object) {
     TestBed.configureTestingModule({
       providers: [
+        { provide: StripeSaasApi, useValue: { plans: () => of([]) } },
         provideRouter([]),
         { provide: PlataformaApi, useValue: api },
         { provide: SessionService, useValue: { ...session, startSupport: vi.fn() } },

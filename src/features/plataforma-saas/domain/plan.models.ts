@@ -8,6 +8,8 @@ export interface Plan {
   features: Record<string, boolean>;
   limits: Record<string, number>;
   tenants_count: number;
+  stripe_price_id_month?: string | null;
+  stripe_ready?: boolean;
 }
 export interface PlanDraft {
   code: string;

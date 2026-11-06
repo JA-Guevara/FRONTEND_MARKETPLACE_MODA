@@ -48,6 +48,7 @@ import { errorMessage } from '../../../shared/errors';
     </div>
     @if (error()) {
       <p class="alert danger">{{ error() }}</p>
+      <button class="btn" (click)="load()">Reintentar</button>
     }
     <nav class="plan-tabs" aria-label="Vistas de planes">
       <button [class.on]="tab() === 'planes'" (click)="tab.set('planes')">Planes</button>
@@ -55,6 +56,10 @@ import { errorMessage } from '../../../shared/errors';
       <button [class.on]="tab() === 'limites'" (click)="openMatrix('limites')">Límites</button>
     </nav>
     @if (tab() === 'planes') {
+      @if (plansLoading()) { <div class="panel" role="status">Cargando planes…</div> }
+      @if (!plansLoading() && !plans().some(planStripeReady)) {
+        <p class="alert info">Ningún plan se puede pagar con tarjeta todavía.</p>
+      }
       <div class="sp2-grid">
         @for (p of plans(); track p.id) {
           <article class="panel">
@@ -65,6 +70,9 @@ import { errorMessage } from '../../../shared/errors';
               }}<small> / {{ p.duration_days }} días</small>
             </p>
             <p>{{ p.limits['max_active_branches'] }} sucursales activas</p>
+            <p>Stripe: <strong>{{ p.stripe_ready ? 'Listo' : 'Sin precio' }}</strong>
+              @if (p.stripe_price_id_month) { <code>{{ p.stripe_price_id_month }}</code> }
+            </p>
             <ul class="feature-list">
               @for (f of features(); track f.code) {
                 <li>{{ p.features[f.code] ? '✓' : '—' }} {{ f.label }}</li>
@@ -204,6 +212,7 @@ import { errorMessage } from '../../../shared/errors';
         [catalog]="catalog()"
         [modules]="governance()?.modules ?? []"
         (saved)="saved()"
+        (priceUpdated)="load()"
         (closed)="saved()"
       />
     }
@@ -247,6 +256,8 @@ export class PlanesPageComponent {
   target = signal<Plan | null>(null);
   deletingPlan = signal<Plan | null>(null);
   error = signal('');
+  readonly plansLoading = signal(true);
+  readonly planStripeReady = (plan: Plan) => plan.stripe_ready === true;
   tab = signal<'planes' | 'modulos' | 'limites'>('planes');
   governance = signal<ModuleMatrix | null>(null);
   draftModules = signal<Record<string, Record<string, boolean>>>({});
@@ -266,6 +277,7 @@ export class PlanesPageComponent {
     if (this.route.snapshot.queryParamMap.get('tab') === 'modulos') void this.openMatrix();
   }
   async load() {
+    this.plansLoading.set(true); this.error.set('');
     try {
       const [p, c] = await Promise.all([
         firstValueFrom(this.api.plans(this.inactive())),
@@ -274,7 +286,9 @@ export class PlanesPageComponent {
       this.plans.set(p);
       this.catalog.set(c);
     } catch {
-      this.error.set('No se pudieron cargar los planes.');
+      this.error.set('No se pudo cargar la información.');
+    } finally {
+      this.plansLoading.set(false);
     }
   }
   toggleInactive() {

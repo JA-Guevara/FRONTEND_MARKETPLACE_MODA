@@ -1,3 +1,4 @@
+import { StripeSaasApi } from '../infrastructure/stripe-saas.api';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
@@ -10,6 +11,8 @@ describe('Pantallas de planes', () => {
   it('muestra planes y creación con matriz por características', async () => {
     TestBed.configureTestingModule({
       providers: [
+        { provide: StripeSaasApi, useValue: { plans: () => of([]) } },
+        { provide: SessionService, useValue: { can: () => true } },
         provideRouter([]),
         { provide: SessionService, useValue: session },
         {
@@ -33,6 +36,8 @@ describe('Pantallas de planes', () => {
   it('mantiene alerta de empresas excedidas y código de edición deshabilitado', async () => {
     TestBed.configureTestingModule({
       providers: [
+        { provide: StripeSaasApi, useValue: { plans: () => of([]) } },
+        { provide: SessionService, useValue: { can: () => true } },
         {
           provide: PlataformaApi,
           useValue: {
@@ -56,6 +61,8 @@ describe('Pantallas de planes', () => {
   it('marca el código duplicado sin cerrar el editor', async () => {
     TestBed.configureTestingModule({
       providers: [
+        { provide: StripeSaasApi, useValue: { plans: () => of([]) } },
+        { provide: SessionService, useValue: { can: () => true } },
         {
           provide: PlataformaApi,
           useValue: {

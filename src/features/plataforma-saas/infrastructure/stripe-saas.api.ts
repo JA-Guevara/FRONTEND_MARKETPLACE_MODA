@@ -36,6 +36,7 @@ export function safeStripeUrl(value: string, destination: StripeDestination): st
 export class StripeSaasApi {
   private readonly api = inject(ApiService);
   private readonly document = inject(DOCUMENT);
+  plans() { return this.api.get<TenantBillingPlan[]>('/tenant/billing/plans'); }
   checkout(plan_code: string) {
     return this.api.post<BillingCheckout>('/tenant/billing/checkout', { plan_code, interval: 'month' } satisfies BillingCheckoutRequest);
   }
@@ -49,7 +50,7 @@ export class StripeSaasApi {
     const url = safeStripeUrl(value, destination);
     const view = this.document.defaultView;
     if (!url || !view) return false;
-    view.location.assign(url);
-    return true;
+    try { view.location.assign(url); return true; }
+    catch { return false; }
   }
 }
