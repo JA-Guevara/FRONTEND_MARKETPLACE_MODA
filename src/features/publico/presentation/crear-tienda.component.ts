@@ -4,41 +4,14 @@ import {
   inject,
   signal,
   computed,
+  DestroyRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink, ActivatedRoute } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
-import { environment } from '../../../environments/environment';
-
-interface SlugResponse {
-  data: {
-    slug: string;
-    available: boolean;
-    reason: string;
-  };
-}
-
-interface SignupResponse {
-  success: boolean;
-  message: string;
-  data: {
-    email: string;
-    dev_token?: string;
-  };
-}
-
-interface VerifyResponse {
-  success: boolean;
-  message: string;
-  data: {
-    tenant_id: string;
-    slug: string;
-    user_id: string;
-    plan_code: string;
-    trial_days: number;
-  };
-}
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subscription } from 'rxjs';
+import { SignupApi, VerifyResponse } from '../infrastructure/signup.api';
 
 @Component({
   selector: 'fs-crear-tienda',
@@ -99,6 +72,8 @@ interface VerifyResponse {
                 </div>
               }
             </div>
+          } @else if (registrationClosed()) {
+            <p class="alert danger" role="alert">El registro de tiendas está cerrado por ahora.</p>
           } @else {
             <h2>Crea tu tienda</h2>
 
@@ -214,7 +189,10 @@ interface VerifyResponse {
   styleUrl: './crear-tienda.component.scss',
 })
 export class CrearTiendaComponent implements OnInit {
-  private http = inject(HttpClient);
+  private readonly api = inject(SignupApi);
+  private readonly destroy = inject(DestroyRef);
+  private slugRequest?: Subscription;
+  readonly registrationClosed = signal(false);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
 
@@ -250,6 +228,7 @@ export class CrearTiendaComponent implements OnInit {
 
   readonly isFormValid = computed(() => {
     return (
+      !this.registrationClosed() &&
       this.companyName().trim().length >= 2 &&
       this.slugAvailable() === true &&
       this.email().trim().includes('@') &&
@@ -266,6 +245,9 @@ export class CrearTiendaComponent implements OnInit {
   }
 
   onNameChange(val: string): void {
+    if (this.registrationClosed()) return;
+    this.slugRequest?.unsubscribe();
+    this.slugAvailable.set(null);
     this.companyName.set(val);
     const computedSlug = val
       .toLowerCase()
@@ -282,15 +264,13 @@ export class CrearTiendaComponent implements OnInit {
       return;
     }
 
-    this.http
-      .get<SlugResponse>(`${environment.apiUrl}/public/signup/slug?name=${computedSlug}`)
-      .subscribe({
+    this.slugRequest = this.api.slug(computedSlug).pipe(takeUntilDestroyed(this.destroy)).subscribe({
         next: (res) => {
           this.slugAvailable.set(res.data.available);
           this.slugReason.set(res.data.reason);
         },
-        error: () => {
-          this.slugAvailable.set(null);
+        error: (err) => {
+          this.slugAvailable.set(null); this.handleClosed(err);
         },
       });
   }
@@ -310,9 +290,7 @@ export class CrearTiendaComponent implements OnInit {
       accept_privacy: true,
     };
 
-    this.http
-      .post<SignupResponse>(`${environment.apiUrl}/public/signup`, body)
-      .subscribe({
+    this.api.signup(body).pipe(takeUntilDestroyed(this.destroy)).subscribe({
         next: (res) => {
           this.submitting.set(false);
           this.submitted.set(true);
@@ -323,28 +301,36 @@ export class CrearTiendaComponent implements OnInit {
         },
         error: (err) => {
           this.submitting.set(false);
-          const detail = err.error?.detail || err.error?.message || 'Error al procesar el registro.';
-          this.error.set(typeof detail === 'string' ? detail : JSON.stringify(detail));
+          if (this.handleClosed(err)) return;
+          const detail = err.error?.error?.message || err.error?.detail || err.error?.message || 'Error al procesar el registro.';
+          this.error.set(typeof detail === 'string' ? detail : 'Error al procesar el registro.');
         },
       });
   }
 
   verifyNow(token: string): void {
+    if (this.registrationClosed() || this.verifying()) return;
     this.verifying.set(true);
     this.error.set('');
 
-    this.http
-      .post<VerifyResponse>(`${environment.apiUrl}/public/signup/verify`, { token })
-      .subscribe({
+    this.api.verify(token).pipe(takeUntilDestroyed(this.destroy)).subscribe({
         next: (res) => {
           this.verifying.set(false);
           this.verifiedResult.set(res.data);
         },
         error: (err) => {
           this.verifying.set(false);
-          const detail = err.error?.detail?.message || err.error?.detail || 'Token no válido o expirado.';
+          if (this.handleClosed(err)) return;
+          const detail = err.error?.error?.message || err.error?.detail?.message || err.error?.detail || 'Token no válido o expirado.';
           this.error.set(typeof detail === 'string' ? detail : 'El enlace de verificación ha expirado.');
         },
       });
   }
+  private handleClosed(error: { status?: number; error?: { error?: { code?: string } } }): boolean {
+    if (error.status !== 404) return false;
+    this.registrationClosed.set(true); this.slugAvailable.set(false);
+    this.password.set(''); this.devToken.set(null); this.error.set('El registro de tiendas está cerrado por ahora.');
+    return true;
+  }
+
 }

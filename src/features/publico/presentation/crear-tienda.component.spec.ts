@@ -1,11 +1,47 @@
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { CrearTiendaComponent } from './crear-tienda.component';
 
 describe('CrearTiendaComponent', () => {
+  it('404 de disponibilidad cierra el alta, limpia la contraseña e impide nuevas solicitudes', async () => {
+    const http = { get: vi.fn(() => throwError(() => ({ status: 404, error: { error: { code: 'signup_disabled' } } }))), post: vi.fn() };
+    TestBed.configureTestingModule({ imports: [CrearTiendaComponent], providers: [provideRouter([]),
+      { provide: HttpClient, useValue: http }, { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({}) } } },
+    ] });
+    const fixture = TestBed.createComponent(CrearTiendaComponent); fixture.detectChanges();
+    fixture.componentInstance.password.set('Ejemplo123!'); fixture.componentInstance.onNameChange('Nueva Tienda'); fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('El registro de tiendas está cerrado por ahora.');
+    expect(fixture.nativeElement.querySelector('form')).toBeNull();
+    expect(fixture.componentInstance.password()).toBe('');
+    fixture.componentInstance.onNameChange('Otra Tienda'); fixture.componentInstance.onSubmit(); fixture.componentInstance.verifyNow('token');
+    expect(http.get).toHaveBeenCalledOnce(); expect(http.post).not.toHaveBeenCalled();
+  });
+  it('la respuesta tardía de un nombre anterior no habilita el nuevo slug', () => {
+    const older = new Subject<{ data: { slug: string; available: boolean; reason: string } }>();
+    const newer = new Subject<{ data: { slug: string; available: boolean; reason: string } }>();
+    const http = { get: vi.fn().mockReturnValueOnce(older).mockReturnValueOnce(newer) };
+    TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: HttpClient, useValue: http },
+      { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({}) } } },
+    ] });
+    const component = TestBed.createComponent(CrearTiendaComponent).componentInstance;
+    component.onNameChange('Primera Tienda'); component.onNameChange('Segunda Tienda');
+    older.next({ data: { slug: 'primera-tienda', available: true, reason: 'Disponible' } });
+    expect(component.slug()).toBe('segunda-tienda'); expect(component.slugAvailable()).toBeNull();
+    newer.next({ data: { slug: 'segunda-tienda', available: false, reason: 'Ocupado' } });
+    expect(component.slugAvailable()).toBe(false); expect(component.slugReason()).toBe('Ocupado');
+  });
+  it('404 al verificar también muestra alta cerrada en vez de activar la empresa', () => {
+    TestBed.configureTestingModule({ providers: [provideRouter([]),
+      { provide: HttpClient, useValue: { post: () => throwError(() => ({ status: 404 })) } },
+      { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({ token: 'ejemplo' }) } } },
+    ] });
+    const fixture = TestBed.createComponent(CrearTiendaComponent); fixture.detectChanges();
+    expect(fixture.componentInstance.verifiedResult()).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('El registro de tiendas está cerrado por ahora.');
+  });
   it('calcula el slug en vivo y consulta su disponibilidad', async () => {
     let slugQueried = '';
     await TestBed.configureTestingModule({

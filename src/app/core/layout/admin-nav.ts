@@ -151,6 +151,7 @@ export const ADMIN_NAV: NavSection[] = [
     items: [
       { key: 'perfil', label: 'Perfil de la empresa', icon: 'edit', path: '/admin/empresa/perfil', permission: 'my_subscription.read' },
       { key: 'suscripcion', label: 'Mi suscripción', icon: 'settings', path: '/admin/mi-suscripcion', permission: 'my_subscription.read' },
+      { key: 'cobros-tarjeta', label: 'Cobros con tarjeta', icon: 'tag', path: '/admin/empresa/cobros', permission: 'payment_methods.write' },
       { key: 'integraciones', label: 'Integraciones y API', icon: 'refresh', path: '/admin/empresa/integraciones', permission: 'integrations.read' },
       { key: 'accesos', label: 'Accesos de soporte', icon: 'heart', path: '/admin/empresa/accesos-soporte', permission: 'support_sessions.read' },
       { key: 'bitacora', label: 'Bitácora', icon: 'list', path: '/admin/bitacora', permission: 'audit.read' },

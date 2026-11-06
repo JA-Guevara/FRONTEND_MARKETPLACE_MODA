@@ -4,6 +4,20 @@ import { tenantScopeGuard } from '../../app/core/scope.guard';
 
 export const EMPRESA_ROUTES: Routes = [
   {
+    path: 'empresa/cobros',
+    title: 'Cobros con tarjeta | FashionStore',
+    canActivate: [authGuard, tenantScopeGuard],
+    data: { permission: 'payment_methods.write' },
+    loadComponent: () => import('./presentation/cobros-tarjeta.component').then(m => m.CobrosTarjetaComponent),
+  },
+  {
+    path: 'empresa/suscripcion',
+    title: 'Mi suscripción | FashionStore',
+    canActivate: [authGuard, tenantScopeGuard],
+    data: { permission: 'my_subscription.read' },
+    loadComponent: () => import('../plataforma-saas/presentation/mi-suscripcion.component').then(m => m.MiSuscripcionComponent),
+  },
+  {
     path: '',
     title: 'Panel | FashionStore',
     canActivate: [authGuard, tenantScopeGuard],
