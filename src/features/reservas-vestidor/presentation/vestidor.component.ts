@@ -71,7 +71,7 @@ interface TryOnResource {
   template: `<section class="fitting-page">
     <a
       class="fitting-back"
-      [routerLink]="['/prendas', slug]"
+      [routerLink]="productPath()"
       [queryParams]="varianteId ? { variante: varianteId } : undefined"
       >← Volver a la prenda</a
     >
@@ -161,7 +161,7 @@ interface TryOnResource {
           }
           <a
             class="button primary"
-            [routerLink]="['/prendas', slug]"
+            [routerLink]="productPath()"
             [queryParams]="varianteId ? { variante: varianteId } : undefined"
             >Elegir talla</a
           >
@@ -212,6 +212,10 @@ interface TryOnResource {
 })
 export class VestidorComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
+  productPath() {
+    const store = this.storeSlug;
+    return store ? ['/tienda', store, 'prendas', this.slug] : ['/prendas', this.slug];
+  }
   private catalog = inject(CatalogService);
   private api = inject(ApiService);
   private poseService = inject(PoseTrackingService);
@@ -221,6 +225,7 @@ export class VestidorComponent implements OnInit, OnDestroy {
   @ViewChild('lienzo') lienzoRef?: ElementRef<HTMLCanvasElement>;
 
   slug = '';
+  private storeSlug: string | null = null;
   varianteId: string | null = null;
   loading = signal(true);
   error = signal('');
@@ -284,6 +289,7 @@ export class VestidorComponent implements OnInit, OnDestroy {
     combineLatest([this.route.paramMap, this.route.queryParamMap])
       .pipe(takeUntilDestroyed(this.destroyRef)).subscribe(([params, query]) => {
         this.slug = params.get('slug') || '';
+        this.storeSlug = params.get('tenantSlug');
         this.varianteId = query.get('variante') || null;
         void this.load(this.slug);
       });

@@ -235,20 +235,22 @@ export class SessionService {
     return this.restoring;
   }
 
-  login(email: string, password: string) {
-    return this.request<Tokens>('login', { email: email.trim().toLowerCase(), password }).pipe(
+  login(email: string, password: string, tenantSlug?: string, platform = false) {
+    return this.request<Tokens>('login', { email: email.trim().toLowerCase(), password,
+      ...(tenantSlug ? { tenant_slug: tenantSlug } : {}), ...(platform ? { platform_login: true } : {}),
+    }).pipe(
       tap((r) => this.accept(r.data)),
     );
   }
 
-  request<T>(action: string, body: unknown) {
+  request<T>(action: string, body: unknown, tenantSlug = environment.tenantSlug) {
     const headers = this.accessToken
       ? new HttpHeaders({
           Authorization: `Bearer ${this.accessToken}`,
-          ...(action === 'register' ? { 'X-Tenant-Slug': environment.tenantSlug } : {}),
+          ...(action === 'register' ? { 'X-Tenant-Slug': tenantSlug } : {}),
         })
       : action === 'register'
-        ? new HttpHeaders({ 'X-Tenant-Slug': environment.tenantSlug })
+        ? new HttpHeaders({ 'X-Tenant-Slug': tenantSlug })
         : undefined;
     const url = `${environment.apiUrl}/auth/${action}`;
     // El límite envuelve cada envío por separado, no la cadena entera: el

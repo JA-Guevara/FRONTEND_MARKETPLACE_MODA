@@ -21,7 +21,7 @@ import {
   selector: 'fs-product-page',
   imports: [RouterLink, DecimalPipe, IconComponent, FormsModule],
   template: `<section class="container section">
-    <a class="back-link" routerLink="/">← Volver al catálogo</a>
+    <a class="back-link" [routerLink]="storePath()">← Volver al catálogo</a>
     @if (error()) {
       <p class="alert error" role="alert">{{ error() }}</p>
     }
@@ -100,7 +100,7 @@ import {
               </p>
               <a
                 class="button primary"
-                [routerLink]="'/prendas/' + p.slug + '/vestidor'"
+                [routerLink]="storePath('prendas', p.slug, 'vestidor')"
                 [queryParams]="variant() ? { variante: variant()!.id } : undefined"
               >
                 <fs-icon name="camera" />Probarme esta prenda
@@ -129,7 +129,7 @@ import {
             <button class="primary" [disabled]="!variant() || adding()" (click)="addToCart()">
               <fs-icon name="cart" />{{ adding() ? 'Agregando…' : 'Agregar al carrito' }}
             </button>
-            <a class="button" routerLink="/carrito"><fs-icon name="cart" />Ver carrito</a>
+            <a class="button" routerLink="/carrito" [queryParams]="storeQuery()"><fs-icon name="cart" />Ver carrito</a>
           </div>
           <div class="form-actions">
             <label class="check"
@@ -159,16 +159,16 @@ import {
           @if (tryOnMessage()) {
             <p class="alert success" role="status">{{ tryOnMessage() }}</p>
             <div class="form-actions">
-              <a class="button primary" routerLink="/reservar">
+              <a class="button primary" routerLink="/reservar" [queryParams]="storeQuery()">
                 <fs-icon name="calendar" />Revisar selección y reservar
               </a>
-              <a class="button" routerLink="/">Seguir explorando</a>
+              <a class="button" [routerLink]="storePath()">Seguir explorando</a>
             </div>
           }
           <div class="panel">
             <h3>Conocé nuestras sucursales</h3>
             <p>Consultá las ubicaciones y horarios de atención.</p>
-            <a routerLink="/sucursales">Ver sucursales ↗</a>
+            <a [routerLink]="storePath('sucursales')">Ver sucursales ↗</a>
           </div>
         </div>
       </div>
@@ -236,7 +236,7 @@ export class ProductPageComponent {
     if (!selected || this.adding()) return;
     if (!this.session.user()) {
       await this.router.navigate(['/iniciar-sesion'], {
-        queryParams: { returnUrl: this.router.url },
+        queryParams: { ...this.storeQuery(), returnUrl: this.router.url },
       });
       return;
     }
@@ -259,7 +259,9 @@ export class ProductPageComponent {
     const product = this.product();
     if (!product || this.favoriteBusy()) return;
     if (!this.session.user()) {
-      await this.router.navigate(['/iniciar-sesion'], { queryParams: { returnUrl: this.router.url } });
+      await this.router.navigate(['/iniciar-sesion'], {
+        queryParams: { ...this.storeQuery(), returnUrl: this.router.url },
+      });
       return;
     }
     this.favoriteBusy.set(true);
@@ -282,6 +284,17 @@ export class ProductPageComponent {
   }
   private api = inject(CatalogService);
   private route = inject(ActivatedRoute);
+  private readonly storeSlug = signal<string | null>(null);
+  storePath(...parts: string[]) {
+    const slug = this.storeSlug();
+    return slug ? ['/tienda', slug, ...parts] : ['/', ...parts];
+  }
+
+  storeQuery() {
+    const slug = this.storeSlug();
+    return slug ? { tienda: slug } : {};
+  }
+
   private destroy = inject(DestroyRef);
   product = signal<Product | null>(null);
   variant = signal<Entity | null>(null);
@@ -307,7 +320,9 @@ export class ProductPageComponent {
         switchMap((p) => {
           this.loading.set(true);
           this.error.set('');
-          return this.api.product(p.get('slug') || '').pipe(
+          const store = p.get('tenantSlug');
+          this.storeSlug.set(store);
+          return this.api.product(p.get('slug') || '', store ?? undefined).pipe(
             catchError((e) => {
               this.error.set(errorMessage(e));
               return of(null);

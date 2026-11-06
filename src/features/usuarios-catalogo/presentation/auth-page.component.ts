@@ -1,3 +1,4 @@
+import { TiendasPublicasApi, TiendaPublica } from '../../publico/infrastructure/tiendas-publicas.api';
 import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule, NgForm } from '@angular/forms';
@@ -50,6 +51,30 @@ import { IconComponent } from '../../../shared/icon.component';
                   autocomplete="family-name"
               /></label>
             </div>
+          }
+          @if (mode === 'login' || mode === 'register') {
+            <label>Empresa o tienda
+              <select name="empresa" [(ngModel)]="empresa" required [disabled]="busy()">
+                <option value="">Seleccioná una empresa</option>
+                @if (mode === 'login') { <option value="__platform__">Administración de plataforma</option> }
+                @if (empresa && !empresa.startsWith('__') && !listed(empresa)) {
+                  <option [value]="empresa">{{ empresa }}</option>
+                }
+                @for (store of tiendas(); track store.slug) {
+                  <option [value]="store.slug">{{ store.trade_name }}</option>
+                }
+                <option value="__custom__">Ingresar código de empresa</option>
+              </select>
+            </label>
+            @if (empresa === '__custom__') {
+              <label>Código de empresa
+                <input name="empresaCodigo" [(ngModel)]="empresaCodigo" required
+                  pattern="[a-z0-9][a-z0-9_-]{0,59}" placeholder="Ej. mi-tienda" />
+              </label>
+            }
+            @if (errorTiendas()) {
+              <p role="status">No se pudo cargar la lista. Podés ingresar el código de tu empresa.</p>
+            }
           }
           @if (['login', 'register', 'forgot', 'resend'].includes(mode)) {
             <label
@@ -143,6 +168,11 @@ export class AuthPageComponent {
   session = inject(SessionService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
+  private readonly tiendasApi = inject(TiendasPublicasApi);
+  readonly tiendas = signal<TiendaPublica[]>([]);
+  readonly errorTiendas = signal(false);
+  empresa = '';
+  empresaCodigo = '';
   mode = 'login';
   token = '';
   email = '';
@@ -160,6 +190,15 @@ export class AuthPageComponent {
   constructor() {
     this.route.data.subscribe((data) => {
       this.mode = data['mode'];
+      const slug = this.route.snapshot.queryParamMap.get('tienda');
+      this.empresa = slug && /^[a-z0-9][a-z0-9_-]{0,59}$/.test(slug) ? slug : '';
+      this.empresaCodigo = '';
+      if (this.mode === 'login' || this.mode === 'register') {
+        this.tiendasApi.listar(1, 100).subscribe({
+          next: (result) => { this.tiendas.set(result.items); this.errorTiendas.set(false); },
+          error: () => this.errorTiendas.set(true),
+        });
+      }
       this.token = this.route.snapshot.queryParamMap.get('token') || '';
       if (this.mode === 'forgot' && this.token) this.mode = 'reset';
       this.error.set('');
@@ -173,6 +212,13 @@ export class AuthPageComponent {
       this.confirmPassword = '';
     });
   }
+  listed(slug: string) { return this.tiendas().some((store) => store.slug === slug); }
+
+  private tenantSlug(): string | undefined {
+    return this.empresa === '__platform__' ? undefined
+      : (this.empresa === '__custom__' ? this.empresaCodigo.trim() : this.empresa) || undefined;
+  }
+
   title() {
     return (
       {
@@ -230,12 +276,14 @@ export class AuthPageComponent {
     this.busy.set(true);
     try {
       if (this.mode === 'login') {
-        await firstValueFrom(this.session.login(this.email, this.password));
+        await firstValueFrom(this.session.login(this.email, this.password, this.tenantSlug(), this.empresa === '__platform__'));
         const target = this.route.snapshot.queryParamMap.get('returnUrl');
         await this.router.navigateByUrl(
           target?.startsWith('/') && !target.startsWith('//') && !target.includes('://')
             ? target
-            : '/',
+            : this.session.isPlatformAdmin() ? '/admin/plataforma'
+              : this.session.administrative() ? '/admin'
+                : this.session.tenant()?.slug ? '/tienda/' + this.session.tenant()?.slug : '/',
         );
       } else {
         const payloads: Record<string, { action: string; body: unknown }> = {
@@ -265,7 +313,7 @@ export class AuthPageComponent {
           },
         };
         const task = payloads[this.mode];
-        const response = await firstValueFrom(this.session.request(task.action, task.body));
+        const response = await firstValueFrom(this.session.request(task.action, task.body, this.mode === 'register' ? this.tenantSlug() : undefined));
         this.message.set(response.message);
         this.done.set(true);
         if (['reset', 'change'].includes(this.mode)) this.session.clear();

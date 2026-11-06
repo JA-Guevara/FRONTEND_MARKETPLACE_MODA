@@ -1,3 +1,4 @@
+import { errorMessage } from '../../../shared/errors';
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { CatalogoLocalRepository } from '../infrastructure/catalogo-local.repository';
@@ -15,6 +16,11 @@ export class OfflineCatalogStore {
   private repo = inject(CatalogoLocalRepository);
   private api = inject(SnapshotApi);
   private session = inject(SessionService);
+  private readonly identity = computed(() => {
+    const user = this.session.user();
+    return user?.tenant ? user.tenant.id + ':' + user.id : null;
+  });
+  private reading = 0;
   readonly meta = signal({
     version: null as string | null,
     descargadoEn: null as string | null,
@@ -33,7 +39,8 @@ export class OfflineCatalogStore {
   constructor() {
     effect(() => {
       // El servicio es singleton: no conservar datos visibles al cambiar cuenta.
-      this.session.user();
+      this.identity();
+      this.filtros.set({ ...FILTROS_VACIOS });
       this.meta.set({
         version: null,
         descargadoEn: null,
@@ -48,8 +55,10 @@ export class OfflineCatalogStore {
   }
   async cargarLocal() {
     const user = this.session.user();
+    const identity = this.identity();
+    const reading = ++this.reading;
     const meta = await this.repo.meta();
-    if (user !== this.session.user()) return;
+    if (identity !== this.identity() || reading !== this.reading) return;
     if (!user || meta.tenantId !== user.tenant?.id || meta.usuarioId !== user.id) {
       this.meta.set({
         version: null,
@@ -66,7 +75,7 @@ export class OfflineCatalogStore {
       this.repo.leerDatos(meta.sucursalId ?? ''),
       this.repo.conteos(),
     ]);
-    if (user !== this.session.user()) return;
+    if (identity !== this.identity() || reading !== this.reading) return;
     this.meta.set(meta);
     this.datos.set(datos);
     this.conteos.set(conteos);
@@ -78,6 +87,7 @@ export class OfflineCatalogStore {
       this.error.set('Tu suscripción no permite descargar datos sin conexión.');
       return;
     }
+    const identity = this.identity();
     this.descargando.set(true);
     this.error.set('');
     this.progreso.set(10);
@@ -90,7 +100,7 @@ export class OfflineCatalogStore {
           ? old.version
           : null;
       const snapshot = await firstValueFrom(this.api.get(sucursalId || null, since));
-      if (user !== this.session.user()) return;
+      if (identity !== this.identity()) return;
       if (snapshot.tenant.id !== user.tenant.id)
         throw new Error('La instantánea pertenece a otra empresa.');
       this.progreso.set(45);
@@ -102,12 +112,12 @@ export class OfflineCatalogStore {
       await this.cargarLocal();
       this.progreso.set(100);
     } catch (e) {
-      this.error.set(
-        'La descarga se interrumpió. Sigues usando la versión del ' +
-          (this.meta().descargadoEn ?? 'catálogo anterior') +
-          '. ' +
-          (e instanceof Error ? e.message : ''),
-      );
+      if (identity === this.identity()) {
+        const previous = this.meta().descargadoEn;
+        this.error.set(previous
+          ? 'Se conservó el catálogo descargado. ' + errorMessage(e)
+          : 'No se pudo preparar el catálogo de tu empresa. ' + errorMessage(e));
+      }
     } finally {
       this.descargando.set(false);
     }

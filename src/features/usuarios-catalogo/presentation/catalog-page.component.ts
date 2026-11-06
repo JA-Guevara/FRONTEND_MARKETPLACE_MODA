@@ -1,9 +1,10 @@
+import { TiendasPublicasApi } from '../../publico/infrastructure/tiendas-publicas.api';
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { catchError, firstValueFrom, of, switchMap, tap } from 'rxjs';
+import { catchError, combineLatest, firstValueFrom, of, switchMap, tap } from 'rxjs';
 import { CatalogService } from '../infrastructure/catalog.service';
 import { Entity, Page, Product, hasVestidor } from '../domain/catalog.models';
 import { errorMessage } from '../../../shared/errors';
@@ -16,7 +17,7 @@ import { RecommendedProduct } from '../../ventas-pagos/domain/commerce.models';
   template: `
     @if (storeSlug()) {
       <div class="storefront-strip" style="background:var(--accent,#4f46e5);color:var(--on-accent,#fff);padding:10px 16px;text-align:center;font-size:13.5px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:10px">
-        <span>🏢 <strong>Tienda oficial:</strong> {{ storeSlug() }}</span>
+        <span>🏢 <strong>Tienda oficial:</strong> {{ storeName() || storeSlug() }}</span>
         <span style="opacity:0.85">· Estás viendo el catálogo y existencias exclusivas de esta marca</span>
       </div>
     }
@@ -130,7 +131,7 @@ import { RecommendedProduct } from '../../ventas-pagos/domain/commerce.models';
           } @else {
             <div class="product-grid">
               @for (product of result()?.items || []; track product.id) {
-                <a class="product-card" [routerLink]="['/prendas', product.slug]"
+                <a class="product-card" [routerLink]="productLink(product.slug)"
                   ><div class="product-image">
                     @if (image(product); as source) {
                       <img
@@ -192,7 +193,7 @@ import { RecommendedProduct } from '../../ventas-pagos/domain/commerce.models';
         <h2>Recomendado para vos</h2>
         <div class="product-grid product-grid-compact">
           @for (item of recommendations(); track item.id) {
-            <a class="product-card" [routerLink]="['/prendas', item.slug]">
+            <a class="product-card" [routerLink]="productLink(item.slug)">
               <div class="product-image">
                 @if (item.image_url) {
                   <img [src]="item.image_url" [alt]="item.name" loading="lazy" />
@@ -218,6 +219,9 @@ export class CatalogPageComponent {
   private router = inject(Router);
   destroy = inject(DestroyRef);
   storeSlug = signal<string | null>(null);
+  storeName = signal('');
+  private tiendas = inject(TiendasPublicasApi);
+  private referenceVersion = 0;
   result = signal<Page<Product> | null>(null);
   recommendations = signal<RecommendedProduct[]>([]);
   private recommendationVersion = 0;
@@ -239,21 +243,31 @@ export class CatalogPageComponent {
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroy)).subscribe((params) => {
       const slug = params.get('tenantSlug');
       this.storeSlug.set(slug);
+      this.storeName.set('');
+      this.references.set({});
+      void this.loadReferences();
     });
+    this.route.paramMap.pipe(
+      switchMap((params) => {
+        const slug = params.get('tenantSlug');
+        return slug ? this.tiendas.obtener(slug).pipe(catchError(() => of(null))) : of(null);
+      }),
+      takeUntilDestroyed(this.destroy),
+    ).subscribe((store) => this.storeName.set(store?.trade_name ?? ''));
     this.clearFields();
-    void this.loadReferences();
-    this.route.queryParams
+    combineLatest([this.route.paramMap, this.route.queryParams])
       .pipe(
-        tap((query) => {
+        tap(([, query]) => {
           this.clearFields();
           Object.assign(this.filters, query);
           this.featured = query['featured'] === 'true';
           this.loading.set(true);
+          this.result.set(null);
           this.error.set('');
           void this.loadRecommendations(query);
         }),
-        switchMap((query) =>
-          this.api.products({ ...query, page_size: 12 }).pipe(
+        switchMap(([params, query]) =>
+          this.api.products({ ...query, page_size: 12 }, params.get('tenantSlug') ?? undefined).pipe(
             catchError((e) => {
               this.error.set(errorMessage(e));
               return of(null);
@@ -288,6 +302,7 @@ export class CatalogPageComponent {
       const items = await this.commerce.get<RecommendedProduct[]>(
         '/recommendations',
         { size_id: query['size_id'], season_id: query['season_id'] },
+        this.storeSlug() ?? undefined,
       );
       if (version === this.recommendationVersion) this.recommendations.set(items);
     } catch {
@@ -298,12 +313,14 @@ export class CatalogPageComponent {
    * visita al catálogo no vuelve a pedirlas. `forzar` es para el botón
    * «Recargar filtros»: sin él quedaría decorativo, devolviendo siempre lo mismo. */
   async loadReferences(forzar = false) {
+    const version = ++this.referenceVersion;
     this.referenceError.set('');
     const keys = this.referenceFields.map((f) => f.resource);
     if (forzar) for (const k of keys) this.api.invalidateReference(k);
     const results = await Promise.allSettled(
-      keys.map((k) => firstValueFrom(this.api.reference(k))),
+      keys.map((k) => firstValueFrom(this.api.reference(k, this.storeSlug() ?? undefined))),
     );
+    if (version !== this.referenceVersion) return;
     const refs: Record<string, Entity[]> = {};
     results.forEach((r, i) => {
       if (r.status === 'fulfilled') refs[keys[i]] = r.value;
@@ -332,7 +349,7 @@ export class CatalogPageComponent {
   }
   clear() {
     this.clearFields();
-    void this.router.navigate(['/']);
+    void this.router.navigate([], { relativeTo: this.route, queryParams: {} });
   }
   goPage(delta: number) {
     void this.router.navigate([], {
@@ -347,7 +364,7 @@ export class CatalogPageComponent {
     try {
       this.result.set(
         await firstValueFrom(
-          this.api.products({ ...this.route.snapshot.queryParams, page_size: 12 }),
+          this.api.products({ ...this.route.snapshot.queryParams, page_size: 12 }, this.storeSlug() ?? undefined),
         ),
       );
     } catch (e) {
@@ -356,6 +373,10 @@ export class CatalogPageComponent {
       this.loading.set(false);
     }
   }
+  productLink(slug: string) {
+    return this.storeSlug() ? ['/tienda', this.storeSlug(), 'prendas', slug] : ['/prendas', slug];
+  }
+
   image(product: Product) {
     return (product.images.find((i) => i['is_primary']) || product.images[0])?.['url'];
   }

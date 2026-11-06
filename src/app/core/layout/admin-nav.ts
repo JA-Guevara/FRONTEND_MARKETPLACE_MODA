@@ -182,6 +182,7 @@ export const ADMIN_NAV: NavSection[] = [
     hideInSupport: true,
     items: [
       { key: 'offline', label: 'Preparar dispositivo', icon: 'download', path: '/sin-conexion' },
+      { key: 'catalogo-offline', label: 'Catálogo sin conexión', icon: 'tag', path: '/sin-conexion/catalogo' },
       { key: 'locales', label: 'Reservas locales', icon: 'calendar', path: '/sin-conexion/reservas', feature: 'offline' },
       { key: 'operaciones-sync', label: 'Operaciones locales', icon: 'refresh', path: '/sin-conexion/operaciones', feature: 'offline' },
     ],

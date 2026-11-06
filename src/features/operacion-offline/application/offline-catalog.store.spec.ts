@@ -33,6 +33,15 @@ describe('Alcance local por cuenta', () => {
     TestBed.resetTestingModule();
     await deleteDB(OFFLINE_DB);
   });
+  it('prepara el primer catálogo con la sucursal del paquete autenticado', async () => {
+    const store = TestBed.inject(OfflineCatalogStore);
+    const get = vi.spyOn(TestBed.inject(SnapshotApi), 'get');
+    TestBed.tick();
+    await store.descargar('');
+    expect(get).toHaveBeenCalledWith(null, null);
+    expect(store.meta().sucursalId).toBe('b');
+    expect(store.datos().productos.map(product => product.slug)).toEqual(['camisa']);
+  });
   it('descarga marca propietario y no entrega catálogo ni clientes a otra cuenta', async () => {
     const store = TestBed.inject(OfflineCatalogStore);
     TestBed.tick();

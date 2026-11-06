@@ -28,8 +28,8 @@ export class CommerceService {
       }),
     );
   }
-  get<T>(path: string, query: Record<string, unknown> = {}) {
-    return firstValueFrom(this.api.get<T>('/commerce' + path, query));
+  get<T>(path: string, query: Record<string, unknown> = {}, tenantSlug?: string) {
+    return firstValueFrom(this.api.get<T>('/commerce' + path, query, tenantSlug));
   }
   async add(variant: string) {
     const cart = await this.cart();

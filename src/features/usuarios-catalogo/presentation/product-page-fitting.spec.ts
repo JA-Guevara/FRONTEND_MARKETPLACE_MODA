@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, ActivatedRoute } from '@angular/router';
+import { provideRouter, ActivatedRoute, convertToParamMap } from '@angular/router';
 import { of } from 'rxjs';
 import { ProductPageComponent } from './product-page.component';
 import { CatalogService } from '../infrastructure/catalog.service';
@@ -43,6 +43,7 @@ describe('Acceso al probador virtual desde la ficha', () => {
     product?: object;
     canRead?: boolean;
     variante?: string | null;
+    tenantSlug?: string;
   } = {}) {
     const product = setup.product ?? SIN_PREPARAR;
     const catalog = {
@@ -58,7 +59,7 @@ describe('Acceso al probador virtual desde la ficha', () => {
       can: () => !!setup.canRead,
     } as unknown as SessionService;
     const route = {
-      paramMap: of({ get: () => 'camisa' }),
+      paramMap: of(convertToParamMap({ slug: 'camisa', tenantSlug: setup.tenantSlug ?? null })),
       snapshot: {
         queryParamMap: { get: (k: string) => (k === 'variante' ? (setup.variante ?? null) : null) },
       },
@@ -80,13 +81,19 @@ describe('Acceso al probador virtual desde la ficha', () => {
   }
   it('ofrece el probador y pasa la variante al vestidor cuando hay recurso preparado', async () => {
     const fixture = await render({ product: CON_PROBADOR, variante: 'v1' });
-const block = fixture.nativeElement.querySelector('.fitting-access');
+    const block = fixture.nativeElement.querySelector('.fitting-access');
     const link = block.querySelector('a[href^="/prendas/camisa/vestidor"]');
     expect(link).toBeTruthy();
     expect(block.textContent).toContain('Probarme esta prenda');
     expect(link.getAttribute('href')).toContain('variante=v1');
     expect(block.textContent).not.toContain('no tiene probador');
     expect(fixture.componentInstance.variant()?.id).toBe('v1');
+  });
+  it('mantiene el vestidor y el carrito en la tienda de la prenda', async () => {
+    const fixture = await render({ product: CON_PROBADOR, tenantSlug: 'tienda-a' });
+    const page = fixture.nativeElement as HTMLElement;
+    expect(page.querySelector('a[href^="/tienda/tienda-a/prendas/camisa/vestidor"]')).toBeTruthy();
+    expect(page.querySelector('a[href="/carrito?tienda=tienda-a"]')).toBeTruthy();
   });
   it('ofrece el probador aunque nadie haya preparado un recurso', async () => {
     // Este era el motivo por el que el probador figuraba como no disponible:

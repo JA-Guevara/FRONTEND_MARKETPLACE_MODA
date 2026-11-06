@@ -7,7 +7,7 @@ import { ApiResponse } from '../../../shared/models';
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private http = inject(HttpClient);
-  get<T>(path: string, query: Record<string, unknown> = {}) {
+  get<T>(path: string, query: Record<string, unknown> = {}, tenantSlug?: string) {
     let params = new HttpParams();
     for (const [key, value] of Object.entries(query)) {
       if (value === '' || value === undefined || value === null) continue;
@@ -22,7 +22,7 @@ export class ApiService {
       }
     }
     return this.http
-      .get<ApiResponse<T>>(environment.apiUrl + path, { params })
+      .get<ApiResponse<T>>(environment.apiUrl + path, { params, headers: tenantSlug ? { 'X-Tenant-Slug': tenantSlug } : {} })
       .pipe(map((r) => r.data));
   }
   write<T>(method: 'POST' | 'PATCH' | 'PUT' | 'DELETE', path: string, body?: unknown) {

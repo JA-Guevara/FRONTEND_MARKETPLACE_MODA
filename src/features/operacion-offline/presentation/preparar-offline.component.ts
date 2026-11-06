@@ -11,7 +11,6 @@ import { StatusBadgeComponent } from '../../../shared/ui/status-badge.component'
 import { ConfirmDialogComponent } from '../../../shared/ui/confirm-dialog.component';
 import { ConnectivityService } from '../../../app/core/offline/connectivity.service';
 import { PwaInstallService } from '../../../app/core/pwa/pwa-install.service';
-import { ApiService } from '../../../app/core/shared/api.service';
 @Component({
   selector: 'fs-preparar-offline',
   imports: [CommonModule, FormsModule, RouterLink, ConnectionBadgeComponent, EmptyStateComponent],
@@ -43,7 +42,7 @@ import { ApiService } from '../../../app/core/shared/api.service';
         </p>
         <label class="f"
           >Sucursal<select class="input" [(ngModel)]="branch">
-            <option value="">Seleccionar sucursal</option>
+            <option value="">Primera sucursal disponible</option>
             @for (b of branches(); track b.id) {
               <option [value]="b.id">{{ b.name }}</option>
             }
@@ -56,8 +55,7 @@ import { ApiService } from '../../../app/core/shared/api.service';
             store.descargando() ||
             !connection.online() ||
             session.readOnly() ||
-            !session.hasFeature('offline') ||
-            !branch
+            !session.hasFeature('offline')
           "
           (click)="actualizar()"
         >
@@ -124,27 +122,23 @@ export class PrepararOfflineComponent {
   session = inject(SessionService);
   connection = inject(ConnectivityService);
   pwa = inject(PwaInstallService);
-  private api = inject(ApiService);
   branches = signal<{ id: string; name: string }[]>([]);
   branch = '';
   counts = computed(() => Object.entries(this.store.conteos()));
   constructor() {
     void this.store.cargarLocal().then(() => {
       this.branch = this.store.meta().sucursalId ?? '';
-      this.branches.set(this.store.datos().sucursales.map((b) => ({ id: b.id, name: b.nombre })));
+      this.actualizarSucursales();
     });
-    if (this.connection.online())
-      this.api
-        .get<{ id: string; name: string }[] | { items: { id: string; name: string }[] }>(
-          '/commerce/branches',
-        )
-        .subscribe({
-          next: (r) => this.branches.set(Array.isArray(r) ? r : r.items),
-          error: () => {},
-        });
+
   }
+  private actualizarSucursales() {
+    this.branches.set(this.store.datos().sucursales.map((branch) => ({ id: branch.id, name: branch.nombre })));
+  }
+
   async actualizar() {
     await this.store.descargar(this.branch);
     this.branch = this.store.meta().sucursalId ?? this.branch;
+    this.actualizarSucursales();
   }
 }

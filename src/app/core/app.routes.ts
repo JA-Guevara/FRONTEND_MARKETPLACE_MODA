@@ -74,11 +74,10 @@ export const routes: Routes = [
   },
   {
     path: '',
-    title: 'FashionStore | Tu estilo',
+    title: 'Tiendas | FashionStore',
     loadComponent: () =>
-      import(
-        '../../features/usuarios-catalogo/presentation/catalog-page.component'
-      ).then((m) => m.CatalogPageComponent),
+      import('../../features/publico/presentation/directorio-tiendas.component')
+        .then((m) => m.DirectorioTiendasComponent),
   },
   {
     path: 'crear-tienda',
@@ -113,6 +112,13 @@ export const routes: Routes = [
       import(
         '../../features/usuarios-catalogo/presentation/catalog-page.component'
       ).then((m) => m.CatalogPageComponent),
+  },
+  {
+    path: 'tienda/:tenantSlug/prendas/:slug/vestidor',
+    title: 'Vestidor virtual | FashionStore',
+    loadComponent: () =>
+      import('../../features/reservas-vestidor/presentation/vestidor.component')
+        .then((m) => m.VestidorComponent),
   },
   {
     path: 'tienda/:tenantSlug/prendas/:slug',

@@ -1,3 +1,4 @@
+import { resolveStoreSlug } from '../tenant.interceptor';
 import { ConnectionBadgeComponent } from '../../../shared/ui/connection-badge.component';
 import { environment } from '../../../environments/environment';
 import { Component, ElementRef, inject, signal } from '@angular/core';
@@ -161,9 +162,12 @@ import { CartStateService } from '../../../features/ventas-pagos/application/car
             (click)="navOpen.set(false)"
           >
             <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"
-              >Catálogo</a
+              >Tiendas</a
             >
-            <a routerLink="/sucursales" routerLinkActive="active">Sucursales</a>
+            @if (storeSlug(); as slug) {
+              <a [routerLink]="['/tienda', slug]" routerLinkActive="active">Catálogo de la tienda</a>
+              <a [routerLink]="['/tienda', slug, 'sucursales']" routerLinkActive="active">Sucursales</a>
+            }
             @if (session.administrative()) {
               <span class="nav-separator" aria-hidden="true"></span>
               <a routerLink="/admin" routerLinkActive="active">Gestión</a>
@@ -177,7 +181,7 @@ import { CartStateService } from '../../../features/ventas-pagos/application/car
               >
             }
             <a
-              routerLink="/reservar"
+              routerLink="/reservar" [queryParams]="storeQuery()"
               class="button visit-link"
               aria-label="Revisar selección para reservar y probarte prendas en sucursal"
               ><fs-icon name="calendar" />Reservas
@@ -189,7 +193,7 @@ import { CartStateService } from '../../../features/ventas-pagos/application/car
                 >
               }
             </a>
-            <a routerLink="/carrito" class="button cart-link" aria-label="Ver carrito de compras"
+            <a routerLink="/carrito" [queryParams]="storeQuery()" class="button cart-link" aria-label="Ver carrito de compras"
               ><fs-icon name="cart" />Carrito
               @if (cart.count()) {
                 <span class="cart-counter" aria-label="{{ cart.count() }} prendas en el carrito">{{
@@ -231,8 +235,8 @@ import { CartStateService } from '../../../features/ventas-pagos/application/car
                 }
               </div>
             } @else {
-              <a routerLink="/iniciar-sesion">Ingresar</a
-              ><a routerLink="/registrarse" class="button primary">Crear cuenta</a>
+              <a routerLink="/iniciar-sesion" [queryParams]="storeQuery()">Ingresar</a
+              ><a routerLink="/registrarse" [queryParams]="storeQuery()" class="button primary">Crear cuenta</a>
             }
           </div>
         </div>
@@ -247,7 +251,11 @@ import { CartStateService } from '../../../features/ventas-pagos/application/car
         <div class="container footer-inner">
           <a class="brand" routerLink="/">fashion<span>store</span></a>
           <p>Prendas para vivir a tu manera.</p>
-          <a routerLink="/sucursales">Encontrá tu sucursal ↗</a>
+          @if (storeSlug(); as slug) {
+            <a [routerLink]="['/tienda', slug, 'sucursales']">Encontrá tu sucursal ↗</a>
+          } @else {
+            <a routerLink="/">Ver tiendas ↗</a>
+          }
         </div>
       </footer>
     }
@@ -268,6 +276,15 @@ export class SiteLayoutComponent {
   tryOn = inject(TryOnListService);
   private router = inject(Router);
   /** Pantallas sin conexión fuera del panel: usan la barra compacta de trabajo. */
+  storeSlug() {
+    return resolveStoreSlug(this.router.url) ?? this.session.tenant()?.slug;
+  }
+
+  storeQuery() {
+    const slug = this.storeSlug();
+    return slug ? { tienda: slug } : {};
+  }
+
   workspace() {
     return /^\/sin-conexion(\/|$)/.test(this.router.url);
   }
