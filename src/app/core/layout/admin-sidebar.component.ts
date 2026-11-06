@@ -76,7 +76,13 @@ export class AdminSidebarComponent {
       scope: this.session.scope(),
       isSupport: this.session.isSupport(),
       can: (perm) => this.session.can(perm),
-    });
+    }).map((section) => ({
+      ...section,
+      items: section.items.map((item) => {
+        const available = item.children?.find((child) => !this.isItemLocked(child));
+        return available ? { ...item, path: available.path } : item;
+      }),
+    }));
   });
 
   constructor() {

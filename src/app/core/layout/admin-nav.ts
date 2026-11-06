@@ -116,8 +116,20 @@ export const ADMIN_NAV: NavSection[] = [
           { key: 'collections', label: 'Colecciones', icon: 'grid', path: '/admin/collections', permission: 'catalog.read' },
         ],
       },
-      { key: 'proveedores', label: 'Proveedores', icon: 'refresh', path: '/admin/suppliers', permission: 'suppliers.read' },
-      { key: 'probador', label: 'Probador virtual', icon: 'camera', path: '/admin/probador', permission: 'catalog.read', feature: 'virtual_tryon' },
+      {
+        key: 'proveedores', label: 'Proveedores', icon: 'refresh', path: '/admin/suppliers',
+        children: [
+          { key: 'suppliers', label: 'Proveedores', icon: 'refresh', path: '/admin/suppliers', permission: 'suppliers.read' },
+          { key: 'supply', label: 'Abastecimiento', icon: 'box', path: '/admin/abastecimiento', permission: 'catalog.read' },
+        ],
+      },
+      {
+        key: 'probador', label: 'Vestidor virtual', icon: 'camera', path: '/admin/probador',
+        children: [
+          { key: 'tryon', label: 'Probador virtual', icon: 'camera', path: '/admin/probador', permission: 'catalog.read', feature: 'virtual_tryon' },
+          { key: 'ar', label: 'Recursos 3D / AR', icon: 'box', path: '/admin/recursos-ar', permission: 'catalog.read' },
+        ],
+      },
     ],
   },
   {
@@ -133,6 +145,7 @@ export const ADMIN_NAV: NavSection[] = [
         children: [
           { key: 'branches', label: 'Sucursales', icon: 'home', path: '/admin/branches', permission: 'branches.read' },
           { key: 'cash-points', label: 'Puntos de caja', icon: 'box', path: '/admin/cash-points', permission: 'branches.read' },
+          { key: 'cities', label: 'Ciudades', icon: 'box', path: '/admin/cities', permission: 'branches.read' },
         ],
       },
     ],
@@ -141,8 +154,14 @@ export const ADMIN_NAV: NavSection[] = [
     title: 'Personal',
     scope: 'tenant',
     items: [
-      { key: 'personal', label: 'Usuarios', icon: 'users', path: '/admin/users', permission: 'users.read' },
-      { key: 'roles', label: 'Roles y permisos', icon: 'lock', path: '/admin/roles', permission: 'roles.read' },
+      {
+        key: 'personal', label: 'Usuarios y permisos', icon: 'users', path: '/admin/users',
+        children: [
+          { key: 'users', label: 'Usuarios', icon: 'users', path: '/admin/users', permission: 'users.read' },
+          { key: 'roles', label: 'Roles de empresa', icon: 'lock', path: '/admin/roles', permission: 'roles.read' },
+          { key: 'permissions', label: 'Catálogo de permisos', icon: 'list', path: '/admin/permissions', permission: 'roles.read' },
+        ],
+      },
     ],
   },
   {
@@ -198,7 +217,8 @@ export function visibleSections(
             if (!s.can(item.permission)) {
               return null;
             }
-            return { ...item, children: visibleChildren };
+            const entry = visibleChildren.find((child) => child.path === item.path) ?? visibleChildren[0];
+            return { ...item, path: entry.path, children: visibleChildren };
           }
           if (!s.can(item.permission)) {
             return null;

@@ -6,30 +6,37 @@ export const EMPRESA_ROUTES: Routes = [
   {
     path: 'empresa/cobros',
     title: 'Cobros con tarjeta | FashionStore',
-    canActivate: [authGuard, tenantScopeGuard],
+    canActivate: [tenantScopeGuard, authGuard],
     data: { permission: 'payment_methods.write' },
     loadComponent: () => import('./presentation/cobros-tarjeta.component').then(m => m.CobrosTarjetaComponent),
   },
   {
     path: 'empresa/suscripcion',
     title: 'Mi suscripción | FashionStore',
-    canActivate: [authGuard, tenantScopeGuard],
+    canActivate: [tenantScopeGuard, authGuard],
     data: { permission: 'my_subscription.read' },
     loadComponent: () => import('../plataforma-saas/presentation/mi-suscripcion.component').then(m => m.MiSuscripcionComponent),
   },
   {
     path: '',
     title: 'Panel | FashionStore',
-    canActivate: [authGuard, tenantScopeGuard],
+    canActivate: [tenantScopeGuard, authGuard],
     loadComponent: () =>
       import('./presentation/panel-empresa.component').then(
         (m) => m.PanelEmpresaComponent
       ),
   },
   {
+    path: 'permissions',
+    title: 'Catálogo de permisos | FashionStore',
+    canActivate: [tenantScopeGuard, authGuard],
+    data: { permission: 'roles.read', permissionsCatalog: true },
+    loadComponent: () => import('./presentation/roles-empresa.component').then(m => m.RolesEmpresaComponent),
+  },
+  {
     path: 'roles',
     title: 'Roles y permisos | FashionStore',
-    canActivate: [authGuard, tenantScopeGuard],
+    canActivate: [tenantScopeGuard, authGuard],
     data: { permission: 'roles.read' },
     loadComponent: () =>
       import('./presentation/roles-empresa.component').then(
@@ -39,7 +46,7 @@ export const EMPRESA_ROUTES: Routes = [
   {
     path: 'empresa/perfil',
     title: 'Perfil de empresa | FashionStore',
-    canActivate: [authGuard, tenantScopeGuard],
+    canActivate: [tenantScopeGuard, authGuard],
     data: { permission: 'my_subscription.read' },
     loadComponent: () =>
       import('./presentation/perfil-empresa.component').then(
@@ -49,7 +56,7 @@ export const EMPRESA_ROUTES: Routes = [
   {
     path: 'empresa/accesos-soporte',
     title: 'Accesos de soporte | FashionStore',
-    canActivate: [authGuard, tenantScopeGuard],
+    canActivate: [tenantScopeGuard, authGuard],
     data: { permission: 'support_sessions.read' },
     loadComponent: () =>
       import('./presentation/accesos-soporte.component').then(
@@ -59,7 +66,7 @@ export const EMPRESA_ROUTES: Routes = [
   {
     path: 'empresa/dispositivos',
     title: 'Dispositivos | FashionStore',
-    canActivate: [authGuard, tenantScopeGuard],
+    canActivate: [tenantScopeGuard, authGuard],
     data: { permission: 'devices.read' },
     loadComponent: () =>
       import('./presentation/dispositivos.component').then(
@@ -69,7 +76,7 @@ export const EMPRESA_ROUTES: Routes = [
   {
     path: 'empresa/integraciones',
     title: 'Integraciones | FashionStore',
-    canActivate: [authGuard, tenantScopeGuard],
+    canActivate: [tenantScopeGuard, authGuard],
     data: { permission: 'integrations.read' },
     loadComponent: () =>
       import('./presentation/integraciones.component').then(
@@ -79,7 +86,7 @@ export const EMPRESA_ROUTES: Routes = [
   {
     path: 'mi-suscripcion',
     title: 'Mi suscripción | FashionStore',
-    canActivate: [authGuard, tenantScopeGuard],
+    canActivate: [tenantScopeGuard, authGuard],
     data: { permission: 'my_subscription.read' },
     loadComponent: () =>
       import('../plataforma-saas/presentation/mi-suscripcion.component').then(

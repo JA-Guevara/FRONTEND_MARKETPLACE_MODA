@@ -1,7 +1,7 @@
 import { offlineGuard } from './offline/offline-session';
 import { Routes } from '@angular/router';
 import { authGuard } from './auth.guard';
-import { tenantScopeGuard } from './scope.guard';
+import { platformScopeGuard, tenantScopeGuard } from './scope.guard';
 import { resources } from './shared/resources';
 import { addressesResource } from '../../features/usuarios-catalogo/application/resources';
 import { PLATAFORMA_ROUTES } from '../../features/plataforma-saas/plataforma.routes';
@@ -257,6 +257,7 @@ export const routes: Routes = [
         '../../features/reservas-vestidor/presentation/vestidor.component'
       ).then((m) => m.VestidorComponent),
   },
+  { path: 'mi-empresa/roles', redirectTo: 'admin/roles', pathMatch: 'full' },
   {
     path: 'admin',
     loadComponent: () =>
@@ -268,7 +269,7 @@ export const routes: Routes = [
       {
         path: 'dashboard',
         title: 'Centro de reportes | FashionStore',
-        canActivate: [authGuard, tenantScopeGuard],
+        canActivate: [tenantScopeGuard, authGuard],
         data: { permission: 'dashboard.read' },
         loadComponent: () =>
           import('../../features/ia-reportes/presentation/dashboard.component').then(
@@ -278,7 +279,7 @@ export const routes: Routes = [
       {
         path: 'analitica-ml',
         title: 'Analítica predictiva ML | FashionStore',
-        canActivate: [authGuard, tenantScopeGuard],
+        canActivate: [tenantScopeGuard, authGuard],
         data: { permission: 'ml_dashboard.read', feature: 'ml_analytics' },
         loadComponent: () =>
           import('../../features/analitica-ml/presentation/dashboard-analitico.component').then(
@@ -288,7 +289,7 @@ export const routes: Routes = [
       {
         path: 'plataforma/ml',
         title: 'Modelos de Machine Learning | FashionStore',
-        canActivate: [authGuard],
+        canActivate: [platformScopeGuard, authGuard],
         data: { permission: 'ml_models.manage' },
         loadComponent: () =>
           import('../../features/analitica-ml/presentation/modelos-analiticos.component').then(
@@ -298,7 +299,7 @@ export const routes: Routes = [
       {
         path: 'pedidos',
         title: 'Pedidos y pagos | FashionStore',
-        canActivate: [authGuard, tenantScopeGuard],
+        canActivate: [tenantScopeGuard, authGuard],
         data: { admin: true, permission: 'commerce.read' },
         loadComponent: () =>
           import('../../features/ventas-pagos/presentation/orders-page.component').then(
@@ -308,7 +309,7 @@ export const routes: Routes = [
       {
         path: 'promociones',
         title: 'Cupones y promociones | FashionStore',
-        canActivate: [authGuard, tenantScopeGuard],
+        canActivate: [tenantScopeGuard, authGuard],
         data: { admin: true, permission: 'commerce.read' },
         loadComponent: () =>
           import(
@@ -318,7 +319,7 @@ export const routes: Routes = [
       {
         path: 'stock',
         title: 'Existencias | FashionStore',
-        canActivate: [authGuard, tenantScopeGuard],
+        canActivate: [tenantScopeGuard, authGuard],
         data: { permission: 'stock.read' },
         loadComponent: () =>
           import('../../features/ventas-pagos/presentation/stock-page.component').then(
@@ -328,21 +329,40 @@ export const routes: Routes = [
       {
         path: 'caja',
         title: 'Caja | FashionStore',
-        canActivate: [authGuard, tenantScopeGuard],
+        canActivate: [tenantScopeGuard, authGuard],
         data: { permission: 'commerce.write' },
         loadComponent: () =>
           import('../../features/ventas-pagos/presentation/pos-page.component').then(
             (m) => m.PosPageComponent
           ),
       },
-      ...resources
-        .filter((r) => r.key !== 'roles' && r.key !== 'permissions')
-        .map((r) => ({
+      ...Object.entries({
+        sucursales: 'branches', cajas: 'cash-points', ciudades: 'cities',
+        categorias: 'categories', tallas: 'sizes', colores: 'colors',
+        temporadas: 'seasons', colecciones: 'collections', proveedores: 'suppliers',
+        usuarios: 'users', permisos: 'permissions', prendas: 'products',
+        'vestidor-virtual': 'probador',
+      }).map(([path, redirectTo]) => ({ path, redirectTo, pathMatch: 'full' as const })),
+      ...(['abastecimiento', 'recursos-ar'] as const).map((path) => ({
+        path,
+        title: path === 'abastecimiento' ? 'Abastecimiento | FashionStore' : 'Recursos 3D / AR | FashionStore',
+        canActivate: [tenantScopeGuard, authGuard],
+        loadComponent: resource,
+        data: {
+          permission: 'catalog.read',
+          productSection: path,
+          resource: {
+            ...resources.find((r) => r.key === 'products')!,
+            title: path === 'abastecimiento' ? 'Abastecimiento' : 'Recursos 3D / AR',
+          },
+        },
+      })),
+      ...resources.map((r) => ({
           path: r.key,
           title: r.title + ' | FashionStore',
           loadComponent: resource,
-          canActivate: [authGuard, tenantScopeGuard],
-          data: { resource: r, permission: r.permission },
+          canActivate: [tenantScopeGuard, authGuard],
+          data: { resource: r, permission: r.permission, readOnlyResource: r.key === 'cities' },
         })),
       {
         path: 'products/:id',
@@ -351,7 +371,7 @@ export const routes: Routes = [
           import(
             '../../features/usuarios-catalogo/presentation/product-editor.component'
           ).then((m) => m.ProductEditorComponent),
-        canActivate: [authGuard, tenantScopeGuard],
+        canActivate: [tenantScopeGuard, authGuard],
         data: { permission: 'catalog.read' },
       },
       {
@@ -361,7 +381,7 @@ export const routes: Routes = [
           import(
             '../../features/probador-virtual/presentation/admin-recursos.component'
           ).then((m) => m.AdminRecursosComponent),
-        canActivate: [authGuard, tenantScopeGuard],
+        canActivate: [tenantScopeGuard, authGuard],
         data: { permission: 'catalog.read' },
       },
       {
@@ -371,7 +391,7 @@ export const routes: Routes = [
           import(
             '../../features/reservas-vestidor/presentation/admin-reservas.component'
           ).then((m) => m.AdminReservasComponent),
-        canActivate: [authGuard, tenantScopeGuard],
+        canActivate: [tenantScopeGuard, authGuard],
         data: { permission: 'reservations.read' },
       },
       {
@@ -381,7 +401,7 @@ export const routes: Routes = [
           import(
             '../../features/ventas-pagos/presentation/admin-returns.component'
           ).then((m) => m.AdminReturnsComponent),
-        canActivate: [authGuard, tenantScopeGuard],
+        canActivate: [tenantScopeGuard, authGuard],
         data: { permission: 'commerce.read' },
       },
       {
@@ -391,7 +411,7 @@ export const routes: Routes = [
           import(
             '../../features/ventas-pagos/presentation/cambios-page.component'
           ).then((m) => m.CambiosPageComponent),
-        canActivate: [authGuard, tenantScopeGuard],
+        canActivate: [tenantScopeGuard, authGuard],
         data: { permission: 'exchanges.read', feature: 'exchanges' },
       },
       {
@@ -401,7 +421,7 @@ export const routes: Routes = [
           import(
             '../../features/ia-reportes/presentation/reportes-ia.component'
           ).then((m) => m.ReportesIaComponent),
-        canActivate: [authGuard, tenantScopeGuard],
+        canActivate: [tenantScopeGuard, authGuard],
         data: { permission: 'ai_reports.use', feature: 'ai_reports' },
       },
       {
@@ -411,7 +431,7 @@ export const routes: Routes = [
           import(
             '../../features/ia-reportes/presentation/historial-reportes.component'
           ).then((m) => m.HistorialReportesComponent),
-        canActivate: [authGuard, tenantScopeGuard],
+        canActivate: [tenantScopeGuard, authGuard],
         data: { permission: 'ai_reports.use', feature: 'ai_reports' },
       },
       {
@@ -421,7 +441,7 @@ export const routes: Routes = [
           import(
             '../../features/operacion-offline/presentation/conflictos.component'
           ).then((m) => m.ConflictosSyncComponent),
-        canActivate: [authGuard, tenantScopeGuard],
+        canActivate: [tenantScopeGuard, authGuard],
         data: { permission: 'sync_conflicts.read' },
       },
       {
@@ -431,7 +451,7 @@ export const routes: Routes = [
           import(
             '../../features/operacion-offline/presentation/historial-sincronizacion.component'
           ).then((m) => m.HistorialSincronizacionComponent),
-        canActivate: [authGuard, tenantScopeGuard],
+        canActivate: [tenantScopeGuard, authGuard],
         data: { permission: 'sync_log.read' },
       },
       {
@@ -439,7 +459,7 @@ export const routes: Routes = [
         title: 'Bitácora | FashionStore',
         loadComponent: () =>
           import('./audit/audit-page.component').then((m) => m.AuditPageComponent),
-        canActivate: [authGuard, tenantScopeGuard],
+        canActivate: [tenantScopeGuard, authGuard],
         data: { permission: 'audit.read' },
       },
     ],

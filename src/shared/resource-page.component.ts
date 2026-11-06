@@ -30,6 +30,8 @@ import { IconComponent } from './icon.component';
       <div>
         <p class="eyebrow">{{ config.group }}</p>
         <h1>{{ config.title }}</h1>
+        @if (productSection) { <p class="muted">Seleccioná una prenda para gestionar sus recursos.</p> }
+        @if (readOnlyResource) { <p class="muted">Catálogo global para consultar al configurar sucursales.</p> }
         <p class="muted">{{ total() }} registros encontrados</p>
       </div>
       @if (canWrite()) {
@@ -150,7 +152,9 @@ import { IconComponent } from './icon.component';
                 }
                 <td>
                   <div class="row-actions">
-                    <button (click)="detail(item)"><fs-icon name="eye" />Ver</button>
+                    @if (!productSection) {
+                      <button (click)="detail(item)"><fs-icon name="eye" />Ver</button>
+                    }
                     @if (canWrite()) {
                       @if (!item['deleted_at']) {
                         <button (click)="open(item)"><fs-icon name="edit" />Editar</button>
@@ -208,8 +212,9 @@ import { IconComponent } from './icon.component';
                       </button>
                     }
                     @if (config.key === 'products') {
-                      <a class="button" [routerLink]="['/admin/products', item.id]">
-                        <fs-icon name="box" />Variantes y recursos
+                      <a class="button" [routerLink]="['/admin/products', item.id]"
+                         [queryParams]="productSection ? { seccion: productSection } : null">
+                        <fs-icon name="box" />{{ productSection === 'abastecimiento' ? 'Gestionar proveedores' : productSection ? 'Gestionar recursos 3D / AR' : 'Variantes y recursos' }}
                       </a>
                     }
                   </div>
@@ -351,6 +356,8 @@ export class ResourcePageComponent implements OnInit {
   private catalog = inject(CatalogService);
   session = inject(SessionService);
   config!: Resource;
+  productSection?: string;
+  readOnlyResource = false;
   items = signal<Entity[]>([]);
   total = signal(0);
   pages = signal(0);
@@ -378,6 +385,8 @@ export class ResourcePageComponent implements OnInit {
   ngOnInit() {
     this.route.data.subscribe((data) => {
       this.config = data['resource'];
+      this.productSection = data['productSection'];
+      this.readOnlyResource = data['readOnlyResource'] === true;
       this.page = 1;
       this.search = '';
       this.roleFilter = '';
@@ -388,7 +397,7 @@ export class ResourcePageComponent implements OnInit {
     });
   }
   canWrite() {
-    return !this.session.readOnly() && this.session.can(this.config.writePermission);
+    return !this.productSection && !this.readOnlyResource && !this.session.readOnly() && this.session.can(this.config.writePermission);
   }
   canDeactivateBranch(item: Entity) {
     return (
@@ -400,7 +409,7 @@ export class ResourcePageComponent implements OnInit {
     );
   }
   excelSupported() {
-    return EXCEL_RESOURCES.has(this.config.key);
+    return !this.productSection && !this.readOnlyResource && EXCEL_RESOURCES.has(this.config.key);
   }
   async load() {
     const generation = ++this.generation;

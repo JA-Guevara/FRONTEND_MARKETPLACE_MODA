@@ -1,12 +1,11 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
+import { forkJoin, of } from 'rxjs';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
+import { errorMessage } from '../../../shared/errors';
 import { EmpresaAdminApi } from '../infrastructure/empresa-admin.api';
-import {
-  PERMISSION_GROUPS,
-  PermissionGroup,
-  RoleView,
-  toPermissionCodes,
-} from '../domain/empresa-admin.models';
+import { RoleView } from '../domain/empresa-admin.models';
 import { Permission } from '../../../shared/models';
 
 @Component({
@@ -16,17 +15,18 @@ import { Permission } from '../../../shared/models';
     <div class="crumbs">Personal</div>
     <div class="page-h">
       <div>
-        <h1>Roles y permisos</h1>
+        <h1>{{ catalogOnly ? "Catálogo de permisos" : "Roles de empresa" }}</h1>
         <p>
-          Los roles de sistema son plantillas y no se editan. Crea roles propios
-          combinando permisos de tu empresa.
+          {{ catalogOnly ? "Consulta los permisos disponibles para tu empresa." : "Crea roles propios y asigna los permisos de tu empresa." }}
         </p>
       </div>
+      @if (canWrite()) {
       <div class="acts">
         <button type="button" class="btn primary" (click)="abrirModalNuevo()">
           ＋ Nuevo rol
         </button>
       </div>
+      }
     </div>
 
     @if (errorAlert()) {
@@ -43,6 +43,18 @@ import { Permission } from '../../../shared/models';
       </div>
     }
 
+    @if (loading()) {
+      <p role="status">Cargando permisos…</p>
+    } @else if (catalogOnly) {
+      <table class="matrix">
+        <thead><tr><th>Permiso</th><th>Módulo</th><th>Código</th></tr></thead>
+        <tbody>
+          @for (permission of allPermissions(); track permission.id) {
+            <tr><td>{{ permission.name }}</td><td>{{ permission.module }}</td><td>{{ permission.code }}</td></tr>
+          } @empty { <tr><td colspan="3">No hay permisos disponibles.</td></tr> }
+        </tbody>
+      </table>
+    } @else {
     <div class="roles-layout">
       <!-- Panel izquierdo: lista de roles -->
       <div class="card role-list">
@@ -85,7 +97,7 @@ import { Permission } from '../../../shared/models';
                 {{ rol.description || 'Sin descripción' }}
               </p>
             </div>
-            @if (!rol.is_template) {
+            @if (canWrite() && !locked(rol)) {
               <button
                 type="button"
                 class="btn sm"
@@ -94,7 +106,9 @@ import { Permission } from '../../../shared/models';
               >
                 {{ rol.is_active ? 'Desactivar' : 'Activar' }}
               </button>
-            } @else {
+              <button type="button" class="btn sm" (click)="editarRol(rol)">Editar</button>
+              <button type="button" class="btn sm danger" (click)="pendingDelete.set(rol)">Eliminar</button>
+            } @else if (canWrite()) {
               <button
                 type="button"
                 class="btn sm"
@@ -116,53 +130,22 @@ import { Permission } from '../../../shared/models';
           }
 
           <table class="matrix">
-            <thead>
-              <tr>
-                <th>Módulo</th>
-                <th>Ver</th>
-                <th>Gestionar</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Módulo</th><th>Permiso</th><th>Asignado</th></tr></thead>
             <tbody>
-              @for (grp of permissionGroups; track grp.module) {
+              @for (permission of allPermissions(); track permission.id) {
                 <tr>
-                  <td><b>{{ grp.module }}</b></td>
-                  <td>
-                    <label
-                      class="switch-label"
-                      [class.disabled]="rol.is_template"
-                    >
-                      <input
-                        type="checkbox"
-                        [checked]="permMatrix[grp.module]?.read"
-                        [disabled]="rol.is_template"
-                        (change)="togglePerm(grp.module, 'read')"
-                      />
-                      <span>{{ grp.read }}</span>
-                    </label>
-                  </td>
-                  <td>
-                    @if (grp.write) {
-                      <label
-                        class="switch-label"
-                        [class.disabled]="rol.is_template"
-                      >
-                        <input
-                          type="checkbox"
-                          [checked]="permMatrix[grp.module]?.write"
-                          [disabled]="rol.is_template"
-                          (change)="togglePerm(grp.module, 'write')"
-                        />
-                        <span>{{ grp.write }}</span>
-                      </label>
-                    }
-                  </td>
+                  <td>{{ permission.module }}</td>
+                  <td>{{ permission.name }} <small>{{ permission.code }}</small></td>
+                  <td><input type="checkbox" [attr.aria-label]="permission.name"
+                    [checked]="selectedPermissions.has(permission.id)"
+                    [disabled]="locked(rol) || !canWrite() || saving()"
+                    (change)="togglePermission(permission.id)" /></td>
                 </tr>
               }
             </tbody>
           </table>
 
-          @if (!rol.is_template) {
+          @if (canWrite() && !locked(rol) && catalogLoaded()) {
             <div class="acts">
               <button type="button" class="btn ghost" (click)="resetMatrix()">
                 Descartar
@@ -181,11 +164,24 @@ import { Permission } from '../../../shared/models';
       }
     </div>
 
-    <!-- Modal nuevo rol -->
+    }
+
+    @if (pendingDelete(); as role) {
+      <div class="sp2-scrim">
+        <div class="sp2-dialog" role="dialog" aria-modal="true" aria-label="Eliminar rol">
+          <h2>Eliminar {{ role.name }}</h2>
+          <p>Solo se pueden eliminar roles que no están asignados a usuarios.</p>
+          <button type="button" class="btn" (click)="pendingDelete.set(null)">Cancelar</button>
+          <button type="button" class="btn danger" [disabled]="saving()" (click)="eliminarRol(role)">Eliminar rol</button>
+        </div>
+      </div>
+    }
+
+    <!-- Modal de rol -->
     @if (modalNuevoOpen()) {
       <div class="sp2-scrim" (click)="modalNuevoOpen.set(false)">
         <div class="sp2-dialog" (click)="$event.stopPropagation()">
-          <h2>＋ Nuevo rol propio</h2>
+          <h2>{{ editingRole ? 'Editar rol propio' : 'Nuevo rol propio' }}</h2>
           <p class="muted" style="margin: 4px 0 16px; font-size: 13px">
             Crea un perfil con los permisos que requiera el personal de tu empresa.
           </p>
@@ -194,7 +190,7 @@ import { Permission } from '../../../shared/models';
             <span>Nombre del rol *</span>
             <input
               type="text"
-              [(ngModel)]="nuevoNombre"
+              [(ngModel)]="nuevoNombre" maxlength="100"
               placeholder="Ej. Vendedora de piso"
             />
           </label>
@@ -202,7 +198,7 @@ import { Permission } from '../../../shared/models';
           <label style="margin-top: 10px">
             <span>Descripción</span>
             <textarea
-              [(ngModel)]="nuevaDescripcion"
+              [(ngModel)]="nuevaDescripcion" maxlength="255"
               rows="2"
               placeholder="Breve detalle de las funciones asignadas a este rol…"
             ></textarea>
@@ -219,7 +215,7 @@ import { Permission } from '../../../shared/models';
             <button
               type="button"
               class="btn primary"
-              [disabled]="!nuevoNombre.trim() || saving()"
+              [disabled]="nuevoNombre.trim().length < 2 || saving()"
               (click)="crearRol()"
             >
               {{ saving() ? 'Creando…' : 'Crear rol' }}
@@ -233,19 +229,21 @@ import { Permission } from '../../../shared/models';
 })
 export class RolesEmpresaComponent {
   private api = inject(EmpresaAdminApi);
-
-  readonly permissionGroups = PERMISSION_GROUPS;
-
-  roles = signal<RoleView[]>([]);
-  allPermissions = signal<Permission[]>([]);
-  selectedRole = signal<RoleView | null>(null);
-
-  permMatrix: Record<string, { read: boolean; write: boolean }> = {};
-  saving = signal(false);
-  errorAlert = signal<string | null>(null);
-  successAlert = signal<string | null>(null);
-
-  modalNuevoOpen = signal(false);
+  private session = inject(SessionService);
+  readonly catalogOnly = inject(ActivatedRoute).snapshot.data['permissionsCatalog'] === true;
+  readonly roles = signal<RoleView[]>([]);
+  readonly allPermissions = signal<Permission[]>([]);
+  readonly selectedRole = signal<RoleView | null>(null);
+  readonly catalogLoaded = signal(false);
+  readonly loading = signal(false);
+  readonly saving = signal(false);
+  readonly errorAlert = signal<string | null>(null);
+  readonly successAlert = signal<string | null>(null);
+  readonly pendingDelete = signal<RoleView | null>(null);
+  readonly modalNuevoOpen = signal(false);
+  selectedPermissions = new Set<string>();
+  editingRole: RoleView | null = null;
+  private copiedPermissions: string[] = [];
   nuevoNombre = '';
   nuevaDescripcion = '';
 
@@ -253,150 +251,132 @@ export class RolesEmpresaComponent {
     this.cargarDatos();
   }
 
-  cargarDatos(): void {
-    this.api.roles().subscribe({
-      next: (list) => {
-        this.roles.set(list);
-        if (list.length > 0 && !this.selectedRole()) {
-          this.selectRole(list[0]);
-        } else if (this.selectedRole()) {
-          const updated = list.find((r) => r.id === this.selectedRole()!.id);
-          if (updated) this.selectRole(updated);
-        }
-      },
-      error: () => {},
-    });
+  canWrite(): boolean {
+    return !this.catalogOnly && !this.session.readOnly()
+      && this.session.can('roles.write');
+  }
 
-    this.api.permissions().subscribe({
-      next: (perms) => this.allPermissions.set(perms),
-      error: () => {},
+  locked(role: RoleView): boolean {
+    return role.is_template || role.is_system === true;
+  }
+
+  cargarDatos(selectedId = this.selectedRole()?.id): void {
+    this.loading.set(true);
+    this.catalogLoaded.set(false);
+    forkJoin({
+      roles: this.catalogOnly ? of([] as RoleView[]) : this.api.roles(),
+      permissions: this.api.permissions(),
+    }).subscribe({
+      next: ({ roles, permissions }) => {
+        this.roles.set(roles);
+        this.allPermissions.set(permissions);
+        this.catalogLoaded.set(true);
+        this.selectedRole.set(roles.find((role) => role.id === selectedId) ?? roles[0] ?? null);
+        this.resetMatrix();
+        this.loading.set(false);
+      },
+      error: (error) => {
+        this.errorAlert.set(errorMessage(error));
+        this.loading.set(false);
+      },
     });
   }
 
-  selectRole(r: RoleView): void {
-    this.selectedRole.set(r);
+  selectRole(role: RoleView): void {
+    this.selectedRole.set(role);
     this.errorAlert.set(null);
     this.successAlert.set(null);
-    this.buildMatrix(r);
-  }
-
-  private buildMatrix(r: RoleView): void {
-    const rolePermCodes = new Set(r.permissions.map((p) => p.code));
-    const matrix: Record<string, { read: boolean; write: boolean }> = {};
-
-    for (const grp of this.permissionGroups) {
-      matrix[grp.module] = {
-        read: rolePermCodes.has(grp.read),
-        write: grp.write ? rolePermCodes.has(grp.write) : false,
-      };
-    }
-    this.permMatrix = matrix;
+    this.resetMatrix();
   }
 
   resetMatrix(): void {
-    const r = this.selectedRole();
-    if (r) this.buildMatrix(r);
+    this.selectedPermissions = new Set(this.selectedRole()?.permissions.map((permission) => permission.id));
   }
 
-  togglePerm(module: string, type: 'read' | 'write'): void {
-    if (this.selectedRole()?.is_template) return;
-    if (!this.permMatrix[module]) {
-      this.permMatrix[module] = { read: false, write: false };
-    }
-    const current = this.permMatrix[module][type];
-    this.permMatrix[module][type] = !current;
-
-    // Si activa write, activar automáticamente read
-    if (type === 'write' && this.permMatrix[module].write) {
-      this.permMatrix[module].read = true;
-    }
-    // Si desactiva read, desactivar automáticamente write
-    if (type === 'read' && !this.permMatrix[module].read) {
-      this.permMatrix[module].write = false;
-    }
+  togglePermission(id: string): void {
+    const role = this.selectedRole();
+    if (!role || !this.canWrite() || this.locked(role) || this.saving()) return;
+    if (this.selectedPermissions.has(id)) this.selectedPermissions.delete(id);
+    else this.selectedPermissions.add(id);
   }
 
   guardarPermisos(): void {
-    const r = this.selectedRole();
-    if (!r || r.is_template || this.saving()) return;
+    const role = this.selectedRole();
+    if (!role || !this.canWrite() || this.locked(role) || !this.catalogLoaded() || this.saving()) return;
+    const ids = this.allPermissions().filter((permission) => this.selectedPermissions.has(permission.id))
+      .map((permission) => permission.id);
+    this.mutate(this.api.setRolePermissions(role.id, ids), 'Permisos actualizados.', () => this.cargarDatos(role.id));
+  }
 
-    this.saving.set(true);
-    this.errorAlert.set(null);
-    this.successAlert.set(null);
+  toggleActivo(role: RoleView): void {
+    if (!this.canWrite() || this.locked(role) || this.saving()) return;
+    const action = role.is_active ? this.api.deactivateRole(role.id) : this.api.activateRole(role.id);
+    this.mutate(action, role.is_active ? 'Rol desactivado.' : 'Rol activado.', () => this.cargarDatos(role.id));
+  }
 
-    const targetCodes = toPermissionCodes(this.permMatrix);
-    const targetIds = this.allPermissions()
-      .filter((p) => targetCodes.includes(p.code))
-      .map((p) => p.id);
-
-    this.api.setRolePermissions(r.id, targetIds).subscribe({
-      next: (res) => {
-        this.saving.set(false);
-        this.successAlert.set('Permisos actualizados correctamente.');
-        this.cargarDatos();
-      },
-      error: (err) => {
-        this.saving.set(false);
-        if (err.status === 409) {
-          this.errorAlert.set('Los roles de sistema no se editan.');
-        } else if (err.status === 403) {
-          this.errorAlert.set('No tienes permiso para asignar permisos fuera de tu empresa.');
-        } else {
-          this.errorAlert.set(err.error?.message || 'Error al actualizar permisos.');
-        }
-      },
+  eliminarRol(role: RoleView): void {
+    if (!this.canWrite() || this.locked(role) || this.saving()) return;
+    this.mutate(this.api.deleteRole(role.id), 'Rol eliminado.', () => {
+      this.pendingDelete.set(null);
+      this.cargarDatos();
     });
   }
 
-  toggleActivo(rol: RoleView): void {
-    const action = rol.is_active
-      ? this.api.deactivateRole(rol.id)
-      : this.api.activateRole(rol.id);
-
-    action.subscribe({
-      next: () => {
-        this.successAlert.set(`Rol ${rol.is_active ? 'desactivado' : 'activado'} correctamente.`);
-        this.cargarDatos();
-      },
-      error: (err) => {
-        this.errorAlert.set(err.error?.message || 'Error al cambiar estado del rol.');
-      },
-    });
+  duplicarComoPropio(role: RoleView): void {
+    this.abrirModalNuevo();
+    this.nuevoNombre = `${role.name} (Copia)`.slice(0, 100);
+    this.nuevaDescripcion = role.description ?? '';
+    const available = new Set(this.allPermissions().map((permission) => permission.id));
+    this.copiedPermissions = role.permissions.filter((permission) => available.has(permission.id))
+      .map((permission) => permission.id);
   }
 
-  duplicarComoPropio(plantilla: RoleView): void {
-    this.nuevoNombre = `${plantilla.name} (Copia)`;
-    this.nuevaDescripcion = plantilla.description ?? '';
+  editarRol(role: RoleView): void {
+    if (!this.canWrite() || this.locked(role)) return;
+    this.editingRole = role;
+    this.nuevoNombre = role.name;
+    this.nuevaDescripcion = role.description ?? '';
     this.modalNuevoOpen.set(true);
   }
 
   abrirModalNuevo(): void {
+    if (!this.canWrite()) return;
+    this.editingRole = null;
+    this.copiedPermissions = [];
     this.nuevoNombre = '';
     this.nuevaDescripcion = '';
     this.modalNuevoOpen.set(true);
   }
 
   crearRol(): void {
-    if (!this.nuevoNombre.trim() || this.saving()) return;
+    const name = this.nuevoNombre.trim();
+    if (name.length < 2 || !this.canWrite() || this.saving()) return;
+    const description = this.nuevaDescripcion.trim();
+    const code = 'rol_' + name.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 46);
+    const request = this.editingRole
+      ? this.api.updateRole(this.editingRole.id, { name, description })
+      : this.api.createRole({ code, name, description, permission_ids: this.copiedPermissions });
+    this.mutate(request, 'Rol guardado.', (role) => {
+      this.modalNuevoOpen.set(false);
+      this.cargarDatos(role.data.id);
+    });
+  }
+
+  private mutate<T>(request: import('rxjs').Observable<T>, message: string, success: (result: T) => void): void {
     this.saving.set(true);
     this.errorAlert.set(null);
-
-    this.api
-      .createRole({
-        name: this.nuevoNombre.trim(),
-        description: this.nuevaDescripcion.trim() || undefined,
-      })
-      .subscribe({
-        next: (created) => {
-          this.saving.set(false);
-          this.modalNuevoOpen.set(false);
-          this.successAlert.set('Rol creado exitosamente.');
-          this.cargarDatos();
-        },
-        error: (err) => {
-          this.saving.set(false);
-          this.errorAlert.set(err.error?.message || 'Error al crear el rol.');
-        },
-      });
+    this.successAlert.set(null);
+    request.subscribe({
+      next: (result) => {
+        this.saving.set(false);
+        this.successAlert.set(message);
+        success(result);
+      },
+      error: (error) => {
+        this.saving.set(false);
+        this.errorAlert.set(errorMessage(error));
+      },
+    });
   }
 }

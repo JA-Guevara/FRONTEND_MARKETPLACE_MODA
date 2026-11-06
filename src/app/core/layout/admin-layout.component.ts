@@ -1,6 +1,9 @@
-import { Component, inject, signal } from '@angular/core';
-import { RouterLink, RouterOutlet } from '@angular/router';
+import { Component, computed, inject, signal } from '@angular/core';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { SessionService } from '../../../features/usuarios-catalogo/application/session.service';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { filter, map } from 'rxjs';
+import { ADMIN_NAV, lockedByPlan, visibleSections } from './admin-nav';
 import { ConnectivityService } from '../offline/connectivity.service';
 import { AdminTopbarComponent } from './admin-topbar.component';
 import { SupportStripComponent } from './support-strip.component';
@@ -13,6 +16,7 @@ import { CommandPaletteComponent } from './command-palette.component';
   selector: 'fs-admin-layout',
   imports: [
     RouterLink,
+    RouterLinkActive,
     RouterOutlet,
     AdminTopbarComponent,
     SupportStripComponent,
@@ -53,6 +57,14 @@ import { CommandPaletteComponent } from './command-palette.component';
             {{ session.subscription()?.status }}. Contacta al administrador para volver a operar.
           </div>
         }
+        @if (tabs().length > 1) {
+          <nav class="admin-section-tabs" aria-label="Secciones de administración">
+            @for (tab of tabs(); track tab.key) {
+              <a [routerLink]="tab.path" routerLinkActive="selected" ariaCurrentWhenActive="page"
+                 [routerLinkActiveOptions]="{ exact: true }">{{ tab.label }}</a>
+            }
+          </nav>
+        }
         <router-outlet />
       </section>
     </div>
@@ -65,4 +77,19 @@ export class AdminLayoutComponent {
   session = inject(SessionService);
   connection = inject(ConnectivityService);
   sidebarOpen = signal(false);
+  private router = inject(Router);
+  private currentUrl = toSignal(this.router.events.pipe(
+    filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+    map((event) => event.urlAfterRedirects),
+  ), { initialValue: this.router.url });
+  readonly tabs = computed(() => {
+    const path = this.currentUrl().split(/[?#]/, 1)[0];
+    const group = visibleSections(ADMIN_NAV, {
+      scope: this.session.scope(),
+      isSupport: this.session.isSupport(),
+      can: (permission) => this.session.can(permission),
+    }).flatMap((section) => section.items)
+      .find((item) => item.children?.some((tab) => tab.path === path));
+    return (group?.children ?? []).filter((tab) => !lockedByPlan(tab, (feature) => this.session.hasFeature(feature)));
+  });
 }

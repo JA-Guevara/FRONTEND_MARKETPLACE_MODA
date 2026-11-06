@@ -85,6 +85,26 @@ describe('admin-nav', () => {
     expect(inv?.items.map((i) => i.key)).toEqual(['stock']);
   });
 
+  it('permite descubrir los CRUD de empresa desde sus grupos', () => {
+    const sections = visibleSections(ADMIN_NAV, { scope: 'tenant', isSupport: false, can: () => true });
+    const links = sections.flatMap((section) => section.items.flatMap((item) => item.children ?? [item]));
+    expect(links.map((link) => link.path)).toEqual(expect.arrayContaining([
+      '/admin/cash-points', '/admin/cities', '/admin/sizes', '/admin/colors',
+      '/admin/seasons', '/admin/collections', '/admin/abastecimiento',
+      '/admin/recursos-ar', '/admin/roles', '/admin/permissions',
+    ]));
+    expect(links.some((link) => link.path.startsWith('/admin/plataforma'))).toBe(false);
+  });
+
+  it('abre Roles para quien puede gestionar roles sin acceso a Usuarios', () => {
+    const sections = visibleSections(ADMIN_NAV, {
+      scope: 'tenant', isSupport: false, can: (permission) => !permission || permission === 'roles.read',
+    });
+    const personal = sections.find((section) => section.title === 'Personal')?.items[0];
+    expect(personal?.path).toBe('/admin/roles');
+    expect(personal?.children?.map((item) => item.path)).toEqual(['/admin/roles', '/admin/permissions']);
+  });
+
   it('lockedByPlan(Reportes con IA) sin ai_reports retorna true', () => {
     const iaItem: NavItem = {
       key: 'ia',

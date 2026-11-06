@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
@@ -191,6 +192,7 @@ describe('Panel de empresa (Ola 2)', () => {
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
+        { provide: SessionService, useValue: { isSupport: () => false, readOnly: () => false, can: () => true } },
         { provide: EmpresaAdminApi, useValue: api },
       ],
     });
@@ -220,12 +222,13 @@ describe('Panel de empresa (Ola 2)', () => {
     const api = {
       roles: vi.fn(() => of(mockRoles)),
       permissions: vi.fn(() => of([{ id: 'p1', code: 'commerce.read', name: 'commerce.read', module: 'commerce' }])),
-      setRolePermissions: vi.fn(() => throwError(() => ({ status: 409, error: { message: 'system_role_locked' } }))),
+      setRolePermissions: vi.fn(() => throwError(() => (new HttpErrorResponse({ status: 409, error: { error: { code: 'system_role_locked', message: 'Los roles de sistema no se editan.' } } })))),
     };
 
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
+        { provide: SessionService, useValue: { isSupport: () => false, readOnly: () => false, can: () => true } },
         { provide: EmpresaAdminApi, useValue: api },
       ],
     });

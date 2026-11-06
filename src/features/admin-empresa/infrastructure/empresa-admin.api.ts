@@ -51,14 +51,14 @@ export class EmpresaAdminApi {
   }
 
   roles(): Observable<RoleView[]> {
-    return this.api.get<RoleView[]>('/roles');
+    return this.api.get<RoleView[]>('/roles', { include_inactive: true });
   }
 
   permissions(): Observable<Permission[]> {
     return this.api.get<Permission[]>('/roles/permissions/all');
   }
 
-  createRole(body: { name: string; description?: string; permissions?: string[] }) {
+  createRole(body: { code: string; name: string; description?: string; permission_ids?: string[] }) {
     return this.api.write<RoleView>('POST', '/roles', body);
   }
 
@@ -67,14 +67,18 @@ export class EmpresaAdminApi {
   }
 
   setRolePermissions(id: string, permissionIds: string[]) {
-    return this.api.write<RoleView>('PUT', `/roles/${id}/permissions`, { permissions: permissionIds });
+    return this.api.write<RoleView>('PUT', `/roles/${id}/permissions`, { permission_ids: permissionIds });
   }
 
   deactivateRole(id: string) {
-    return this.api.write<RoleView>('PATCH', `/roles/${id}/deactivate`);
+    return this.api.write<RoleView>('POST', `/roles/${id}/deactivate`);
+  }
+
+  deleteRole(id: string) {
+    return this.api.write<null>('DELETE', `/roles/${id}`);
   }
 
   activateRole(id: string) {
-    return this.api.write<RoleView>('PATCH', `/roles/${id}/activate`);
+    return this.api.write<RoleView>('POST', `/roles/${id}/activate`);
   }
 }

@@ -51,7 +51,7 @@ export const organizationResources: Resource[] = [
     path: `${base}/cities`,
     group: 'Organización',
     permission: 'branches.read',
-    writePermission: 'branches.write',
+    writePermission: 'cities.write',
     states: true,
     columns: [
       { key: 'name', label: 'Ciudad' },

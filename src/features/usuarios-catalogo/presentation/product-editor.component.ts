@@ -15,7 +15,7 @@ import { lookup } from '../application/resources';
   selector: 'fs-product-editor',
   imports: [RouterLink, FormsModule, EntityFormComponent, ImageFormComponent, DialogFocusDirective],
   template: `
-    <a routerLink="/admin/products" class="back-link">← Todas las prendas</a>
+    <a [routerLink]="listPath" class="back-link">← Volver a la lista</a>
     <div class="page-heading">
       <div>
         <p class="eyebrow">CATÁLOGO / DETALLE</p>
@@ -41,14 +41,14 @@ import { lookup } from '../application/resources';
       <div class="panel">
         <div class="page-heading">
           <h2>{{ sectionTitle() }}</h2>
-          @if (canWrite() && !p['deleted_at'] && section !== 'ar-assets') {
+          @if (canWrite() && !p['deleted_at'] && section !== 'tryon') {
             <button class="primary" (click)="open()">+ Agregar {{ singular() }}</button>
           }
         </div>
         @if (section === 'suppliers') {
           <p class="muted">La lista se guarda completa. Solo un proveedor puede ser principal.</p>
         }
-        @if (section === 'ar-assets') {
+        @if (section === 'tryon') {
             <p class="muted">
               Esta es la única configuración necesaria: el sistema toma la imagen principal del catálogo,
               la prepara para cada color y muestra una vista previa antes de habilitarla en cámara.
@@ -60,6 +60,7 @@ import { lookup } from '../application/resources';
                 Se usa la foto principal de esta prenda; se quita el fondo, se calculan los anclajes
                 y se genera la imagen transparente que verá el cliente.
               </p>
+              @if (canWrite() && !p['deleted_at']) {
               <label>Color de la foto<select [(ngModel)]="colorProbador" [disabled]="preparando()">
                 <option value="">Seleccioná un color</option>
                 @for (color of coloresProbador(); track color.id) { <option [value]="color.id">{{ color.name }}</option> }
@@ -67,6 +68,7 @@ import { lookup } from '../application/resources';
               <button type="button" (click)="prepararProbador()" [disabled]="preparando() || !colorProbador">
                 {{ preparando() ? 'Preparando…' : 'Preparar desde la foto' }}
               </button>
+              }
               @if (prepararMensaje()) {
                 <p class="alert" role="status">{{ prepararMensaje() }}</p>
               }
@@ -100,7 +102,7 @@ import { lookup } from '../application/resources';
             }
           </div>
         }
-        <div class="table-wrap" [hidden]="section === 'images' || section === 'ar-assets'">
+        <div class="table-wrap" [hidden]="section === 'images' || section === 'tryon'">
           <table>
             <thead>
               <tr>
@@ -155,7 +157,7 @@ import { lookup } from '../application/resources';
                       }
                       @case ('ar-assets') {
                         <span class="badge" [class.inactive]="!item['is_active']">{{
-                          item['is_active'] ? 'Activo (en uso por el probador)' : 'Inactivo'
+                          item['is_active'] ? 'Activo' : 'Inactivo'
                         }}</span>
                         <a [href]="item['asset_url']" target="_blank" rel="noopener noreferrer"
                           >Abrir recurso ↗</a
@@ -267,14 +269,20 @@ export class ProductEditorComponent {
   prepararMensaje = signal('');
   tryOnAssets = signal<Entity[]>([]);
   colorProbador = '';
-  section = this.route.snapshot.queryParamMap.get('seccion') === 'probador' ? 'ar-assets' : 'variants';
+  private readonly initialSection = this.route.snapshot.queryParamMap.get('seccion');
+  readonly listPath = this.initialSection === 'abastecimiento' ? '/admin/abastecimiento'
+    : this.initialSection === 'recursos-ar' ? '/admin/recursos-ar' : '/admin/products';
+  section = this.initialSection === 'probador' ? 'tryon'
+    : this.initialSection === 'recursos-ar' ? 'ar-assets'
+    : this.initialSection === 'abastecimiento' ? 'suppliers' : 'variants';
   current: Entity | null = null;
   pending: Entity | null = null;
   fields: Field[] = [];
   tabs = [
     { key: 'variants', label: 'Variantes' },
     { key: 'images', label: 'Imágenes' },
-    { key: 'ar-assets', label: 'Preparar probador' },
+    { key: 'tryon', label: 'Preparar probador' },
+    { key: 'ar-assets', label: 'Recursos 3D / AR' },
     { key: 'suppliers', label: 'Proveedores' },
   ];
   private get path() {
@@ -284,7 +292,8 @@ export class ProductEditorComponent {
     void this.load();
   }
   canWrite() {
-    return this.session.can('catalog.write');
+    return !this.session.readOnly() && this.session.can('catalog.write')
+      && (this.section !== 'suppliers' || this.session.can('suppliers.read'));
   }
   async load() {
     this.error.set('');
@@ -350,6 +359,7 @@ export class ProductEditorComponent {
     return this.suppliers().find((s) => s.id === id)?.['business_name'] || id;
   }
   open(item: Entity | null = null) {
+    if (!this.canWrite() || this.product()?.['deleted_at']) return;
     this.current = item;
     this.formError.set('');
     const defs: Record<string, Field[]> = {
@@ -380,6 +390,16 @@ export class ProductEditorComponent {
         { key: 'alt_text', label: 'Descripción de la imagen', maxLength: 255 },
         { key: 'sort_order', label: 'Orden', type: 'number', min: 0, default: 0 },
         { key: 'is_primary', label: 'Imagen principal', type: 'checkbox' },
+      ],
+      'ar-assets': [
+        {
+          key: 'asset_type', label: 'Formato', type: 'select', required: true,
+          options: ['glb', 'gltf', 'usdz', ...(item?.['asset_type'] === 'image_overlay' ? ['image_overlay'] : [])]
+            .map((format) => ({ value: format, label: format.toUpperCase() })),
+        },
+        { key: 'asset_url', label: 'URL del recurso', type: 'url', required: true },
+        { key: 'preview_url', label: 'URL de vista previa', type: 'url' },
+        ...(item ? [{ key: 'is_active', label: 'Recurso activo', type: 'checkbox' as const }] : []),
       ],
       suppliers: [
         {
@@ -419,7 +439,7 @@ export class ProductEditorComponent {
    */
   async prepararProbador() {
     const id = this.route.snapshot.paramMap.get('id');
-    if (!id || !this.colorProbador || this.preparando()) return;
+    if (!id || !this.colorProbador || this.preparando() || !this.canWrite() || this.product()?.['deleted_at']) return;
     this.preparando.set(true);
     this.prepararMensaje.set('');
     try {

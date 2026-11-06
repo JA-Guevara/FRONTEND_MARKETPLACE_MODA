@@ -19,6 +19,7 @@ export interface Entity {
 }
 export interface Permission {
   id: string;
+  module?: string;
   code: string;
   name: string;
   is_active?: boolean;

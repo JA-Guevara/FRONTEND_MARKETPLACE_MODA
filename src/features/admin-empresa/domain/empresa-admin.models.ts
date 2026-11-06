@@ -58,6 +58,7 @@ export interface RoleView {
   name: string;
   description?: string | null;
   is_template: boolean;
+  is_system?: boolean;
   is_active: boolean;
   users_count: number;
   permissions: Permission[];
