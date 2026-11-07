@@ -1,4 +1,4 @@
-﻿import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map } from 'rxjs';
@@ -36,38 +36,58 @@ import {
               [title]="item.label + ' (requiere plan superior)'"
             >
               <fs-icon [name]="item.icon" class="ic" />
-              <span style="flex:1">{{ item.label }}</span>
+              <span class="nav-label">{{ item.label }}</span>
               <span class="nav-lock">PRO</span>
             </a>
           } @else {
-            <a
-              class="nav-i"
-              [routerLink]="item.path"
-              [class.group-active]="groupActive(item)"
-              routerLinkActive="on"
-              [routerLinkActiveOptions]="{
-                exact: item.path === '/admin' || item.path === '/admin/plataforma'
-              }"
-            >
-              <fs-icon [name]="item.icon" class="ic" />
-              <span style="flex:1">{{ item.label }}</span>
-              @if (isTrial(item)) { <span class="nav-trial">Prueba</span> }
-            </a>
-            @if (item.children && item.children.length > 1 && groupActive(item)) {
-              <div class="nav-sub-list">
-                @for (child of item.children; track child.key) {
-                  <a
-                    class="nav-sub-i"
-                    [routerLink]="child.path"
-                    routerLinkActive="sub-on"
-                    [routerLinkActiveOptions]="{ exact: true }"
+            <div class="nav-item-wrapper" [class.open]="isExpanded(item)">
+              <div class="nav-i-row">
+                <a
+                  class="nav-i"
+                  [routerLink]="item.path"
+                  [class.has-active-child]="hasActiveChild(item)"
+                  routerLinkActive="on"
+                  [routerLinkActiveOptions]="{ exact: isExactNav(item) }"
+                  [title]="item.label"
+                >
+                  <fs-icon [name]="item.icon" class="ic" />
+                  <span class="nav-label">{{ item.label }}</span>
+                  @if (isTrial(item)) { <span class="nav-trial">Prueba</span> }
+                </a>
+                @if (item.children && item.children.length > 1) {
+                  <button
+                    type="button"
+                    class="nav-accordion-btn"
+                    [class.expanded]="isExpanded(item)"
+                    (click)="toggleExpand(item, $event)"
+                    [title]="(isExpanded(item) ? 'Plegar ' : 'Desplegar ') + item.label"
                   >
-                    <span class="sub-dot"></span>
-                    <span>{{ child.label }}</span>
-                  </a>
+                    <span class="arrow-glyph">{{ isExpanded(item) ? '▾' : '▸' }}</span>
+                  </button>
                 }
               </div>
-            }
+              @if (item.children && item.children.length > 1 && isExpanded(item)) {
+                <div class="nav-sub-list">
+                  @for (child of item.children; track child.key) {
+                    <a
+                      class="nav-sub-i"
+                      [routerLink]="child.path"
+                      routerLinkActive="sub-on"
+                      [routerLinkActiveOptions]="{ exact: true }"
+                      [title]="subItemDescription(child.key)"
+                    >
+                      <span class="sub-dot"></span>
+                      <div class="sub-text">
+                        <span class="sub-label">{{ child.label }}</span>
+                        @if (subItemDescription(child.key); as desc) {
+                          <span class="sub-desc">{{ desc }}</span>
+                        }
+                      </div>
+                    </a>
+                  }
+                </div>
+              }
+            </div>
           }
         }
       }
@@ -123,11 +143,59 @@ export class AdminSidebarComponent {
     }
   }
 
+  expandedMap = signal<Record<string, boolean>>({});
+
   isItemLocked(item: NavItem): boolean {
     return lockedByPlan(item, (feat) => this.session.hasFeature(feat));
   }
+
+  isExactNav(item: NavItem): boolean {
+    return item.path === '/admin' || item.path === '/admin/plataforma' || !!(item.children && item.children.length > 0);
+  }
+
+  isChildPathActive(childPath: string): boolean {
+    const curr = this.currentPath();
+    if (childPath === '/admin' || childPath === '/admin/plataforma') {
+      return curr === childPath;
+    }
+    return curr === childPath || curr.startsWith(childPath + '/');
+  }
+
+  hasActiveChild(item: NavItem): boolean {
+    if (!item.children || item.children.length === 0) return false;
+    return item.children.some(child => this.isChildPathActive(child.path));
+  }
+
   groupActive(item: NavItem): boolean {
-    return !!item.children?.some(child => this.currentPath() === child.path || this.currentPath().startsWith(child.path + '/'));
+    return this.hasActiveChild(item);
+  }
+
+  isExpanded(item: NavItem): boolean {
+    const manual = this.expandedMap()[item.key];
+    if (manual !== undefined) return manual;
+    return this.hasActiveChild(item);
+  }
+
+  toggleExpand(item: NavItem, event: Event): void {
+    event.stopPropagation();
+    event.preventDefault();
+    const curr = this.isExpanded(item);
+    this.expandedMap.update(m => ({ ...m, [item.key]: !curr }));
+  }
+
+  subItemDescription(key: string): string {
+    const descs: Record<string, string> = {
+      ejecutivo: 'MRR, crecimiento y métricas clave',
+      salud: 'Servicios, latencia e incidentes',
+      despliegues: 'Diagnóstico técnico y versiones',
+      continuidad: 'Respaldos y copias globales',
+      dashboard: 'Resumen operativo del día',
+      catalog: 'Prendas y existencias',
+      pos: 'Punto de cobro y cajas',
+      reservations: 'Vestidor y probadores',
+      orders: 'Historial y devoluciones',
+    };
+    return descs[key] || '';
   }
 
   isTrial(item: NavItem): boolean {
