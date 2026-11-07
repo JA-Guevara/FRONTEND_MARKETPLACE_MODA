@@ -49,6 +49,7 @@
     }
 
     &.on,
+    &.group-active,
     &.active {
       background: var(--sidebar-active, #24231f);
       color: var(--on-sidebar-active, #faf9f6);

@@ -36,12 +36,13 @@ describe('Consola de Operación', () => {
     expect(fixture.componentInstance.copias()).toEqual([]);
   });
 
-  it('una copia reciente de otra revisión no se considera compatible', () => {
+  it('informa la actualización pendiente sin inventar una puerta bloqueada por respaldos', () => {
     status.ultimo_respaldo!.age_hours = 3; status.ultimo_respaldo!.alembic_revision = '0030';
     const fixture = TestBed.createComponent(DesplieguesPageComponent);
     fixture.detectChanges();
-    expect(fixture.componentInstance.copiaValida()).toBe(false);
-    expect(fixture.nativeElement.textContent).toContain('Puerta bloqueada');
+    expect(fixture.nativeElement.textContent).toContain('La base requiere una actualización');
+    expect(fixture.nativeElement.textContent).not.toContain('Puerta bloqueada');
+    expect(fixture.nativeElement.textContent).toContain('Esta pantalla solo consulta el estado');
   });
 
   it('sin permiso no hay grupo de operación ni llamadas a sus APIs', () => {

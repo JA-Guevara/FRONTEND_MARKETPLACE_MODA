@@ -23,9 +23,8 @@ export const ADMIN_NAV: NavSection[] = [
     scope: 'platform',
     items: [
       { key: 'tablero', label: 'Tablero', icon: 'grid', path: '/admin/plataforma', permission: 'tenants.read' },
-      { key: 'empresas', label: 'Empresas', icon: 'users', path: '/admin/plataforma/empresas', permission: 'tenants.read' },
+      { key: 'empresas', label: 'Empresas y suscripciones', icon: 'users', path: '/admin/plataforma/empresas', permission: 'tenants.read' },
       { key: 'planes', label: 'Planes de suscripción', icon: 'tag', path: '/admin/plataforma/planes', permission: 'plans.read' },
-      { key: 'suscripciones', label: 'Suscripciones', icon: 'refresh', path: '/admin/plataforma/suscripciones', permission: 'subscriptions.read' },
     ],
   },
   {
@@ -41,9 +40,15 @@ export const ADMIN_NAV: NavSection[] = [
     title: 'Operación',
     scope: 'platform',
     items: [
-      { key: 'continuidad', label: 'Continuidad y respaldos', icon: 'box', path: '/admin/plataforma/operacion/continuidad', permission: 'platform.ops.read' },
-      { key: 'despliegues', label: 'Despliegues', icon: 'refresh', path: '/admin/plataforma/operacion/despliegues', permission: 'platform.ops.read' },
-      { key: 'salud', label: 'Salud y seguridad', icon: 'heart', path: '/admin/plataforma/operacion/salud', permission: 'platform.ops.read' },
+      {
+        key: 'sistema', label: 'Estado del sistema', icon: 'heart',
+        path: '/admin/plataforma/operacion/salud', permission: 'platform.ops.read',
+        children: [
+          { key: 'salud', label: 'Estado y seguridad', icon: 'heart', path: '/admin/plataforma/operacion/salud', permission: 'platform.ops.read' },
+          { key: 'despliegues', label: 'Diagnóstico técnico', icon: 'settings', path: '/admin/plataforma/operacion/despliegues', permission: 'platform.ops.read' },
+          { key: 'continuidad', label: 'Copias globales', icon: 'box', path: '/admin/plataforma/operacion/continuidad', permission: 'platform.ops.read' },
+        ],
+      },
     ],
   },
   {

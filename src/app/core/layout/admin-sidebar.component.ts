@@ -1,5 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { filter, map } from 'rxjs';
 import { SessionService } from '../../../features/usuarios-catalogo/application/session.service';
 import { SoporteService } from '../../../features/plataforma-saas/application/soporte.service';
 import { ConnectivityService } from '../offline/connectivity.service';
@@ -41,6 +43,7 @@ import {
             <a
               class="nav-i"
               [routerLink]="item.path"
+              [class.group-active]="groupActive(item)"
               routerLinkActive="on"
               [routerLinkActiveOptions]="{
                 exact: item.path === '/admin' || item.path === '/admin/plataforma'
@@ -64,6 +67,11 @@ import {
   styleUrl: './admin-sidebar.component.scss',
 })
 export class AdminSidebarComponent {
+  private router = inject(Router);
+  private currentPath = toSignal(this.router.events.pipe(
+    filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+    map(event => event.urlAfterRedirects.split('?')[0]),
+  ), {initialValue: this.router.url.split('?')[0]});
   session = inject(SessionService);
   private soporte = inject(SoporteService);
   private connection = inject(ConnectivityService);
@@ -102,6 +110,9 @@ export class AdminSidebarComponent {
 
   isItemLocked(item: NavItem): boolean {
     return lockedByPlan(item, (feat) => this.session.hasFeature(feat));
+  }
+  groupActive(item: NavItem): boolean {
+    return !!item.children?.some(child => this.currentPath() === child.path || this.currentPath().startsWith(child.path + '/'));
   }
 
   isTrial(item: NavItem): boolean {

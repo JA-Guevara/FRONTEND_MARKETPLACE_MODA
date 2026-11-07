@@ -7,7 +7,7 @@ import { OperacionViewState } from './operacion-view-state';
 
 @Component({
   standalone: true, selector: 'fs-despliegues-page', styleUrl: './despliegues-page.component.scss',
-  template: `<section class="operation-page"><header><div><p class="eyebrow">OPERACIÓN</p><h1>Despliegues y migraciones</h1></div><button (click)="reload()" [disabled]="loading() || !permitted()">Actualizar</button></header>
+  template: `<section class="operation-page"><header><div><p class="eyebrow">ESTADO DEL SISTEMA</p><h1>Diagnóstico técnico</h1><p>Revisá la configuración del servidor y si la base coincide con la versión publicada.</p></div><button (click)="reload()" [disabled]="loading() || !permitted()">Actualizar</button></header>
     @if (loading()) {
       <div class="config-skeleton" role="status" aria-label="Cargando configuración de producción"><span></span><span></span><span></span></div>
     }
@@ -37,9 +37,9 @@ import { OperacionViewState } from './operacion-view-state';
         <p class="config-footnote">Solo se muestran nombres de variables; los valores nunca salen del servidor.</p>
       </article>
       <div class="kpis"><article><span>Ambiente</span><strong>{{ status.app_env }}</strong></article><article><span>Mantenimiento</span><strong>{{ status.mantenimiento ? 'Activo' : 'Inactivo' }}</strong></article></div>
-      <article [class.danger]="status.migraciones_pendientes && !copiaValida()"><h2>{{ !status.migraciones_pendientes ? 'Sin migraciones pendientes' : copiaValida() ? 'Copia compatible disponible' : 'Puerta bloqueada sin copia compatible' }}</h2>
+      <article [class.danger]="status.migraciones_pendientes"><h2>{{ status.migraciones_pendientes ? 'La base requiere una actualización' : 'Base y código actualizados' }}</h2>
       <dl><dt>Revisión de la base</dt><dd>{{ status.revision_bd || 'No disponible' }}</dd><dt>Cabeza del código</dt><dd>{{ status.cabeza_codigo }}</dd><dt>Commit</dt><dd>{{ status.git_sha || 'No informado por el despliegue' }}</dd></dl></article>
-      <article><h2>Condiciones de liberación</h2><ol><li>Pruebas de CI aprobadas.</li><li>Con migraciones pendientes, copia verificada de la misma revisión y con menos de 24 horas.</li><li>La excepción requiere autorización escrita y fecha de hoy en Bolivia; se registra en auditoría.</li></ol><p>Esta vista consulta el estado; no autoriza migraciones ni inicia despliegues.</p></article>
+      <article><h2>Cómo se actualiza la plataforma</h2><p>La publicación se realiza desde Railway. Durante la preparación, el servidor valida el destino de la base y aplica las migraciones pendientes con un bloqueo para evitar ejecuciones simultáneas.</p><p>Esta pantalla solo consulta el estado: no publica versiones ni modifica la base. El arranque actual no exige una copia ni una autorización con fecha para aplicar migraciones.</p></article>
     }</section>`,
 })
 export class DesplieguesPageComponent extends OperacionViewState {
@@ -67,8 +67,4 @@ export class DesplieguesPageComponent extends OperacionViewState {
         : 'No se pudo cargar el estado de la plataforma.'),
     });
   }
-  readonly copiaValida = computed(() => {
-    const s = this.estado(), b = s?.ultimo_respaldo;
-    return !!b && b.age_hours < 24 && b.alembic_revision === s?.revision_bd;
-  });
 }

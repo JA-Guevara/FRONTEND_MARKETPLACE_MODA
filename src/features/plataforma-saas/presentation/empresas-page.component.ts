@@ -38,8 +38,8 @@ import { IniciarSoporteDialogComponent } from './iniciar-soporte-dialog.componen
   template: `<div class="sp2-heading">
       <div>
         <p class="crumbs">Plataforma SaaS / Empresas</p>
-        <h1>Empresas contratantes</h1>
-        <p>Administra las empresas que confían en FashionStore.</p>
+        <h1>Empresas y suscripciones</h1>
+        <p>Gestioná cada empresa, su plan, vigencia y pagos desde su ficha.</p>
       </div>
       @if (session.can('tenants.write')) {
         <button class="btn primary" (click)="openNew()">＋ Nueva empresa</button>

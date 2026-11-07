@@ -12,13 +12,13 @@ import { errorMessage } from '../../../shared/errors';
 @Component({
   standalone: true, imports: [DatePipe, FormsModule, RestaurarDrawerComponent], selector: 'fs-continuidad-page',
   styleUrl: './continuidad-page.component.scss',
-  template: `<section class="operation-page"><header><div><p class="eyebrow">OPERACIÓN</p><h1>Continuidad y respaldos</h1><p>Recuperar los datos empieza por comprobar que una copia se puede restaurar.</p></div><button (click)="reload(); cargar(page())" [disabled]="!permitted() || loading()">Actualizar</button></header>
+  template: `<section class="operation-page"><header><div><p class="eyebrow">ESTADO DEL SISTEMA</p><h1>Copias globales</h1><p>Historial de respaldos de toda la plataforma y sus pruebas de restauración.</p><p>Estas copias incluyen todas las empresas. No son respaldos individuales por empresa y su restauración requiere una intervención técnica.</p></div><button (click)="reload(); cargar(page())" [disabled]="!permitted() || loading()">Actualizar</button></header>
     @if (error()) { <p role="alert">{{ error() }}</p> }
     @if (loading()) { <p role="status">Cargando estado…</p> }
     @if (estado(); as status) {
       <div class="kpis"><article [class.danger]="enPeligro()"><span>Última copia verificada</span><strong>{{ status.ultimo_respaldo ? status.ultimo_respaldo.age_hours.toFixed(1) + ' h' : 'Sin copia verificada' }}</strong></article>
       <article><span>Objetivo RPO</span><strong>24 h</strong></article><article><span>Objetivo RTO</span><strong>1 h</strong></article><article><span>Copias registradas</span><strong>{{ total() }}</strong></article></div>
-      @if (session.can('platform.ops.write')) { <form (ngSubmit)="dispatch()"><label>Motivo de la copia manual<input name="reason" [(ngModel)]="reason" required minlength="3" maxlength="300"></label><button [disabled]="busy() || reason.trim().length < 3">{{ busy() ? 'Solicitando…' : 'Respaldar ahora' }}</button></form> }
+      @if (session.can('platform.ops.write')) { <form (ngSubmit)="dispatch()"><label>Motivo de la copia global<input name="reason" [(ngModel)]="reason" required minlength="3" maxlength="300"></label><button [disabled]="busy() || reason.trim().length < 3">{{ busy() ? 'Solicitando…' : 'Solicitar copia global' }}</button></form> }
       @if (message()) { <p role="status">{{ message() }}</p> }
       @if (historyError()) { <p role="alert">{{ historyError() }}</p> }
       @if (historyLoading()) { <p role="status">Cargando historial…</p> }

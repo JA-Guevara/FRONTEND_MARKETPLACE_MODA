@@ -9,7 +9,7 @@ import { OperacionViewState } from './operacion-view-state';
 
 @Component({
   standalone: true, imports: [DatePipe, KeyValuePipe, RouterLink], selector: 'fs-salud-page', styleUrl: './salud-page.component.scss',
-  template: `<section class="operation-page"><header><div><p class="eyebrow">OPERACIÓN</p><h1>Salud y seguridad</h1></div><button (click)="reload(); check()" [disabled]="loading() || !permitted()">Actualizar</button></header>
+  template: `<section class="operation-page"><header><div><p class="eyebrow">ESTADO DEL SISTEMA</p><h1>Estado y seguridad</h1><p>Comprobá si la plataforma está disponible y detectá errores de acceso, sincronización o servicio.</p></div><button (click)="reload(); check()" [disabled]="loading() || !permitted()">Actualizar</button></header>
     @if (loading()) { <p role="status">Consultando salud…</p> } @if (error()) { <p role="alert">{{ error() }}</p> }
     @if (estado(); as status) {
       <div class="kpis"><article [class.danger]="ready() === false"><span>API y base</span><strong>{{ ready() === null ? 'Comprobando…' : ready() ? 'Lista' : 'No lista' }}</strong></article>
