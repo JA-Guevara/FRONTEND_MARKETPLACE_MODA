@@ -293,7 +293,7 @@ export class AuthPageComponent {
       if (this.mode === 'login') {
         await firstValueFrom(this.session.login(this.email, this.password, this.tenantSlug(), this.empresa === '__platform__'));
         const target = this.route.snapshot.queryParamMap.get('returnUrl');
-        const isClient = this.session.isClient();
+        const isClient = this.session.isClient?.();
         const safeTarget = target && (!isClient || !target.startsWith('/admin')) ? target : null;
         await this.router.navigateByUrl(
           safeTarget?.startsWith('/') && !safeTarget.startsWith('//') && !safeTarget.includes('://')

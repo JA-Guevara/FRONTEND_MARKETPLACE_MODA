@@ -26,7 +26,7 @@ export const administrativeGuard: CanActivateFn = () => {
   if (!session.user()) {
     return router.parseUrl('/iniciar-sesion');
   }
-  if (session.isClient() || !session.administrative()) {
+  if (session.isClient?.() || !session.administrative()) {
     const slug = session.tenant()?.slug;
     return router.parseUrl(slug ? `/tienda/${slug}` : '/mi-cuenta');
   }

@@ -78,7 +78,7 @@ export class AdminLayoutComponent {
   connection = inject(ConnectivityService);
   sidebarOpen = signal(false);
   constructor() {
-    if (this.session.isClient()) {
+    if (this.session.isClient?.()) {
       const slug = this.session.tenant()?.slug;
       void this.router.navigateByUrl(slug ? `/tienda/${slug}` : '/mi-cuenta');
     }
