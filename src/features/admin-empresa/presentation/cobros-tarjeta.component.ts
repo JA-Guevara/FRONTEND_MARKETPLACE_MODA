@@ -104,9 +104,11 @@ import { MetodosCobroComponent } from './metodos-cobro.component';
             <p class="alert danger" role="alert">{{ actionError() }}</p>
           }
           <p class="help">
-            FashionStore no ve ni guarda tus claves de Stripe: tú inicias sesión en Stripe y
-            autorizas la conexión.
+            Completá el registro de tu empresa en Stripe Connect. Stripe solicita y verifica
+            los datos de la empresa y de su cuenta de cobro; FashionStore no guarda tus claves secretas.
+            La tarjeta aparece en tu tienda cuando Stripe habilita los cargos.
           </p>
+          <p class="help">Los avisos de pago se muestran cuando el servidor confirma el cobro. Volver de Stripe o crear un pedido no acredita dinero.</p>
         </article>
         <article class="card">
           <h2>Métodos manuales</h2>

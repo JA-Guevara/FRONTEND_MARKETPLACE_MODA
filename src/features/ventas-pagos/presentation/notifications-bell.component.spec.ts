@@ -3,6 +3,7 @@ import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { Aviso, NotificationsBellComponent } from './notifications-bell.component';
 import { ApiService } from '../../../app/core/shared/api.service';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 
 function aviso(cambios: Partial<Aviso> = {}): Aviso {
   return {
@@ -21,13 +22,13 @@ function aviso(cambios: Partial<Aviso> = {}): Aviso {
 /** `visto` simula lo que la persona ya habia leido en este navegador. */
 async function setup(avisos: Aviso[] = [aviso()], falla = false, visto = '') {
   localStorage.clear();
-  if (visto) localStorage.setItem('fashionstore.avisos.visto', visto);
+  if (visto) localStorage.setItem('fashionstore.avisos.visto.guest:platform:', visto);
   const api = {
     get: vi.fn().mockReturnValue(falla ? throwError(() => new Error('caido')) : of(avisos)),
   };
   TestBed.configureTestingModule({
     imports: [NotificationsBellComponent],
-    providers: [provideRouter([]), { provide: ApiService, useValue: api }],
+    providers: [provideRouter([]), { provide: ApiService, useValue: api }, { provide: SessionService, useValue: {} }],
   });
   const fixture = TestBed.createComponent(NotificationsBellComponent);
   await fixture.whenStable();
@@ -51,7 +52,7 @@ describe('Campanita de avisos', () => {
     ]);
     campana.marcarLeidos();
     expect(campana.sinLeer()).toBe(0);
-    expect(localStorage.getItem('fashionstore.avisos.visto')).toBe('2026-09-18T12:00:00+00:00');
+    expect(localStorage.getItem('fashionstore.avisos.visto.guest:platform:')).toBe('2026-09-18T12:00:00+00:00');
   });
 
   it('un aviso posterior a lo leído vuelve a contar', async () => {

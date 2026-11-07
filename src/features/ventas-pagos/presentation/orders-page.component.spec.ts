@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { NoticesService } from '../../../app/core/notices.service';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { OrdersPageComponent } from './orders-page.component';
 import { CommerceService } from '../infrastructure/commerce.service';
@@ -31,11 +32,13 @@ describe('Retorno de Stripe en pedidos', () => {
     expect(api.verifyPayment).toHaveBeenCalledWith(pending.id, false);
     expect(fixture.componentInstance.orders()[0].payment_reference).toBe('pi_verified');
     expect(fixture.nativeElement.textContent).toContain('Pago confirmado por Stripe');
+    expect(TestBed.inject(NoticesService).modal()?.title).toBe('Pago confirmado');
     expect(fixture.nativeElement.textContent).not.toContain('Pagar con Stripe');
   });
   it('el parámetro success no acredita un pedido que el servidor mantiene pendiente', async () => {
     const { fixture } = await setup({ payment: 'success', pedido: pending.id }, false, pending);
     expect(fixture.nativeElement.textContent).toContain('Stripe todavía no confirma');
+    expect(TestBed.inject(NoticesService).modal()?.title).toBe('Pago pendiente de confirmación');
     expect(fixture.nativeElement.textContent).toContain('Pagar con Stripe');
   });
   it('admite sesiones antiguas cuyo retorno no tenía identificador del pedido', async () => {

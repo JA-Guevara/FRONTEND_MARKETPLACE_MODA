@@ -29,7 +29,7 @@ describe('Compra desde el carrito', () => {
     const api = {
       branches: vi.fn().mockResolvedValue([{ id: 'b1', name: 'Centro' }]),
       cart: vi.fn().mockResolvedValue(cart),
-      write: vi.fn().mockResolvedValue({ id: 'order1' }),
+      write: vi.fn().mockResolvedValue({ id: 'order1', number: 'FS-001', total: '100.00', currency: 'BOB', payment_status: 'pending' }),
     };
     TestBed.configureTestingModule({
       providers: [

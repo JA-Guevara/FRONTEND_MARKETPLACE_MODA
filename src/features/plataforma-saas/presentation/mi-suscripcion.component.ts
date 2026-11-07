@@ -15,6 +15,7 @@ import { FEATURE_LABELS } from '../domain/plan.models';
 import { EstadoCuentaComponent } from './estado-cuenta.component';
 import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { StripeSaasApi, TenantBillingPlan } from '../infrastructure/stripe-saas.api';
+import { NoticesService } from '../../../app/core/notices.service';
 
 @Component({
   selector: 'fs-mi-suscripcion',
@@ -36,7 +37,7 @@ import { StripeSaasApi, TenantBillingPlan } from '../infrastructure/stripe-saas.
       <div class="card subscription-skeleton" role="status" aria-label="Cargando suscripción"><span></span><span></span><span></span></div>
     }
     @if (returnedFromPayment) {
-      <p class="alert info" role="status">Recibimos tu pago. La suscripción se actualiza en unos segundos.</p>
+      <p class="alert info" role="status">Volviste de Stripe. El pago del plan se acredita cuando el servidor recibe la confirmación; revisá el estado de cuenta.</p>
     }
     @if (detail(); as d) {
       @if (canManage()) {
@@ -250,6 +251,8 @@ export class MiSuscripcionComponent {
 
   constructor() {
     this.load();
+    if (this.returnedFromPayment) inject(NoticesService).show({key: 'billing:checkout-return', title: 'Verificando el pago del plan',
+      detail: 'Volver de Checkout no confirma el cobro. La factura y la suscripción se actualizan cuando Stripe confirma el resultado al servidor.', tone: 'info', important: true});
   }
   load() {
     this.loading.set(true); this.error.set(''); this.detail.set(null);

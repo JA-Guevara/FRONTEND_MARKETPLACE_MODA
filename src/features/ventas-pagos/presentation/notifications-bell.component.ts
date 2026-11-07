@@ -1,14 +1,15 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { IconComponent } from '../../../shared/icon.component';
 import { ApiService } from '../../../app/core/shared/api.service';
 import { firstValueFrom } from 'rxjs';
+import { NoticesService } from '../../../app/core/notices.service';
 
 /** Un aviso del feed del cliente, tal como lo arma el servidor. */
 export interface Aviso {
   id: string;
-  tipo: 'pedido' | 'reserva' | 'devolucion';
+  tipo: 'pedido' | 'reserva' | 'devolucion' | 'suscripcion';
   estado: string;
   titulo: string;
   detalle: string;
@@ -22,6 +23,7 @@ const ICONOS: Record<string, string> = {
   pedido: 'box',
   reserva: 'calendar',
   devolucion: 'refresh',
+  suscripcion: 'calendar',
 };
 
 /** Marca de tiempo del último aviso que la persona ya vio. */
@@ -100,6 +102,8 @@ const CLAVE_VISTO = 'fashionstore.avisos.visto';
 })
 export class NotificationsBellComponent {
   private api = inject(ApiService);
+  private notices = inject(NoticesService);
+  private storageKey() { return CLAVE_VISTO + '.' + this.notices.scope(); }
   abierto = signal(false);
   cargando = signal(false);
   error = signal('');
@@ -113,7 +117,13 @@ export class NotificationsBellComponent {
   });
 
   constructor() {
-    void this.cargar();
+    effect(() => {
+      this.notices.scope();
+      untracked(() => {
+        this.avisos.set([]); this.abierto.set(false); this.cargando.set(false);
+        this.visto.set(this.leerVisto()); void this.cargar();
+      });
+    });
   }
 
   icono(a: Aviso) {
@@ -133,13 +143,15 @@ export class NotificationsBellComponent {
     if (this.cargando()) return;
     this.cargando.set(true);
     this.error.set('');
+    const scope = this.notices.scope();
     try {
-      this.avisos.set(await firstValueFrom(this.api.get<Aviso[]>('/notifications', { limit: 20 })));
+      const items = await firstValueFrom(this.api.get<Aviso[]>('/notifications', { limit: 20 }));
+      if (scope === this.notices.scope()) this.avisos.set(items);
     } catch {
       // Un fallo acá no puede romper la barra de navegación.
-      this.error.set('No pudimos cargar los avisos.');
+      if (scope === this.notices.scope()) this.error.set('No pudimos cargar los avisos.');
     } finally {
-      this.cargando.set(false);
+      if (scope === this.notices.scope()) this.cargando.set(false);
     }
   }
 
@@ -148,7 +160,7 @@ export class NotificationsBellComponent {
     if (!ultimo) return;
     this.visto.set(ultimo);
     try {
-      localStorage.setItem(CLAVE_VISTO, ultimo);
+      localStorage.setItem(this.storageKey(), ultimo);
     } catch {
       // Sin almacenamiento el punto rojo vuelve al recargar; no es grave.
     }
@@ -156,7 +168,7 @@ export class NotificationsBellComponent {
 
   private leerVisto(): string {
     try {
-      return localStorage.getItem(CLAVE_VISTO) || '';
+      return localStorage.getItem(this.storageKey()) || '';
     } catch {
       return '';
     }

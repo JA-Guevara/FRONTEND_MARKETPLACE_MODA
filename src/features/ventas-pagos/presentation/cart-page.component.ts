@@ -10,6 +10,7 @@ import { ApiService } from '../../../app/core/shared/api.service';
 import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { errorMessage } from '../../../shared/errors';
 import { IconComponent } from '../../../shared/icon.component';
+import { NoticesService } from '../../../app/core/notices.service';
 @Component({
   selector: 'fs-cart-page',
   imports: [FormsModule, RouterLink, DecimalPipe, UpperCasePipe, IconComponent],
@@ -243,6 +244,7 @@ import { IconComponent } from '../../../shared/icon.component';
   </section>`,
 })
 export class CartPageComponent {
+  private notices = inject(NoticesService);
   api = inject(CommerceService);
   private router = inject(Router);
   private session = inject(SessionService);
@@ -418,6 +420,7 @@ export class CartPageComponent {
     }
   }
   async buy() {
+    const noticeScope = this.notices.scope();
     if (this.busy() || !this.canBuy()) return;
     this.busy.set(true);
     this.error.set('');
@@ -433,6 +436,10 @@ export class CartPageComponent {
         payment_method: this.method,
         coupon_code: this.coupon || null,
       });
+      if (noticeScope !== this.notices.scope()) return;
+      this.notices.show({key: `order:${order.id}:created`, title: order.payment_status === 'paid' ? 'Pedido confirmado' : 'Pedido creado · pago pendiente',
+        detail: `${order.number} · ${order.total} ${order.currency.toUpperCase()}. ` + (order.payment_status === 'paid' ? 'El servidor registró el pedido como pagado.' : 'Crear el pedido no acredita el pago. Continuá con el medio elegido.'),
+        tone: order.payment_status === 'paid' ? 'success' : 'info', important: true, link: `/mi-cuenta/pedidos?pedido=${order.id}`});
       await this.cartState.refresh();
       if (this.saveToProfile && !this.selectedAddress) await this.storeAddress();
       await this.router.navigate(['/mi-cuenta/pedidos'], { queryParams: { pedido: order.id } });

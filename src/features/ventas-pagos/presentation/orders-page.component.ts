@@ -8,6 +8,7 @@ import { OrderTrackerComponent } from './order-tracker.component';
 import { OrderReturnsComponent } from './order-returns.component';
 import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { errorMessage } from '../../../shared/errors';
+import { NoticesService } from '../../../app/core/notices.service';
 @Component({
   selector: 'fs-orders-page',
   imports: [
@@ -298,6 +299,14 @@ export class OrdersPageComponent {
   api = inject(CommerceService);
   session = inject(SessionService);
   private route = inject(ActivatedRoute);
+  private notices = inject(NoticesService);
+
+  private paidNotice(order: Order) {
+    if (order.payment_status !== 'paid') return;
+    this.notices.show({key: `payment:${order.id}:paid`, title: 'Pago confirmado',
+      detail: `${order.number} · ${order.total} ${order.currency.toUpperCase()}. El servidor confirmó el pago. Podés seguir la preparación o el retiro del pedido.`,
+      tone: 'success', important: true, link: `${this.admin ? "/admin/pedidos" : "/mi-cuenta/pedidos"}?pedido=${order.id}`});
+  }
   admin = this.route.snapshot.data['admin'] === true;
   selected = this.route.snapshot.queryParamMap.get('pedido');
   orders = signal<Order[]>([]);
@@ -371,6 +380,8 @@ export class OrdersPageComponent {
       this.message.set(
         'Volviste del pago. Tu pedido sigue pendiente hasta que Stripe confirme el cobro.',
       );
+      this.notices.show({key: `payment:${this.selected || 'return'}:cancelled`, title: 'Volviste de Stripe',
+        detail: 'El retorno no confirma ni cancela un cobro. Revisá el estado del pedido antes de volver a pagar.', tone: 'warning', important: true});
     } else {
       // Al abrir «Mis pedidos» sin venir del pago, se consulta igual el estado
       // de los pedidos con tarjeta sin acreditar.
@@ -385,6 +396,7 @@ export class OrdersPageComponent {
 
   /** Consulta a Stripe por los pagos con tarjeta que siguen sin acreditar. */
   private async reconciliarPendientes() {
+    const noticeScope = this.notices.scope();
     const pendientes = this.orders().filter(
       (o) => o.payment_method === 'stripe' && o.status === 'pending_payment',
     );
@@ -393,9 +405,11 @@ export class OrdersPageComponent {
     for (const pedido of pendientes.slice(0, 3)) {
       try {
         const actualizado = await this.api.verifyPayment(pedido.id, false);
+      if (noticeScope !== this.notices.scope()) return;
         this.orders.update((lista) =>
           lista.map((o) => (o.id === actualizado.id ? actualizado : o)),
         );
+        this.paidNotice(actualizado);
       } catch {
         // Un pedido que no se puede consultar no debe tumbar la pantalla ni
         // tapar los demás con un error: se queda como estaba.
@@ -403,12 +417,14 @@ export class OrdersPageComponent {
     }
   }
   async verifyPayment(id: string) {
+    const noticeScope = this.notices.scope();
     if (this.busy()) return;
     this.busy.set(true);
     this.error.set('');
     this.message.set('Consultando la confirmación de Stripe…');
     try {
       const updated = await this.api.verifyPayment(id, this.admin);
+      if (noticeScope !== this.notices.scope()) return;
       this.orders.update((orders) =>
         orders.some((o) => o.id === id)
           ? orders.map((o) => (o.id === id ? updated : o))
@@ -421,9 +437,14 @@ export class OrdersPageComponent {
             ? 'La sesión de pago expiró. Las existencias fueron liberadas.'
             : 'Stripe todavía no confirma el pago. Si ya pagaste, volvé a verificar en unos momentos.',
       );
+      if (updated.payment_status === 'paid') this.paidNotice(updated);
+      else this.notices.show({key: `payment:${id}:${updated.status}`, title: updated.status === 'expired' ? 'Sesión de pago vencida' : 'Pago pendiente de confirmación',
+        detail: updated.status === 'expired' ? 'No se confirmó un cobro en esta sesión. Revisá el pedido antes de iniciar otro pago.' : 'Stripe todavía no confirmó el cobro. Conservamos el pedido; no vuelvas a pagar si ya hiciste el intento.',
+        tone: 'warning', important: true});
     } catch (e) {
       this.message.set('');
       this.error.set(errorMessage(e));
+      if (noticeScope === this.notices.scope()) this.notices.show({key: `payment:${id}:unavailable`, title: 'No pudimos verificar el pago', detail: 'El resultado sigue sin confirmar. Revisá Mis pedidos y reintentá la verificación con conexión antes de pagar de nuevo.', tone: 'error', important: true});
     } finally {
       this.busy.set(false);
     }
@@ -463,14 +484,19 @@ export class OrdersPageComponent {
     this.tracking = o.tracking_number || '';
   }
   async pay(o: Order) {
+    const noticeScope = this.notices.scope();
     if (this.busy()) return;
     this.busy.set(true);
     this.error.set('');
     try {
       const redirected = await this.api.checkout(o.id);
+      if (noticeScope !== this.notices.scope()) return;
       if (!redirected) {
         this.message.set('Stripe confirmó que este pedido ya está pagado.');
         await this.load();
+        if (noticeScope !== this.notices.scope()) return;
+        const updated = this.orders().find(order => order.id === o.id);
+        if (updated) this.paidNotice(updated);
       }
     } catch (e) {
       this.error.set(errorMessage(e));
@@ -497,14 +523,18 @@ export class OrdersPageComponent {
       });
   }
   private async act(method: 'POST' | 'PATCH', path: string, body?: unknown) {
+    const noticeScope = this.notices.scope();
     if (this.busy()) return;
     this.busy.set(true);
     this.error.set('');
     this.message.set('');
     try {
-      await this.api.write(method, path, body);
+      const updated = await this.api.write<Order>(method, path, body);
+      if (noticeScope !== this.notices.scope()) return;
       this.editing.set('');
       this.message.set('Pedido actualizado correctamente.');
+      if (path.endsWith('/payment') && updated?.payment_status === 'paid') this.paidNotice(updated);
+      else this.notices.show({key: `${path}:${JSON.stringify(body || {})}`, title: path.endsWith('/cancel') ? 'Pedido cancelado' : 'Pedido actualizado', detail: 'El servidor registró la operación. El detalle conserva su seguimiento y la referencia.', tone: 'success'});
       await this.load();
     } catch (e) {
       this.error.set(errorMessage(e));

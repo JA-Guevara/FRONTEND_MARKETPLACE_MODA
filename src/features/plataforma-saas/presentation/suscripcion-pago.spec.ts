@@ -52,7 +52,7 @@ describe('Suscripción: pago seguro y actualización por webhook', () => {
   });
   it('el retorno ok solo informa y no activa el plan desde el navegador', async () => {
     const { fixture, component, api } = await create({}, true, true);
-    expect(fixture.nativeElement.textContent).toContain('Recibimos tu pago. La suscripción se actualiza en unos segundos.');
+    expect(fixture.nativeElement.textContent).toContain('Volviste de Stripe. El pago del plan se acredita cuando el servidor recibe la confirmación; revisá el estado de cuenta.');
     expect(component.detail()?.current.id).toBe(detail().current.id);
     expect(api.checkout).not.toHaveBeenCalled();
     expect(safeStripeUrl('javascript:alert(1)', 'checkout')).toBeNull();
