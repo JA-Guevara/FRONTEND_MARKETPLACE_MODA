@@ -1,3 +1,4 @@
+import { errorMessage } from '../../../shared/errors';
 import {
   Component,
   effect,
@@ -34,6 +35,10 @@ import { UpgradeCardComponent } from '../../../shared/ui/upgrade-card.component'
         </a>
       </div>
     </div>
+
+    @if (error()) {
+      <div class="alert error" role="alert" style="margin-bottom:14px">{{ error() }}</div>
+    }
 
     @if (dashboard(); as d) {
       @if (storeSlug(); as slug) {
@@ -208,30 +213,15 @@ export class PanelEmpresaComponent {
     });
   }
 
+  readonly error = signal<string>('');
+
   private cargarDashboard(branchId?: string): void {
+    this.error.set('');
     this.api.dashboard(branchId).subscribe({
       next: (data) => this.dashboard.set(data),
-      error: () => {
-        // Fallback demo/initial state if backend route returns 404/not yet seeded
-        this.dashboard.set({
-          sales_today: 4820,
-          orders_today: 18,
-          sales_delta_pct: 12,
-          reservations_today: 12,
-          in_fitting_room: 4,
-          critical_stock: 3,
-          plan_usage: { active_branches: 2, max_branches: 2 },
-          recent_orders: [
-            { id: '1', code: '1042', total: 350, channel: 'pos', payment_method: 'efectivo', status: 'PAGADO', created_at: '' },
-            { id: '2', code: '1041', total: 1200, channel: 'online', payment_method: 'QR', status: 'EN_PROCESO', created_at: '' },
-            { id: '3', code: '1040', total: 289, channel: 'pos', payment_method: 'tarjeta', status: 'PAGADO', created_at: '' },
-          ],
-          upcoming_reservations: [
-            { id: '1', customer_name: 'Ana Pérez', items: 2, starts_at: new Date().toISOString(), status: 'CONFIRMADA', origin: 'online' },
-            { id: '2', customer_name: 'Carlos V.', items: 1, starts_at: new Date().toISOString(), status: 'EN_ESPERA', origin: 'online' },
-            { id: '3', customer_name: 'Sofía P.', items: 3, starts_at: new Date().toISOString(), status: 'PENDIENTE', origin: 'offline' },
-          ],
-        });
+      error: (err) => {
+        this.dashboard.set(null);
+        this.error.set(errorMessage(err));
       },
     });
   }

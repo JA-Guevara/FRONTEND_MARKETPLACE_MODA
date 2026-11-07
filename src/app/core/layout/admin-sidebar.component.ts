@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+﻿import { Component, computed, inject, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map } from 'rxjs';
@@ -53,6 +53,21 @@ import {
               <span style="flex:1">{{ item.label }}</span>
               @if (isTrial(item)) { <span class="nav-trial">Prueba</span> }
             </a>
+            @if (item.children && item.children.length > 1 && groupActive(item)) {
+              <div class="nav-sub-list">
+                @for (child of item.children; track child.key) {
+                  <a
+                    class="nav-sub-i"
+                    [routerLink]="child.path"
+                    routerLinkActive="sub-on"
+                    [routerLinkActiveOptions]="{ exact: true }"
+                  >
+                    <span class="sub-dot"></span>
+                    <span>{{ child.label }}</span>
+                  </a>
+                }
+              </div>
+            }
           }
         }
       }

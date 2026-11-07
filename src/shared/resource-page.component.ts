@@ -1,5 +1,5 @@
 import { DialogFocusDirective } from './dialog-focus.directive';
-import { Component, OnInit, ViewChild, inject, signal } from '@angular/core';
+import { Component, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
@@ -40,6 +40,22 @@ import { IconComponent } from './icon.component';
         </button>
       }
     </div>
+
+    @if (relatedTabs().length > 1) {
+      <nav class="resource-subtabs" style="display:flex;gap:6px;margin: -8px 0 16px;border-bottom:1px solid var(--line);padding-bottom:10px;flex-wrap:wrap">
+        @for (tab of relatedTabs(); track tab.key) {
+          <a
+            [routerLink]="tab.path"
+            [style.fontWeight]="isCurrentTab(tab) ? '700' : '500'"
+            [style.color]="isCurrentTab(tab) ? 'var(--primary, #6c1b33)' : 'var(--ink-soft, #555)'"
+            [style.background]="isCurrentTab(tab) ? 'color-mix(in oklab, var(--primary, #6c1b33) 8%, transparent)' : 'transparent'"
+            style="padding:6px 12px;text-decoration:none;font-size:12.5px;border-radius:6px;transition:all 0.15s"
+          >
+            {{ tab.label }}
+          </a>
+        }
+      </nav>
+    }
     @if (error()) {
       <div class="alert error" role="alert">
         {{ error() }} <button (click)="load()"><fs-icon name="refresh" />Reintentar</button>
@@ -355,6 +371,45 @@ export class ResourcePageComponent implements OnInit {
   private api = inject(ApiService);
   private catalog = inject(CatalogService);
   session = inject(SessionService);
+
+  readonly relatedTabs = computed<{ label: string; path: string; key: string }[]>(() => {
+    const key = this.config?.key;
+    if (['categories', 'sizes', 'colors', 'seasons', 'collections'].includes(key)) {
+      return [
+        { label: 'Categorías', path: '/admin/categories', key: 'categories' },
+        { label: 'Tallas', path: '/admin/sizes', key: 'sizes' },
+        { label: 'Colores', path: '/admin/colors', key: 'colors' },
+        { label: 'Temporadas', path: '/admin/seasons', key: 'seasons' },
+        { label: 'Colecciones', path: '/admin/collections', key: 'collections' },
+      ];
+    }
+    if (['branches', 'cash-points', 'cities'].includes(key)) {
+      return [
+        { label: 'Sucursales', path: '/admin/branches', key: 'branches' },
+        { label: 'Puntos de caja', path: '/admin/cash-points', key: 'cash-points' },
+        { label: 'Ciudades', path: '/admin/cities', key: 'cities' },
+      ];
+    }
+    if (['suppliers'].includes(key) || this.productSection === 'abastecimiento') {
+      return [
+        { label: 'Proveedores', path: '/admin/suppliers', key: 'suppliers' },
+        { label: 'Abastecimiento', path: '/admin/abastecimiento', key: 'abastecimiento' },
+      ];
+    }
+    if (['users', 'permissions'].includes(key)) {
+      return [
+        { label: 'Usuarios', path: '/admin/users', key: 'users' },
+        { label: 'Roles de empresa', path: '/admin/roles', key: 'roles' },
+        { label: 'Catálogo de permisos', path: '/admin/permissions', key: 'permissions' },
+      ];
+    }
+    return [];
+  });
+
+  isCurrentTab(tab: { key: string }): boolean {
+    if (tab.key === 'abastecimiento') return this.productSection === 'abastecimiento';
+    return tab.key === this.config?.key && !this.productSection;
+  }
   config!: Resource;
   productSection?: string;
   readOnlyResource = false;

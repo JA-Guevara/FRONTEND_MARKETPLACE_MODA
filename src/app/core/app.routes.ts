@@ -1,7 +1,7 @@
-import { offlineGuard } from './offline/offline-session';
+﻿import { offlineGuard } from './offline/offline-session';
 import { Routes } from '@angular/router';
 import { authGuard } from './auth.guard';
-import { platformScopeGuard, tenantScopeGuard } from './scope.guard';
+import { administrativeGuard, platformScopeGuard, tenantScopeGuard } from './scope.guard';
 import { resources } from './shared/resources';
 import { addressesResource } from '../../features/usuarios-catalogo/application/resources';
 import { PLATAFORMA_ROUTES } from '../../features/plataforma-saas/plataforma.routes';
@@ -275,7 +275,7 @@ export const routes: Routes = [
     path: 'admin',
     loadComponent: () =>
       import('./layout/admin-layout.component').then((m) => m.AdminLayoutComponent),
-    canActivate: [authGuard],
+    canActivate: [authGuard, administrativeGuard],
     children: [
       ...PLATAFORMA_ROUTES,
       ...EMPRESA_ROUTES,

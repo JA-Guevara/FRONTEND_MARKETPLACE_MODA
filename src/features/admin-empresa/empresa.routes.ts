@@ -43,6 +43,7 @@ export const EMPRESA_ROUTES: Routes = [
     path: '',
     title: 'Panel | FashionStore',
     canActivate: [tenantScopeGuard, authGuard],
+    data: { permission: 'dashboard.read' },
     loadComponent: () =>
       import('./presentation/panel-empresa.component').then((m) => m.PanelEmpresaComponent),
   },

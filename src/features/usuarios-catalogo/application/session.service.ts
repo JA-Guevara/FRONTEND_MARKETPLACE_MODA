@@ -41,7 +41,10 @@ export class SessionService {
         each: this.limites.normal,
         with: () => throwError(() => errorDeTiempoLimite(url)),
       }),
-      catchError(error => { this.operationalNotices.failed(error); return throwError(() => error); }),
+      catchError((error) => {
+        this.operationalNotices.failed(error);
+        return throwError(() => error);
+      }),
     );
   }
   private tokens: Tokens | null = null;
@@ -75,16 +78,19 @@ export class SessionService {
     return !permission || this.basePermissions().has(permission);
   }
 
-  readonly isPlatformAdmin = computed(
-    () => !this.user()?.tenant && this.baseCan('tenants.read'),
-  );
+  readonly isPlatformAdmin = computed(() => !this.user()?.tenant && this.baseCan('tenants.read'));
 
   readonly readOnly = computed(() => {
     if (this.user()?.read_only || this.support()?.session.mode === 'READ_ONLY') return true;
     const s = this.subscription();
     if (!s) return false;
     if (s.lifecycle_state === 'read_only' || s.lifecycle_state === 'canceled') return true;
-    if (s.lifecycle_state === 'grace' || s.lifecycle_state === 'active' || s.lifecycle_state === 'expiring') return false;
+    if (
+      s.lifecycle_state === 'grace' ||
+      s.lifecycle_state === 'active' ||
+      s.lifecycle_state === 'expiring'
+    )
+      return false;
     const end = new Date(s.end_date + 'T23:59:59');
     return s.status !== 'ACTIVA' || end.getTime() < Date.now();
   });
@@ -104,7 +110,17 @@ export class SessionService {
     this.support() ? new Set(this.support()!.permissions) : this.basePermissions(),
   );
 
-  readonly administrative = computed(() => this.permissions().size > 0);
+  readonly isClient = computed(() => {
+    const roles = this.user()?.roles ?? [];
+    return roles.length > 0 && roles.every((r) => r.code === 'client');
+  });
+
+  readonly administrative = computed(() => {
+    if (!this.user()) return false;
+    if (this.isClient()) return false;
+    if (this.isPlatformAdmin() || this.isSupport()) return true;
+    return this.permissions().size > 0;
+  });
 
   readonly scope = computed<'platform' | 'tenant'>(() =>
     this.isPlatformAdmin() && !this.isSupport() ? 'platform' : 'tenant',
@@ -236,11 +252,12 @@ export class SessionService {
   }
 
   login(email: string, password: string, tenantSlug?: string, platform = false) {
-    return this.request<Tokens>('login', { email: email.trim().toLowerCase(), password,
-      ...(tenantSlug ? { tenant_slug: tenantSlug } : {}), ...(platform ? { platform_login: true } : {}),
-    }).pipe(
-      tap((r) => this.accept(r.data)),
-    );
+    return this.request<Tokens>('login', {
+      email: email.trim().toLowerCase(),
+      password,
+      ...(tenantSlug ? { tenant_slug: tenantSlug } : {}),
+      ...(platform ? { platform_login: true } : {}),
+    }).pipe(tap((r) => this.accept(r.data)));
   }
 
   request<T>(action: string, body: unknown, tenantSlug = environment.tenantSlug) {

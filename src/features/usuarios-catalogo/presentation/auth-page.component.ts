@@ -1,5 +1,5 @@
 import { TiendasPublicasApi, TiendaPublica } from '../../publico/infrastructure/tiendas-publicas.api';
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule, NgForm } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
@@ -53,6 +53,12 @@ import { IconComponent } from '../../../shared/icon.component';
             </div>
           }
           @if (mode === 'login' || mode === 'register') {
+            @if (fixedStore(); as fixedSlug) {
+              <div class="store-badge-card" style="margin-bottom:14px;padding:10px 14px;border-radius:8px;background:var(--surface,#f5f5f5);border:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px">
+                <span>Tienda: <strong>{{ fixedStoreName() }}</strong></span>
+                <button type="button" (click)="unlockStore()" style="background:none;border:none;color:var(--primary,#6c1b33);cursor:pointer;font-size:12px;font-weight:600">Cambiar</button>
+              </div>
+            } @else {
             <label>Empresa o tienda
               <select name="empresa" [(ngModel)]="empresa" required [disabled]="busy()">
                 <option value="">Seleccioná una empresa</option>
@@ -74,6 +80,7 @@ import { IconComponent } from '../../../shared/icon.component';
             }
             @if (errorTiendas()) {
               <p role="status">No se pudo cargar la lista. Podés ingresar el código de tu empresa.</p>
+            }
             }
           }
           @if (['login', 'register', 'forgot', 'resend'].includes(mode)) {
@@ -187,11 +194,19 @@ export class AuthPageComponent {
   error = signal('');
   message = signal('');
   done = signal(false);
+  readonly fixedStore = signal<string | null>(null);
+  readonly fixedStoreName = computed(() => {
+    const s = this.fixedStore();
+    if (!s) return '';
+    return this.tiendas().find((t) => t.slug === s)?.trade_name ?? s;
+  });
+  unlockStore(): void { this.fixedStore.set(null); }
   constructor() {
     this.route.data.subscribe((data) => {
       this.mode = data['mode'];
       const slug = this.route.snapshot.queryParamMap.get('tienda');
       this.empresa = slug && /^[a-z0-9][a-z0-9_-]{0,59}$/.test(slug) ? slug : '';
+      this.fixedStore.set(this.empresa || null);
       this.empresaCodigo = '';
       if (this.mode === 'login' || this.mode === 'register') {
         this.tiendasApi.listar(1, 100).subscribe({
@@ -283,7 +298,7 @@ export class AuthPageComponent {
             ? target
             : this.session.isPlatformAdmin() ? '/admin/plataforma'
               : this.session.administrative() ? '/admin'
-                : this.session.tenant()?.slug ? '/tienda/' + this.session.tenant()?.slug : '/',
+                : this.session.tenant()?.slug ? '/tienda/' + this.session.tenant()?.slug : '/mi-cuenta',
         );
       } else {
         const payloads: Record<string, { action: string; body: unknown }> = {
