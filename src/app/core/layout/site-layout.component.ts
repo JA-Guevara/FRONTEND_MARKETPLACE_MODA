@@ -9,7 +9,6 @@ import { TryOnListService } from '../../../features/reservas-vestidor/applicatio
 import { ACCOUNT_SECTIONS } from '../../../features/usuarios-catalogo/presentation/account-layout.component';
 import { IconComponent } from '../../../shared/icon.component';
 import { NotificationsBellComponent } from '../../../features/ventas-pagos/presentation/notifications-bell.component';
-import { AssistantWidgetComponent } from '../../../features/ventas-pagos/presentation/assistant-widget.component';
 import { CartStateService } from '../../../features/ventas-pagos/application/cart-state.service';
 @Component({
   selector: 'fs-site-layout',
@@ -23,7 +22,6 @@ import { CartStateService } from '../../../features/ventas-pagos/application/car
     RouterLinkActive,
     RouterOutlet,
     IconComponent,
-    AssistantWidgetComponent,
     NotificationsBellComponent,
   ],
   styles: `
@@ -175,7 +173,7 @@ import { CartStateService } from '../../../features/ventas-pagos/application/car
           </nav>
           <div class="account-nav">
             <fs-connection-badge />
-            @if (session.tenant(); as tenant) {
+            @if (session.administrative() && session.tenant(); as tenant) {
               <span class="tenant-switch"
                 >{{ tenant.trade_name }} · {{ session.subscription()?.plan_name }}</span
               >
@@ -259,11 +257,7 @@ import { CartStateService } from '../../../features/ventas-pagos/application/car
         </div>
       </footer>
     }
-    @if (session.user() && !session.isPlatformAdmin()) {
-      @defer (on idle) {
-        <fs-assistant-widget />
-      }
-    }`,
+    `,
 })
 export class SiteLayoutComponent {
   readonly demo = environment.demo;

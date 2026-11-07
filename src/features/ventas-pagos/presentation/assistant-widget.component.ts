@@ -16,6 +16,8 @@ import { ApiService } from '../../../app/core/shared/api.service';
 import { assistantIntent, clearsFilter, commandText, queryForCommand, requestedReports } from '../application/assistant-intent';
 import { AssistantAction, ParsedAction, resolveAction } from '../application/assistant-actions';
 import { Page } from '../../../shared/models';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { asksToNavigate, platformAssistantTopic } from '../application/assistant-platform';
 
 const EXPORT_REPORT_LABEL: Record<ExportReport, string> = {
   ventas: 'ventas', pedidos: 'pedidos', pagos: 'pagos',
@@ -91,6 +93,10 @@ interface SimpleDraft {
 
 
 const MODULE_LABELS: { prefix: string; label: string }[] = [
+  { prefix: '/admin/plataforma', label: 'Consola de plataforma SaaS' },
+  { prefix: '/admin/empresa', label: 'Configuración de la empresa' },
+  { prefix: '/sin-conexion', label: 'Operación sin conexión' },
+  { prefix: '/iniciar-sesion', label: 'Ingreso a tu cuenta' },
   { prefix: '/admin/reservas', label: 'Reservas (gestión)' },
   { prefix: '/admin/pedidos', label: 'Pedidos y pagos (gestión)' },
   { prefix: '/admin/stock', label: 'Existencias (gestión)' },
@@ -124,6 +130,7 @@ const SUGGESTIONS = [
  * muestran mensajes pendientes simulados. */
 @Component({
   selector: 'fs-assistant-widget',
+  host: { '(document:keydown.escape)': 'minimize()' },
   imports: [FormsModule, IconComponent, BotAvatarComponent],
   styles: `
     :host { display: contents; }
@@ -132,7 +139,7 @@ const SUGGESTIONS = [
       height: min(680px, calc(100dvh - 96px));
     }
     .ai-panel.expanded { height: calc(100dvh - 40px); }
-    .ai-widget { right: 22px; bottom: 22px; }
+    .ai-widget { right: max(22px, env(safe-area-inset-right)); bottom: max(22px, env(safe-area-inset-bottom)); z-index: 1100; }
     .ai-launcher { width: 62px; height: 62px; }
     .ai-panel__actions { display: flex; gap: 2px; margin-left: auto; }
     .ai-panel__actions button, .ai-panel__close {
@@ -188,7 +195,7 @@ const SUGGESTIONS = [
     @keyframes ai-speak-pulse { 50% { transform: scale(1.06); } }
     @keyframes ai-voice-wave { from { transform: scaleY(0.45); opacity: 0.65; } to { transform: scaleY(1); opacity: 1; } }
     @media (max-width: 600px) {
-      .ai-widget { right: 12px; bottom: 12px; }
+      .ai-widget { right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); }
       .ai-launcher { width: 54px; height: 54px; }
       .ai-panel {
         position: fixed; top: 50%; left: 50%; width: calc(100dvw - 16px);
@@ -236,8 +243,7 @@ const SUGGESTIONS = [
         <div class="ai-messages" #log (scroll)="onScroll()">
           @if (!history().length && !busy()) {
             <p class="ai-hint">
-              Hola{{ greetName() }}. Preguntame sobre tallas, reservas, el vestidor virtual o cómo
-              usar cualquier parte del sitio.
+              Hola{{ greetName() }}. {{ welcome() }}
             </p>
             <div class="ai-suggest">
               @for (q of suggestions(); track q) {
@@ -460,7 +466,7 @@ export class AssistantWidgetComponent implements OnDestroy {
   currentModule = signal(this.resolveModule(this.router.url));
 private lastUserText = '';
   private conversationVersion = 0;
-  private sessionUserId = this.session.user()?.id ?? null;
+  private sessionIdentity = this.sessionKey();
   /** A qué handler reintentar: los pedidos de reporte y el borrador de prenda
    * usan flujos distintos al chat general, y "Reintentar" debe repetir el
    * mismo y no caer en el chat general. */
@@ -508,14 +514,14 @@ private lastUserText = '';
       if (latestReply) untracked(() => this.speak(latestReply.text));
     });
     effect(() => {
-      const id = this.session.user()?.id ?? null;
-      if (id !== this.sessionUserId) {
-        this.sessionUserId = id;
+      const identity = this.sessionKey();
+      if (identity !== this.sessionIdentity) {
+        this.sessionIdentity = identity;
         untracked(() => this.close());
       }
     });
     this.router.events
-      .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
+      .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd), takeUntilDestroyed(this.destroyRef))
       .subscribe((e) => this.currentModule.set(this.resolveModule(e.urlAfterRedirects)));
     const SpeechRecognitionCtor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognitionCtor) {
@@ -559,9 +565,20 @@ private lastUserText = '';
     this.error.set('');
     this.productDraft.set(null);
     this.userDraft.set(null);
+    this.simpleDraft.set(null);
+    this.confirmCard.set(null);
+    this.confirmInput.set('');
+    this.busy.set(false);
+    this.draft = '';
+    this.lastActionCall = null;
+    this.lastUserText = '';
     this.clearDownloads();
   }
   async toggleVoice() {
+    if (!this.session.user() || !navigator.onLine) {
+      this.voiceError.set('Para usar voz necesitás iniciar sesión y tener conexión. Podés seguir escribiendo para recibir orientación.');
+      return;
+    }
     if (!this.voiceSupported) {
       this.voiceError.set('La grabación no está disponible en este navegador. Usá Chrome, Edge o Safari actualizado y permití el micrófono.');
       return;
@@ -808,12 +825,30 @@ private lastUserText = '';
     const name = this.session.user()?.first_name;
     return name ? ', ' + name : '';
   }
+  private sessionKey() {
+    return [this.session.user()?.id ?? '', this.session.tenant?.()?.id ?? '',
+      this.session.scope?.() ?? '', this.session.support?.()?.session.id ?? ''].join('|');
+  }
+  private platformScope() {
+    return this.session.scope?.() === 'platform';
+  }
+  welcome() {
+    if (this.platformScope()) return 'Te ayudo con empresas, suscripciones, planes, usuarios y operación de la plataforma. Las gestiones conservan tus permisos y requieren revisar los datos.';
+    if (!this.session.user()) return 'Te ayudo a elegir una tienda, ingresar a tu empresa y conocer las reservas y compras. Para gestionar datos necesitás iniciar sesión.';
+    return 'Preguntame sobre reservas, pedidos, cambios, reportes o cómo usar esta pantalla. Las acciones se revisan antes de confirmarlas.';
+  }
   contextLabel() {
     return this.currentModule() || 'Te acompaño en toda la tienda';
   }
   /** Sugerencias del panel vacío: las de siempre, más una por cada acción
    * extra que el usuario logueado puede pedirle al asistente que haga. */
   suggestions() {
+    if (this.platformScope()) {
+      return ['Abrí el panel ejecutivo', 'Mostrame empresas y suscripciones', 'Abrí los planes',
+        'Abrí usuarios globales', '¿Cómo funcionan las copias de empresa?']
+        .filter(text => { const topic = platformAssistantTopic(text); return topic && this.session.can(topic.permission); });
+    }
+    if (!this.session.user()) return ['¿Cómo elijo una tienda?', '¿Cómo ingreso a mi empresa?', '¿Cómo reservo una prenda para probármela?'];
     const list = [...SUGGESTIONS];
     if (this.session.can('dashboard.read')) {
       list.push('Exportame el reporte de ventas de este mes');
@@ -876,6 +911,7 @@ private lastUserText = '';
     this.lastUserText = text;
     this.history.update((h) => [...h, { from: 'user', text }]);
     this.scrollToBottom();
+    if (await this.localGuidance(text)) return;
     // El registro central resuelve la orden: primer chequeo de permiso con el
     // catálogo de permisos del backend; el backend valida de nuevo al ejecutar.
     const registered = resolveAction(text);
@@ -926,6 +962,42 @@ private lastUserText = '';
       this.lastIntent = 'chat';
       await this.sendToBackend();
     }
+  }
+  private async localGuidance(text: string): Promise<boolean> {
+    const reply = (message: string) => this.history.update(h => [...h, { from: 'assistant', text: message }]);
+    if (!navigator.onLine) {
+      reply('Sin conexión puedo orientarte: usá el catálogo descargado y guardá ventas o reservas como provisionales. Al reconectar, sincronizá y revisá conflictos. Los pagos con tarjeta, reintegros y cambios de configuración necesitan conexión.');
+      return true;
+    }
+    if (this.platformScope()) {
+      const topic = platformAssistantTopic(text);
+      if (topic) {
+        if (!this.session.can(topic.permission)) {
+          reply('Tu cuenta no tiene permiso para gestionar esa sección de plataforma.');
+        } else {
+          if (asksToNavigate(text)) {
+            const opened = await this.router.navigate([topic.path]);
+            if (!opened) { reply('No pude abrir esa sección. Podés acceder desde el menú autorizado.'); return true; }
+          }
+          reply(topic.help + ' Revisá y confirmá los cambios en esa pantalla; esta indicación no modifica datos.');
+        }
+        return true;
+      }
+    }
+    if (!this.session.user()) {
+      const normalized = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      if (/ingres|sesion|empresa|cuenta/.test(normalized)) {
+        if (asksToNavigate(text)) await this.router.navigate(['/iniciar-sesion']);
+        reply('En Ingresar elegí tu empresa y usá tu correo y contraseña. El equipo de plataforma tiene su acceso separado. Nunca escribas contraseñas en este chat.');
+      } else if (/reserva/.test(normalized)) {
+        reply('Elegí una tienda, seleccioná talla y color, añadí las prendas a tu reserva y elegí sucursal y horario. Iniciá sesión en esa empresa para confirmarla.');
+      } else {
+        if (asksToNavigate(text)) await this.router.navigate(['/']);
+        reply('Abrí Tiendas y elegí la empresa cuyo catálogo querés consultar. Desde cada prenda podés revisar tallas, reservar o comprar. Iniciá sesión para gestionar tus pedidos y cambios.');
+      }
+      return true;
+    }
+    return false;
   }
   /** CU: "ayudame a registrar una prenda" — la IA propone los campos, pero
    * nunca crea nada sola: el admin revisa este borrador y confirma, igual que
@@ -2318,6 +2390,7 @@ async retry() {
     }
   }
   private async sendToBackend() {
+    const version = this.conversationVersion;
     this.busy.set(true);
     this.setBot('processing');
     try {
@@ -2326,12 +2399,15 @@ async retry() {
         '/assistant',
         { message: this.lastUserText, context: this.currentModule() || undefined },
       );
+      if (version !== this.conversationVersion) return;
       this.history.update((h) => [...h, { from: 'assistant', text: data.reply }]);
       this.setBot('success');
     } catch (e) {
+      if (version !== this.conversationVersion) return;
       this.setBot('error');
       this.error.set(errorMessage(e));
     } finally {
+      if (version !== this.conversationVersion) return;
       this.busy.set(false);
       // Solo marca "Ver respuesta nueva" si el usuario no estaba al pie del chat.
       const el = this.logRef?.nativeElement;
