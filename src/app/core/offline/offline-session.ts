@@ -74,7 +74,7 @@ export const offlineGuard: CanActivateFn = (route, state) => {
     if (user?.is_active && user.tenant?.status === 'ACTIVA') {
       session.user.set(user);
       session.offlineSession.set(true);
-      return true;
+      return session.can(route.data['permission']) || router.createUrlTree(['/sin-acceso']);
     }
     return router.createUrlTree(['/iniciar-sesion'], { queryParams: { returnUrl: state.url } });
   });

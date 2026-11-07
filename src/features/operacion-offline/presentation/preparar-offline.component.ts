@@ -19,7 +19,7 @@ import { PwaInstallService } from '../../../app/core/pwa/pwa-install.service';
       <div>
         <p class="crumbs">Operación / Sin conexión</p>
         <h1>Prepara tu modo sin conexión</h1>
-        <p>Tu catálogo y reservas, incluso cuando la señal no acompaña.</p>
+        <p>Tu catálogo, reservas y ventas de contado, incluso cuando la señal no acompaña.</p>
       </div>
       <fs-connection-badge />
     </div>
@@ -73,11 +73,15 @@ import { PwaInstallService } from '../../../app/core/pwa/pwa-install.service';
         }
         @if (store.meta().version) {
           <p><a routerLink="/sin-conexion/catalogo">Abrir catálogo sin conexión →</a></p>
+          @if (session.can('commerce.write')) {
+            <p><a routerLink="/sin-conexion/venta">Registrar venta de contado</a></p>
+          }
+          <p><a routerLink="/sin-conexion/operaciones">Consultar operaciones locales y sincronizar</a></p>
         }
       </section>
       <section class="panel">
         <h2>Qué se guarda</h2>
-        <p>Solo datos necesarios para consultar y preparar reservas.</p>
+        <p>Datos de tu empresa y sucursal para consultar prendas, preparar reservas y vender en efectivo.</p>
         <table class="tbl">
           <tbody>
             @for (row of counts(); track row[0]) {
@@ -89,8 +93,8 @@ import { PwaInstallService } from '../../../app/core/pwa/pwa-install.service';
           </tbody>
         </table>
         <div class="alert info">
-          Las reservas creadas aquí son provisionales. Se guardan en este navegador y necesitan
-          sincronizarse para confirmarse.
+          Las reservas y ventas creadas aquí son provisionales. Se guardan en este navegador y
+          necesitan sincronizarse para confirmarse.
         </div>
         <a routerLink="/sin-conexion/reservas">Ver reservas locales →</a>
       </section>

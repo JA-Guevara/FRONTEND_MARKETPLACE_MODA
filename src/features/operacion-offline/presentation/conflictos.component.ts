@@ -68,16 +68,16 @@ import { StatusBadgeComponent } from '../../../shared/ui/status-badge.component'
 
               @if (c.status === 'PENDING') {
                 <div class="actions">
-                  <button class="btn primary small" (click)="abrirModalResolucion(c, 'ADJUST')">
+                  <button class="btn primary small" [disabled]="c.conflict_type !== 'STOCK'" (click)="abrirModalResolucion(c, 'ADJUST')">
                     Ajustar existencias
                   </button>
-                  <button class="btn secondary small" (click)="abrirModalResolucion(c, 'AUTHORIZE_PRICE')">
+                  <button class="btn secondary small" [disabled]="c.conflict_type !== 'PRICE'" (click)="abrirModalResolucion(c, 'AUTHORIZE_PRICE')">
                     Autorizar precio
                   </button>
                   <button class="btn danger small" (click)="abrirModalResolucion(c, 'CANCEL')">
                     Cancelar operación
                   </button>
-                  <button class="btn small" (click)="resolverRapido(c, 'RETRY')">
+                  <button class="btn small" [disabled]="!['SUBSCRIPTION','PRODUCT_INACTIVE'].includes(c.conflict_type)" (click)="resolverRapido(c, 'RETRY')">
                     Reintentar
                   </button>
                 </div>
@@ -110,6 +110,12 @@ import { StatusBadgeComponent } from '../../../shared/ui/status-badge.component'
             </div>
 
             @if (tipoResolucion() === 'ADJUST') {
+              @for (linea of modalConflicto()!.lines ?? []; track linea.variant_id) {
+                <label>{{ linea.product_name }} · Disponible {{ linea.available_quantity }}
+                  <input class="input" type="number" min="0" [max]="linea.available_quantity"
+                    [(ngModel)]="cantidades[linea.variant_id]" />
+                </label>
+              }
               <div class="alert info">
                 Se ajustarán las cantidades de los ítems a la existencia disponible del servidor.
               </div>
@@ -117,7 +123,7 @@ import { StatusBadgeComponent } from '../../../shared/ui/status-badge.component'
 
             <div class="modal-actions">
               <button class="btn" (click)="cerrarModal()">Cancelar</button>
-              <button class="btn primary" [disabled]="enviando()" (click)="confirmarResolucion()">
+              <button class="btn primary" [disabled]="enviando() || notasResolucion.trim().length < 5" (click)="confirmarResolucion()">
                 {{ enviando() ? 'Guardando...' : 'Confirmar resolución' }}
               </button>
             </div>
@@ -180,6 +186,7 @@ export class ConflictosSyncComponent implements OnInit {
   modalConflicto = signal<SyncConflictItem | null>(null);
   tipoResolucion = signal<'ADJUST' | 'AUTHORIZE_PRICE' | 'CANCEL' | 'RETRY'>('ADJUST');
   notasResolucion = '';
+  cantidades: Record<string, number> = {};
   enviando = signal<boolean>(false);
 
   async ngOnInit() {
@@ -208,6 +215,8 @@ export class ConflictosSyncComponent implements OnInit {
     this.modalConflicto.set(c);
     this.tipoResolucion.set(tipo);
     this.notasResolucion = '';
+    this.cantidades = Object.fromEntries((c.lines ?? []).map(line =>
+      [line.variant_id, Math.min(line.requested_quantity, line.available_quantity)]));
   }
 
   cerrarModal() {
@@ -224,6 +233,7 @@ export class ConflictosSyncComponent implements OnInit {
       const payload: ResolveConflictPayload = {
         resolution: this.tipoResolucion(),
         resolution_notes: this.notasResolucion || undefined,
+        line_adjustments: this.tipoResolucion() === 'ADJUST' ? this.cantidades : undefined,
       };
       await this.syncApi.resolveConflict(c.id, payload);
       this.mensajeExito.set(`Conflicto resuelto con acción: ${this.tipoResolucion()}`);

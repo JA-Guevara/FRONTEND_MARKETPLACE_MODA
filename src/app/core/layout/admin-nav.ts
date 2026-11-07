@@ -183,6 +183,7 @@ export const ADMIN_NAV: NavSection[] = [
     items: [
       { key: 'offline', label: 'Preparar dispositivo', icon: 'download', path: '/sin-conexion' },
       { key: 'catalogo-offline', label: 'Catálogo sin conexión', icon: 'tag', path: '/sin-conexion/catalogo' },
+      { key: 'venta-offline', label: 'Venta de contado local', icon: 'cart', path: '/sin-conexion/venta', permission: 'commerce.write', feature: 'offline' },
       { key: 'locales', label: 'Reservas locales', icon: 'calendar', path: '/sin-conexion/reservas', feature: 'offline' },
       { key: 'operaciones-sync', label: 'Operaciones locales', icon: 'refresh', path: '/sin-conexion/operaciones', feature: 'offline' },
     ],

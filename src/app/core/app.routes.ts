@@ -16,6 +16,13 @@ const resource = () =>
 
 export const routes: Routes = [
   {
+    path: 'sin-conexion/venta',
+    canActivate: [offlineGuard],
+    data: { permission: 'commerce.write' },
+    loadComponent: () => import('../../features/operacion-offline/presentation/venta-offline.component')
+      .then(component => component.VentaOfflineComponent),
+  },
+  {
     path: 'sin-conexion',
     canActivate: [offlineGuard],
     loadComponent: () =>
@@ -76,8 +83,8 @@ export const routes: Routes = [
     path: '',
     title: 'Tiendas | FashionStore',
     loadComponent: () =>
-      import('../../features/publico/presentation/directorio-tiendas.component')
-        .then((m) => m.DirectorioTiendasComponent),
+      import('../../features/operacion-offline/presentation/catalogo-adaptable.component')
+        .then((m) => m.CatalogoAdaptableComponent),
   },
   {
     path: 'crear-tienda',
@@ -110,8 +117,8 @@ export const routes: Routes = [
     title: 'Catálogo de tienda | FashionStore',
     loadComponent: () =>
       import(
-        '../../features/usuarios-catalogo/presentation/catalog-page.component'
-      ).then((m) => m.CatalogPageComponent),
+        '../../features/operacion-offline/presentation/catalogo-adaptable.component'
+      ).then((m) => m.CatalogoAdaptableComponent),
   },
   {
     path: 'tienda/:tenantSlug/prendas/:slug/vestidor',

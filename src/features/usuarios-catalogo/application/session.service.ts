@@ -188,7 +188,7 @@ export class SessionService {
   }
 
   restore(): Promise<void> {
-    if (this.user()) return Promise.resolve();
+    if (this.user() && !this.offlineSession()) return Promise.resolve();
     if (this.restoring) return this.restoring;
     let refreshToken: string | null = null;
     try {

@@ -8,6 +8,7 @@ import { CatalogoLocalRepository } from '../infrastructure/catalogo-local.reposi
 import { SnapshotApi } from '../infrastructure/snapshot.api';
 import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { OFFLINE_DB } from '../../../app/core/offline/offline-db';
+import { ReservaOfflineStore } from './reserva-offline.store';
 import { snapshot } from '../infrastructure/offline-test-fixtures';
 describe('Alcance local por cuenta', () => {
   const user = signal<any>({ id: 'u', tenant: snapshot().tenant });
@@ -53,5 +54,17 @@ describe('Alcance local por cuenta', () => {
     await store.cargarLocal();
     expect(store.datos().productos).toEqual([]);
     expect(store.datos().clientes).toEqual([]);
+  });
+  it('releer el perfil de la misma cuenta al navegar no vacía la reserva en curso', async () => {
+    const store = TestBed.inject(OfflineCatalogStore);
+    const reserva = TestBed.inject(ReservaOfflineStore);
+    TestBed.tick();
+    await store.descargar('b');
+    TestBed.tick();
+    expect(reserva.agregar('v')).toBeNull();
+    user.set({ ...user() });
+    TestBed.tick();
+    expect(store.meta().sucursalId).toBe('b');
+    expect(reserva.items()).toEqual([{variante_id: 'v', cantidad: 1}]);
   });
 });

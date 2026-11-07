@@ -12,6 +12,8 @@ export interface OfflineSnapshot {
   full: boolean;
   tenant: TenantSummary;
   branches: { id: string; code: string; name: string; address: string }[];
+  cash_points?: { id: string; branch_id: string; code: string; name: string }[];
+  price_valid_until?: string;
   products: {
     id: string;
     name: string;

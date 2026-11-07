@@ -4,6 +4,7 @@ import { SincronizacionService } from './sincronizacion.service';
 import { SyncApi } from '../infrastructure/sync.api';
 import { OperacionesLocalesRepository } from '../infrastructure/operaciones-locales.repository';
 import { OperacionPendiente } from '../domain/reserva-offline.models';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 
 describe('SincronizacionService', () => {
   let service: SincronizacionService;
@@ -24,6 +25,8 @@ describe('SincronizacionService', () => {
     service = new SincronizacionService(
       mockSyncApi as SyncApi,
       mockRepo as OperacionesLocalesRepository,
+      { user: () => ({ id: 'usr-1', tenant: { id: 'ten-1' } }), offlineSession: () => false,
+        isSupport: () => false, can: () => true } as unknown as SessionService,
     );
   });
 

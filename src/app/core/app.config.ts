@@ -10,6 +10,7 @@ import { authInterceptor } from './auth.interceptor';
 import { timeoutInterceptor } from './timeout.interceptor';
 import { httpErrorsInterceptor } from './http-errors.interceptor';
 import { SessionService } from '../../features/usuarios-catalogo/application/session.service';
+import { SincronizacionService } from '../../features/operacion-offline/application/sincronizacion.service';
 
 /** Cadena de interceptores, del más EXTERNO al más interno.
  *
@@ -29,7 +30,11 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
     provideHttpClient(withInterceptors(interceptores)),
-    provideAppInitializer(() => inject(SessionService).restore()),
+    provideAppInitializer(() => {
+      const session = inject(SessionService);
+      const sync = inject(SincronizacionService);
+      return session.restore().then(() => sync.iniciar());
+    }),
   ],
 };
 

@@ -57,8 +57,9 @@ describe('sincronizacion.models', () => {
     };
     expect(listaParaEnviar(vencida, ahora)).toBe(true);
 
-    const enviada = { ...op, estado: 'ENVIADA' as const };
+    const enviada = { ...op, estado: 'ENVIADA' as const, actualizada_en: ahora.toISOString() };
     expect(listaParaEnviar(enviada, ahora)).toBe(false);
+    expect(listaParaEnviar({ ...enviada, actualizada_en: op.actualizada_en }, ahora)).toBe(true);
   });
 
   it('ordenarParaEnvio ordena por creada_en ascendente', () => {

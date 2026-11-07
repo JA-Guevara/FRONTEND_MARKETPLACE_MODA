@@ -65,4 +65,14 @@ describe('Reservas locales atómicas', () => {
     expect(await repo.obtener(r.id, 'other', 'u')).toBeNull();
     await expect(repo.cancelar(r.id, 't', 'other')).rejects.toThrow();
   });
+  it('convive con ventas en la misma cola sin confundir sus documentos', async () => {
+    const { r, items, op } = reservation();
+    await repo.registrar(r, items, op);
+    const db = await openOfflineDb();
+    await db.put('operaciones_pendientes', {...op, id: 'sale', tipo: 'VENTA', venta_id: 'sale', payload: undefined});
+    db.close();
+    expect((await repo.listar()).length).toBe(1);
+    await repo.cancelar(r.id, 't', 'u');
+    expect((await repo.obtener(r.id))?.reserva.estado).toBe('ANULADA_LOCAL');
+  });
 });

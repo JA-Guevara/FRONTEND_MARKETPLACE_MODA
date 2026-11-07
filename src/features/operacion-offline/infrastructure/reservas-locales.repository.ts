@@ -32,8 +32,8 @@ export class ReservasLocalesRepository {
         op.tenant_id !== r.tenant_id ||
         op.usuario_id !== r.usuario_id ||
         op.sucursal_id !== r.sucursal_id ||
-        op.payload.client_key !== r.id ||
-        op.payload.branch_id !== r.sucursal_id ||
+        op.payload?.client_key !== r.id ||
+        op.payload?.branch_id !== r.sucursal_id ||
         items.some((i) => i.reserva_id !== r.id)
       )
         throw new Error('La operación no corresponde a esta reserva local.');
@@ -86,7 +86,7 @@ export class ReservasLocalesRepository {
         .map((reserva) => ({
           reserva,
           items: items.filter((i) => i.reserva_id === reserva.id),
-          operacion: ops.find((o) => o.payload.client_key === reserva.id)!,
+          operacion: ops.find((o) => o.reserva_id === reserva.id || o.payload?.client_key === reserva.id)!,
         }));
     } finally {
       db.close();
@@ -110,7 +110,7 @@ export class ReservasLocalesRepository {
     try {
       const r = await tx.objectStore('reservas_locales').get(id);
       const op = (await tx.objectStore('operaciones_pendientes').getAll()).find(
-        (o) => o.payload.client_key === id,
+        (o) => o.reserva_id === id || o.payload?.client_key === id,
       );
       if (
         !r ||

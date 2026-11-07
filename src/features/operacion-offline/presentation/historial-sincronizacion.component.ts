@@ -1,4 +1,5 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { CommonModule } from '@angular/common';
 import { SyncApi } from '../infrastructure/sync.api';
 import { OperacionesLocalesRepository } from '../infrastructure/operaciones-locales.repository';
@@ -143,6 +144,7 @@ import { EmptyStateComponent } from '../../../shared/ui/empty-state.component';
   `]
 })
 export class HistorialSincronizacionComponent implements OnInit {
+  private session = inject(SessionService);
   private syncApi = inject(SyncApi);
   private operacionesRepo = inject(OperacionesLocalesRepository);
 
@@ -165,7 +167,9 @@ export class HistorialSincronizacionComponent implements OnInit {
 
   async cargarLocal() {
     try {
-      const res = await this.operacionesRepo.listarHistorialSync(30);
+      const user = this.session.user();
+      if (!user?.tenant) { this.historialLocal.set([]); return; }
+      const res = await this.operacionesRepo.listarHistorialSync(30, {tenantId: user.tenant.id, usuarioId: user.id});
       this.historialLocal.set(res);
     } catch {
       // Ignorar

@@ -1,5 +1,5 @@
 import { errorMessage } from '../../../shared/errors';
-import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { CatalogoLocalRepository } from '../infrastructure/catalogo-local.repository';
 import { SnapshotApi } from '../infrastructure/snapshot.api';
@@ -50,7 +50,9 @@ export class OfflineCatalogStore {
       });
       this.datos.set({ ...DATOS_VACIOS });
       this.conteos.set({});
-      void this.cargarLocal().catch(() => this.error.set('No se pudo leer el catálogo local.'));
+      untracked(() => {
+        void this.cargarLocal().catch(() => this.error.set('No se pudo leer el catálogo local.'));
+      });
     });
   }
   async cargarLocal() {

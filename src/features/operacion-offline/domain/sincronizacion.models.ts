@@ -53,6 +53,9 @@ export function backoffMs(intentos: number): number {
 }
 
 export function listaParaEnviar(op: OperacionPendiente, ahora: Date): boolean {
+  if (op.estado === 'ENVIADA') {
+    return ahora.getTime() - Date.parse(op.actualizada_en ?? op.creada_en) > 120000;
+  }
   if (op.estado !== 'PENDIENTE') return false;
   if (!op.proximo_intento_en) return true;
   return new Date(op.proximo_intento_en).getTime() <= ahora.getTime();

@@ -1,6 +1,8 @@
 import '@angular/compiler';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { signal } from '@angular/core';
+import { Subject } from 'rxjs';
 import { OperacionesPendientesComponent } from './operaciones-pendientes.component';
 import { ConflictosSyncComponent } from './conflictos.component';
 import { SincronizacionService } from '../application/sincronizacion.service';
@@ -15,6 +17,7 @@ describe('Componentes de Sincronización', () => {
 
     beforeEach(() => {
       mockSyncService = {
+        cambios: new Subject<void>(),
         sincronizando: signal(false),
         pendientesCount: signal(2),
         conflictosCount: signal(1),
@@ -52,6 +55,7 @@ describe('Componentes de Sincronización', () => {
       comp = new OperacionesPendientesComponent(
         mockSyncService as SincronizacionService,
         mockRepo as OperacionesLocalesRepository,
+        { user: () => ({ id: 'u', tenant: { id: 't' } }) } as unknown as SessionService,
       );
     });
 
@@ -73,6 +77,13 @@ describe('Componentes de Sincronización', () => {
       await comp.sincronizar();
       expect(mockSyncService.sincronizarAhora).toHaveBeenCalled();
       expect(comp.mensajeExito()).toContain('2 confirmadas');
+    });
+    it('refresca la lista cuando termina una sincronización automática', async () => {
+      await comp.ngOnInit();
+      vi.mocked(mockRepo.listarOperaciones!).mockResolvedValue([]);
+      mockSyncService.cambios!.next();
+      await vi.waitFor(() => expect(comp.operaciones()).toEqual([]));
+      comp.ngOnDestroy();
     });
   });
 
@@ -125,6 +136,7 @@ describe('Componentes de Sincronización', () => {
       expect(mockSyncApi.resolveConflict).toHaveBeenCalledWith('conf-1', {
         resolution: 'ADJUST',
         resolution_notes: 'Ajustado a stock real',
+        line_adjustments: {},
       });
       expect(comp.modalConflicto()).toBeNull();
     });

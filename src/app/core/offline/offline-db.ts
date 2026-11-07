@@ -98,6 +98,8 @@ export interface VentaItemLocal {
 }
 
 export interface HistorialSyncLocal {
+  tenant_id?: string;
+  usuario_id?: string;
   id?: number;
   iniciado_en: string;
   terminado_en: string;

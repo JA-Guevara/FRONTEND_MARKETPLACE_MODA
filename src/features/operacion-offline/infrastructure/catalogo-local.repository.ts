@@ -16,6 +16,9 @@ export class CatalogoLocalRepository {
         'reservas_locales',
         'reserva_items_locales',
         'operaciones_pendientes',
+        'cajas',
+        'ventas_locales',
+        'venta_items_locales',
       ],
       'readwrite',
     );
@@ -23,6 +26,8 @@ export class CatalogoLocalRepository {
       const prior = (await tx.objectStore('meta').get('tenant_id'))?.valor;
       const branch = (await tx.objectStore('meta').get('sucursal_id'))?.valor;
       const changed = prior !== s.tenant.id || branch !== sucursalId;
+      if (!s.branches.some(branch => branch.id === sucursalId))
+        throw new Error('La sucursal no pertenece a esta descarga.');
       if (!s.full && changed)
         throw new Error('La instantánea incremental pertenece a otro catálogo.');
       if (s.full) {
@@ -80,17 +85,18 @@ export class CatalogoLocalRepository {
         (o) =>
           o.tenant_id === s.tenant.id && ['PENDIENTE', 'ENVIADA', 'CONFLICTO'].includes(o.estado),
       );
+      const saleItems = await tx.objectStore('venta_items_locales').getAll();
       for (const x of s.stock) {
-        const apartadas = pendientes
-          .filter((o) => o.sucursal_id === x.branch_id)
-          .reduce(
-            (n, o) =>
-              n +
-              o.payload.items
-                .filter((i: any) => i.variant_id === x.variant_id)
-                .reduce((m: number, i: any) => m + i.quantity, 0),
-            0,
-          );
+        let apartadas = 0;
+        for (const op of pendientes.filter(op => op.sucursal_id === x.branch_id)) {
+          if (op.venta_id) {
+            apartadas += saleItems.filter(item => item.venta_id === op.venta_id && item.variante_id === x.variant_id)
+              .reduce((total, item) => total + item.cantidad, 0);
+          } else {
+            apartadas += (op.payload?.items ?? []).filter((item: any) => item.variant_id === x.variant_id)
+              .reduce((total: number, item: any) => total + item.quantity, 0);
+          }
+        }
         await tx.objectStore('existencias').put({
           variante_id: x.variant_id,
           sucursal_id: x.branch_id,
@@ -101,6 +107,15 @@ export class CatalogoLocalRepository {
         await tx
           .objectStore('sucursales')
           .put({ id: b.id, codigo: b.code, nombre: b.name, direccion: b.address });
+      for (const caja of await tx.objectStore('cajas').getAll())
+        await tx.objectStore('cajas').put({ ...caja, activa: false });
+      for (const caja of s.cash_points ?? []) {
+        if (!s.branches.some(branch => branch.id === caja.branch_id))
+          throw new Error('La caja no pertenece a una sucursal autorizada.');
+        await tx.objectStore('cajas').put({
+          id: caja.id, sucursal_id: caja.branch_id, codigo: caja.code, nombre: caja.name, activa: true,
+        });
+      }
       await tx.objectStore('clientes').clear();
       for (const c of s.customers)
         await tx
@@ -111,6 +126,7 @@ export class CatalogoLocalRepository {
         descargado_en: new Date().toISOString(),
         sucursal_id: sucursalId,
         tenant_id: s.tenant.id,
+        precio_vigente_hasta: s.price_valid_until ?? null,
         ...(usuarioId ? { catalogo_usuario_id: usuarioId } : {}),
       }))
         await tx.objectStore('meta').put({ clave, valor });
@@ -149,6 +165,7 @@ export class CatalogoLocalRepository {
         sucursalId: await get('sucursal_id'),
         tenantId: await get('tenant_id'),
         usuarioId: await get('catalogo_usuario_id'),
+        precioVigenteHasta: await get('precio_vigente_hasta'),
       };
     } finally {
       db.close();

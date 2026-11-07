@@ -1,4 +1,5 @@
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, OnDestroy } from '@angular/core';
+import { Subscription } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { SincronizacionService } from '../application/sincronizacion.service';
@@ -6,6 +7,7 @@ import { OperacionesLocalesRepository, OperacionConDetalle } from '../infrastruc
 import { OperacionPendiente } from '../domain/reserva-offline.models';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state.component';
 import { StatusBadgeComponent } from '../../../shared/ui/status-badge.component';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 
 @Component({
   selector: 'fs-operaciones-pendientes',
@@ -137,8 +139,14 @@ import { StatusBadgeComponent } from '../../../shared/ui/status-badge.component'
                 <strong>Error:</strong> {{ detalleSeleccionado()!.operacion.ultimo_error }}
               </div>
             }
-            <h4>Payload</h4>
-            <pre class="code-block">{{ detalleSeleccionado()!.operacion.payload | json }}</pre>
+            @if (detalleSeleccionado()!.venta; as venta) {
+              <h4>Comprobante de venta local</h4>
+              <p>{{ venta.folio }} · {{ venta.estado }}</p>
+              @for (item of detalleSeleccionado()!.itemsVenta ?? []; track item.variante_id) {
+                <p>{{ item.producto_nombre }} · {{ item.variante_desc }} · {{ item.cantidad }} · Bs {{ item.total_linea | number:'1.2-2' }}</p>
+              }
+              <p>Total Bs {{ venta.total | number:'1.2-2' }} · Efectivo Bs {{ venta.recibido | number:'1.2-2' }} · Vuelto Bs {{ venta.vuelto | number:'1.2-2' }}</p>
+            }
             <div class="modal-actions">
               <button class="btn" (click)="detalleSeleccionado.set(null)">Cerrar</button>
             </div>
@@ -185,16 +193,20 @@ import { StatusBadgeComponent } from '../../../shared/ui/status-badge.component'
     .modal-actions { margin-top: 1rem; display: flex; justify-content: flex-end; }
   `]
 })
-export class OperacionesPendientesComponent implements OnInit {
+export class OperacionesPendientesComponent implements OnInit, OnDestroy {
+  private cambios?: Subscription;
   syncService: SincronizacionService;
   operacionesRepo: OperacionesLocalesRepository;
+  private session: SessionService;
 
   constructor(
     syncService?: SincronizacionService,
     operacionesRepo?: OperacionesLocalesRepository,
+    session?: SessionService,
   ) {
     this.syncService = syncService ?? inject(SincronizacionService);
     this.operacionesRepo = operacionesRepo ?? inject(OperacionesLocalesRepository);
+    this.session = session ?? inject(SessionService);
   }
 
   operaciones = signal<OperacionPendiente[]>([]);
@@ -211,11 +223,16 @@ export class OperacionesPendientesComponent implements OnInit {
   });
 
   async ngOnInit() {
+    this.cambios = this.syncService.cambios?.subscribe(() => { void this.cargarOperaciones(); });
     await this.cargarOperaciones();
   }
+  ngOnDestroy() { this.cambios?.unsubscribe(); }
 
   async cargarOperaciones() {
-    const ops = await this.operacionesRepo.listarOperaciones();
+    const user = this.session.user();
+    if (!user?.tenant) { this.operaciones.set([]); return; }
+    const ops = await this.operacionesRepo.listarOperaciones({ tenantId: user.tenant.id, usuarioId: user.id });
+    if (this.session.user()?.id !== user.id || this.session.user()?.tenant?.id !== user.tenant.id) return;
     this.operaciones.set(ops);
   }
 
@@ -229,6 +246,7 @@ export class OperacionesPendientesComponent implements OnInit {
   }
 
   async verDetalle(id: string) {
+    if (!this.operaciones().some(operation => operation.id === id)) return;
     const detalle = await this.operacionesRepo.obtenerOperacion(id);
     this.detalleSeleccionado.set(detalle);
   }
