@@ -30,7 +30,7 @@ export class OperacionesLocalesRepository {
   ): Promise<void> {
     const db = await openOfflineDb();
     const tx = db.transaction(
-      ['ventas_locales', 'venta_items_locales', 'operaciones_pendientes', 'existencias', 'meta', 'cajas', 'variantes', 'productos'],
+      ['ventas_locales', 'venta_items_locales', 'operaciones_pendientes', 'existencias', 'meta', 'cajas', 'variantes', 'productos', 'clientes'],
       'readwrite',
     );
     try {
@@ -44,6 +44,9 @@ export class OperacionesLocalesRepository {
         throw new Error('La venta no corresponde a la cuenta y al catálogo descargado.');
       if (!caja?.activa || caja.sucursal_id !== venta.sucursal_id)
         throw new Error('Elegí una caja autorizada de la sucursal.');
+      // CU-18: el cliente es opcional, pero si viene debe estar entre los descargados.
+      if (venta.cliente_id && !(await tx.objectStore('clientes').get(venta.cliente_id)))
+        throw new Error('El cliente elegido no está en el catálogo descargado. Actualizalo o vendé sin cliente.');
       if (typeof validUntil !== 'string' || !(Date.parse(validUntil) > Date.now()))
         throw new Error('Actualizá el catálogo para obtener precios vigentes antes de vender.');
       if (!items.length || new Set(items.map(item => item.variante_id)).size !== items.length)

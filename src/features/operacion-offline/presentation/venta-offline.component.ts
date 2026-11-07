@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { OfflineCatalogStore } from '../application/offline-catalog.store';
 import { OperacionesLocalesRepository } from '../infrastructure/operaciones-locales.repository';
-import { openOfflineDb, CajaLocal, VentaItemLocal, VentaLocal } from '../../../app/core/offline/offline-db';
+import { openOfflineDb, CajaLocal, ClienteLocal, VentaItemLocal, VentaLocal } from '../../../app/core/offline/offline-db';
 import { getDeviceId } from '../../../app/core/offline/device-id';
 import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { errorMessage } from '../../../shared/errors';
@@ -24,6 +24,7 @@ import { CatalogoLocalRepository } from '../infrastructure/catalogo-local.reposi
           <h2>Comprobante provisional</h2>
           <strong>{{ venta.folio }}</strong>
           <p>Pendiente de sincronizar · {{ venta.creada_en | date:'short' }}</p>
+          <p>Cliente: {{ venta.cliente_nombre || 'Sin cliente' }}</p>
           <p>Total Bs {{ venta.total | number:'1.2-2' }} · Efectivo Bs {{ venta.recibido | number:'1.2-2' }}</p>
           <p>Vuelto Bs {{ venta.vuelto | number:'1.2-2' }}</p>
           <a routerLink="/sin-conexion/operaciones">Consultar operaciones locales</a>
@@ -40,6 +41,24 @@ import { CatalogoLocalRepository } from '../infrastructure/catalogo-local.reposi
             @for (caja of cajas(); track caja.id) { <option [value]="caja.id">{{ caja.nombre }}</option> }
           </select>
         </label>
+        <fieldset class="cliente">
+          <legend>Cliente (opcional)</legend>
+          <label>Buscar cliente por nombre
+            <input [ngModel]="busquedaCliente()" (ngModelChange)="busquedaCliente.set($event)"
+              placeholder="Ej.: Ana" aria-label="Buscar cliente por nombre" /></label>
+          <label>Cliente
+            <select [ngModel]="clienteId()" (ngModelChange)="clienteId.set($event)" aria-label="Cliente de la venta">
+              <option value="">Sin cliente (venta de mostrador)</option>
+              @if (clienteSeleccionado(); as c) {
+                @if (!clientesFiltrados().includes(c)) { <option [value]="c.id">{{ etiquetaCliente(c) }}</option> }
+              }
+              @for (c of clientesFiltrados(); track c.id) { <option [value]="c.id">{{ etiquetaCliente(c) }}</option> }
+            </select>
+          </label>
+          @if (busquedaCliente() && !clientesFiltrados().length) {
+            <p class="muted">No hay clientes descargados con ese nombre. Podés vender sin cliente.</p>
+          }
+        </fieldset>
         <label>Buscar por nombre o SKU <input [(ngModel)]="busqueda" /></label>
         <div class="table-wrap">
           <table class="tbl">
@@ -63,7 +82,7 @@ import { CatalogoLocalRepository } from '../infrastructure/catalogo-local.reposi
     </section>
   `,
   styles: [`.table-wrap { overflow-x: auto; } label { display: block; margin: 1rem 0; }
-    input[type=number] { max-width: 8rem; } .panel { display: grid; gap: 1rem; }`],
+    input[type=number] { max-width: 8rem; } fieldset.cliente { border: 1px solid var(--line, #ddd); padding: 0 1rem; } .panel { display: grid; gap: 1rem; }`],
 })
 export class VentaOfflineComponent {
   catalogo = inject(OfflineCatalogStore);
@@ -78,6 +97,16 @@ export class VentaOfflineComponent {
   cajaId = '';
   busqueda = '';
   recibido = 0;
+  /** CU-18: cliente opcional elegido entre los descargados en el snapshot. */
+  busquedaCliente = signal('');
+  clienteId = signal('');
+  clienteSeleccionado = computed(() =>
+    this.catalogo.datos().clientes.find(cliente => cliente.id === this.clienteId()) ?? null);
+  clientesFiltrados = computed(() => {
+    const q = this.busquedaCliente().trim().toLowerCase();
+    const clientes = this.catalogo.datos().clientes;
+    return (q ? clientes.filter(cliente => cliente.nombre.toLowerCase().includes(q)) : clientes).slice(0, 50);
+  });
   opciones = computed(() => this.catalogo.datos().variantes.filter(variant => variant.activa).flatMap(variant => {
     const product = this.catalogo.datos().productos.find(product => product.id === variant.producto_id);
     if (!product) return [];
@@ -101,6 +130,10 @@ export class VentaOfflineComponent {
       this.cajas.set(cajas.filter(caja => caja.activa));
       this.cajaId = this.cajas()[0]?.id ?? '';
     } finally { db.close(); }
+  }
+
+  etiquetaCliente(c: ClienteLocal) {
+    return c.nombre + (c.documento_final ? ' · doc. …' + c.documento_final : '');
   }
 
   cantidad(id: string, cantidad: number) { this.cantidades.update(items => ({ ...items, [id]: cantidad })); }
@@ -130,6 +163,8 @@ export class VentaOfflineComponent {
         vuelto: Math.round((this.recibido - total) * 100) / 100, forma_pago: 'EFECTIVO',
         estado: 'PENDIENTE_SINCRONIZAR', catalogo_descargado_en: this.catalogo.meta().descargadoEn ?? '',
         creada_en: now,
+        cliente_id: this.clienteSeleccionado()?.id ?? null,
+        cliente_nombre: this.clienteSeleccionado()?.nombre ?? null,
       };
       await this.repo.guardarVentaLocal(venta, items, {
         id, venta_id: id, tipo: 'VENTA', estado: 'PENDIENTE', tenant_id: user.tenant.id,
@@ -139,6 +174,8 @@ export class VentaOfflineComponent {
       this.comprobante.set(venta);
       this.cantidades.set({});
       this.recibido = 0;
+      this.clienteId.set('');
+      this.busquedaCliente.set('');
       await this.catalogo.cargarLocal();
     } catch (error) { this.error.set(errorMessage(error)); }
     finally { this.guardando.set(false); }

@@ -87,6 +87,38 @@ describe('Contratos de las pantallas administrativas', () => {
     expect(component.formError()).toContain('ya existe');
     expect(component.busy()).toBe(false);
   });
+  it('CU-07: asigna sucursales autorizadas marcando las ya asignadas y guarda con PUT', async () => {
+    await setup(resources.find((r) => r.key === 'users')!);
+    const c = fixture.componentInstance;
+    const opening = c.assignBranches({ id: 'u1', email: 'vendedor@demo.test' });
+    backend
+      .expectOne((r) => r.method === 'GET' && r.url === '/api/v1/users/u1/branches')
+      .flush({ success: true, message: 'OK', data: [{ id: 'b1', code: 'S1', name: 'Centro', is_default: true }] });
+    await opening;
+    expect(c.assignment).toBe('branches');
+    expect(c.current?.['branch_ids']).toEqual(['b1']);
+    expect(c.editFields[0]).toMatchObject({ key: 'branch_ids', type: 'multi', lookup: '/organization/branches' });
+    expect(c.assignmentLabel()).toBe('sucursales autorizadas');
+    const saving = c.save({ branch_ids: ['b1', 'b2'] });
+    const put = backend.expectOne((r) => r.method === 'PUT' && r.url === '/api/v1/users/u1/branches');
+    expect(put.request.body).toEqual({ branch_ids: ['b1', 'b2'] });
+    put.flush({ success: true, message: 'Sucursales autorizadas del usuario actualizadas.', data: [] });
+    await new Promise((r) => setTimeout(r, 0));
+    backend
+      .expectOne((r) => r.method === 'GET' && r.url === '/api/v1/users')
+      .flush({ success: true, message: 'OK', data: { items: [], total: 0, page: 1, page_size: 20, pages: 0 } });
+    await saving;
+    expect(c.editing()).toBe(false);
+    expect(c.message()).toContain('Sucursales autorizadas');
+  });
+  it('CU-07: en modo solo lectura no abre ni guarda sucursales', async () => {
+    await setup(resources.find((r) => r.key === 'users')!);
+    const c = fixture.componentInstance;
+    vi.spyOn(c.session, 'readOnly').mockReturnValue(true);
+    await c.assignBranches({ id: 'u1' });
+    backend.expectNone('/api/v1/users/u1/branches');
+    expect(c.editing()).toBe(false);
+  });
   it('no envía escrituras sin permiso', async () => {
     await setup(resources.find((r) => r.key === 'categories')!);
     vi.spyOn(fixture.componentInstance.session, 'can').mockReturnValue(false);

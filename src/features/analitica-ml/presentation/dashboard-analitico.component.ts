@@ -1,8 +1,16 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, Optional, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MLApi } from '../infrastructure/ml.api';
-import { MLDashboard, AnomaliaItem, RecomendacionIA } from '../domain/ml.models';
+import {
+  MLDashboard,
+  AnomaliaItem,
+  AnomaliaRegistro,
+  RecomendacionIA,
+  SegmentoCliente,
+} from '../domain/ml.models';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
+import { errorMessage } from '../../../shared/errors';
 
 @Component({
   selector: 'app-dashboard-analitico',
@@ -230,6 +238,95 @@ import { MLDashboard, AnomaliaItem, RecomendacionIA } from '../domain/ml.models'
           </div>
         </section>
       </div>
+
+      <!-- CU-31 · Segmentos de clientes (GET /analytics/ml/segments) -->
+      <section class="section-card" aria-labelledby="ml-segmentos-titulo">
+        <div class="ai-card-header">
+          <div>
+            <h2 id="ml-segmentos-titulo">Segmentos de clientes</h2>
+            <p class="section-desc">Asignación de cada cliente a su segmento RFM según el último entrenamiento.</p>
+          </div>
+          <label class="small">Segmento
+            <select [(ngModel)]="filtroSegmento" aria-label="Filtrar por segmento">
+              <option value="">Todos</option>
+              <option *ngFor="let n of nombresSegmento()" [value]="n">{{ n }}</option>
+            </select>
+          </label>
+        </div>
+        <div *ngIf="cargandoSegmentos()" class="loading-state" role="status">Cargando segmentos de clientes...</div>
+        <div *ngIf="!cargandoSegmentos() && errorSegmentos()" class="alert alert-error" role="alert">
+          {{ errorSegmentos() }}
+          <button type="button" class="btn btn-sm btn-outline" (click)="cargarSegmentos()">Reintentar</button>
+        </div>
+        <div *ngIf="!cargandoSegmentos() && !errorSegmentos() && !segmentos().length" class="empty-state">
+          Todavía no hay clientes segmentados. Entrená el modelo RFM para generar los segmentos.
+        </div>
+        <div *ngIf="!cargandoSegmentos() && !errorSegmentos() && segmentos().length" class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr><th>Cliente</th><th>Segmento</th><th>Recencia</th><th>Frecuencia</th><th>Monto total</th></tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let s of segmentosFiltrados()">
+                <td><code>{{ s.customer_id.slice(0, 8) }}</code></td>
+                <td><span class="pill pill-info">{{ s.segment_name }}</span></td>
+                <td>{{ s.recency_days }} días</td>
+                <td>{{ s.frequency_orders }} compras</td>
+                <td>{{ s.monetary_total | currency:'BOB':'symbol':'1.0-0' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- CU-31 · Anomalías (GET /analytics/ml/anomalies) -->
+      <section class="section-card" aria-labelledby="ml-anomalias-titulo">
+        <div class="ai-card-header">
+          <div>
+            <h2 id="ml-anomalias-titulo">Anomalías</h2>
+            <p class="section-desc">Ventas diarias atípicas detectadas por sucursal, con su estado de revisión.</p>
+          </div>
+          <label class="small">Estado
+            <select [(ngModel)]="filtroAnomalias" (ngModelChange)="cargarAnomalias()" aria-label="Filtrar anomalías por estado">
+              <option value="pendientes">Pendientes</option>
+              <option value="resueltas">Resueltas</option>
+              <option value="todas">Todas</option>
+            </select>
+          </label>
+        </div>
+        <div *ngIf="cargandoAnomalias()" class="loading-state" role="status">Cargando anomalías...</div>
+        <div *ngIf="!cargandoAnomalias() && errorAnomalias()" class="alert alert-error" role="alert">
+          {{ errorAnomalias() }}
+          <button type="button" class="btn btn-sm btn-outline" (click)="cargarAnomalias()">Reintentar</button>
+        </div>
+        <div *ngIf="!cargandoAnomalias() && !errorAnomalias() && !anomalias().length" class="empty-state">
+          No hay anomalías {{ filtroAnomalias === 'todas' ? 'registradas' : filtroAnomalias }}.
+        </div>
+        <div *ngIf="!cargandoAnomalias() && !errorAnomalias() && anomalias().length" class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr><th>Fecha</th><th>Motivo</th><th>Score</th><th>Estado</th><th>Acciones</th></tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let a of anomalias()">
+                <td>{{ a.sale_date | date:'shortDate' }}</td>
+                <td>{{ a.reason }}</td>
+                <td><span class="pill pill-danger">{{ a.anomaly_score | number:'1.3-3' }}</span></td>
+                <td>
+                  <span *ngIf="!a.resolved" class="pill pill-warning">Abierta</span>
+                  <span *ngIf="a.resolved" class="pill pill-success">Resuelta</span>
+                </td>
+                <td>
+                  <button *ngIf="!a.resolved && puedeResolver()" type="button" class="btn btn-sm btn-outline" (click)="iniciarResolucionRegistro(a)">
+                    Resolver
+                  </button>
+                  <span *ngIf="a.resolved" class="text-muted small">{{ a.notes || 'Verificado' }}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <!-- Modal de resolución de anomalía -->
       <div *ngIf="anomaliaSeleccionada()" class="modal-backdrop">
@@ -703,10 +800,79 @@ export class DashboardAnaliticoComponent implements OnInit {
   notasResolucion = '';
   guardandoResolucion = signal<boolean>(false);
 
-  constructor(private mlApi: MLApi) {}
+  segmentos = signal<SegmentoCliente[]>([]);
+  cargandoSegmentos = signal<boolean>(false);
+  errorSegmentos = signal<string | null>(null);
+  filtroSegmento = '';
+  readonly nombresSegmento = computed(() => [...new Set(this.segmentos().map((s) => s.segment_name))].sort());
+
+  anomalias = signal<AnomaliaRegistro[]>([]);
+  cargandoAnomalias = signal<boolean>(false);
+  errorAnomalias = signal<string | null>(null);
+  filtroAnomalias: 'pendientes' | 'resueltas' | 'todas' = 'pendientes';
+
+  constructor(
+    private mlApi: MLApi,
+    @Optional() private session?: SessionService,
+  ) {}
 
   ngOnInit(): void {
     this.cargarDatos();
+    void this.cargarSegmentos();
+    void this.cargarAnomalias();
+  }
+
+  /** Resolver exige ml_models.manage en el backend y no aplica en modo solo lectura. */
+  puedeResolver(): boolean {
+    if (!this.session) return true;
+    return this.session.can('ml_models.manage') && !this.session.readOnly();
+  }
+
+  segmentosFiltrados(): SegmentoCliente[] {
+    return this.filtroSegmento
+      ? this.segmentos().filter((s) => s.segment_name === this.filtroSegmento)
+      : this.segmentos();
+  }
+
+  async cargarSegmentos(): Promise<void> {
+    this.cargandoSegmentos.set(true);
+    this.errorSegmentos.set(null);
+    try {
+      this.segmentos.set((await this.mlApi.getSegments()) ?? []);
+    } catch (err) {
+      this.segmentos.set([]);
+      this.errorSegmentos.set(errorMessage(err));
+    } finally {
+      this.cargandoSegmentos.set(false);
+    }
+  }
+
+  async cargarAnomalias(): Promise<void> {
+    this.cargandoAnomalias.set(true);
+    this.errorAnomalias.set(null);
+    const resolved = this.filtroAnomalias === 'todas' ? undefined : this.filtroAnomalias === 'resueltas';
+    try {
+      this.anomalias.set((await this.mlApi.getAnomalies(resolved)) ?? []);
+    } catch (err) {
+      this.anomalias.set([]);
+      this.errorAnomalias.set(errorMessage(err));
+    } finally {
+      this.cargandoAnomalias.set(false);
+    }
+  }
+
+  /** Reutiliza el diálogo de resolución adaptando la fila de /anomalies. */
+  iniciarResolucionRegistro(a: AnomaliaRegistro): void {
+    this.iniciarResolucion({
+      id: a.id,
+      branch_id: a.branch_id,
+      anomaly_date: a.sale_date,
+      metric_name: a.reason,
+      metric_value: 0,
+      expected_value: 0,
+      anomaly_score: a.anomaly_score,
+      resolved: a.resolved,
+    });
   }
 
   async cargarDatos(): Promise<void> {
@@ -747,7 +913,7 @@ export class DashboardAnaliticoComponent implements OnInit {
       this.mensajeExito.set('Anomalía marcada como resuelta.');
       setTimeout(() => this.mensajeExito.set(null), 4000);
       this.cancelarResolucion();
-      await this.cargarDatos();
+      await Promise.all([this.cargarDatos(), this.cargarAnomalias()]);
     } catch (err: any) {
       this.error.set(err?.error?.message ?? err?.message ?? 'Error al resolver la anomalía.');
     } finally {

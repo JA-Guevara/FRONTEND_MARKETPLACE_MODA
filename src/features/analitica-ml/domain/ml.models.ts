@@ -97,3 +97,26 @@ export interface MLTrainingRun {
   created_at: string;
   completed_at?: string;
 }
+
+/** Fila real de GET /analytics/ml/segments (CustomerSegmentOut del backend). */
+export interface SegmentoCliente {
+  id: string;
+  customer_id: string;
+  segment_name: string;
+  recency_days: number;
+  frequency_orders: number;
+  monetary_total: number;
+  cluster_id: number;
+}
+
+/** Fila real de GET /analytics/ml/anomalies (AnomalyOut del backend). */
+export interface AnomaliaRegistro {
+  id: string;
+  branch_id: string;
+  sale_date: string;
+  anomaly_score: number;
+  reason: string;
+  resolved: boolean;
+  notes?: string | null;
+  created_at: string;
+}

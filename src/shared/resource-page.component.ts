@@ -212,6 +212,8 @@ import { IconComponent } from './icon.component';
                       @if (config.key === 'users' && !item['deleted_at']) {
                         <button (click)="assign(item, 'roles')">
                           <fs-icon name="users" />Roles</button
+                        ><button [disabled]="busy()" (click)="assignBranches(item)">
+                          <fs-icon name="box" />Sucursales</button
                         ><button (click)="confirmAction(item, 'unlock')">
                           <fs-icon name="unlock" />Desbloquear
                         </button>
@@ -270,7 +272,7 @@ import { IconComponent } from './icon.component';
           <h2 id="editor-title">
             {{
               assignment
-                ? 'Asignar ' + (assignment === 'roles' ? 'roles' : 'permisos')
+                ? 'Asignar ' + assignmentLabel()
                 : current
                   ? 'Editar ' + config.singular
                   : (config.feminine ? 'Nueva ' : 'Nuevo ') + config.singular
@@ -278,6 +280,12 @@ import { IconComponent } from './icon.component';
           </h2>
           @if (formError()) {
             <p class="alert error" role="alert">{{ formError() }}</p>
+          }
+          @if (assignment === 'branches') {
+            <p class="muted">
+              Marcá las sucursales en las que {{ current?.['email'] }} puede operar.
+              La primera por código queda como predeterminada. Los administradores acceden a todas.
+            </p>
           }
           <div [class.product-editor-columns]="config.key === 'products' && !assignment">
             @if (config.key === 'products' && !assignment) {
@@ -567,6 +575,42 @@ export class ResourcePageComponent implements OnInit {
     ];
     this.formError.set('');
     this.editing.set(true);
+  }
+  assignmentLabel() {
+    return (
+      ({ roles: 'roles', permissions: 'permisos', branches: 'sucursales autorizadas' }) as Record<
+        string,
+        string
+      >
+    )[this.assignment];
+  }
+  /** CU-07: abre el diálogo de sucursales autorizadas con las ya asignadas
+   * marcadas (GET /users/{id}/branches) y guarda con PUT /users/{id}/branches. */
+  async assignBranches(item: Entity) {
+    if (this.busy() || !this.canWrite() || this.config.key !== 'users') return;
+    this.error.set('');
+    this.busy.set(true);
+    try {
+      const assigned = await firstValueFrom(
+        this.api.get<Entity[]>(`${this.config.path}/${item.id}/branches`),
+      );
+      this.assignment = 'branches';
+      this.current = { ...item, branch_ids: (assigned || []).map((b) => b.id) };
+      this.editFields = [
+        {
+          key: 'branch_ids',
+          label: 'Sucursales de la empresa',
+          type: 'multi',
+          lookup: '/organization/branches',
+        },
+      ];
+      this.formError.set('');
+      this.editing.set(true);
+    } catch (e) {
+      this.error.set(errorMessage(e));
+    } finally {
+      this.busy.set(false);
+    }
   }
   /** Una importación masiva puede apuntar a cualquier recurso (el panel de Excel
    * tiene su propio selector de destino, no solo el de esta pantalla), así que

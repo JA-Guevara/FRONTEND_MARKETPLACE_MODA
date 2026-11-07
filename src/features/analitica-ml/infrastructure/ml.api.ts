@@ -2,8 +2,9 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../../app/core/shared/api.service';
 import {
-  CustomerSegmentItem,
   AnomaliaItem,
+  AnomaliaRegistro,
+  SegmentoCliente,
   MLDashboard,
   MLModelSummary,
   MLTrainingRun,
@@ -17,16 +18,16 @@ export class MLApi {
     return firstValueFrom(this.api.get<MLDashboard>('/analytics/ml/dashboard'));
   }
 
-  async getSegments(): Promise<CustomerSegmentItem[]> {
-    return firstValueFrom(this.api.get<CustomerSegmentItem[]>('/analytics/ml/segments'));
+  async getSegments(): Promise<SegmentoCliente[]> {
+    return firstValueFrom(this.api.get<SegmentoCliente[]>('/analytics/ml/segments'));
   }
 
-  async getAnomalies(resolved?: boolean): Promise<AnomaliaItem[]> {
+  async getAnomalies(resolved?: boolean): Promise<AnomaliaRegistro[]> {
     const params: Record<string, string> = {};
     if (resolved !== undefined) {
       params['resolved'] = String(resolved);
     }
-    return firstValueFrom(this.api.get<AnomaliaItem[]>('/analytics/ml/anomalies', params));
+    return firstValueFrom(this.api.get<AnomaliaRegistro[]>('/analytics/ml/anomalies', params));
   }
 
   async resolveAnomaly(id: string, notes: string): Promise<AnomaliaItem> {

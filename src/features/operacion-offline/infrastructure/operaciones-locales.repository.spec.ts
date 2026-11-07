@@ -153,6 +153,46 @@ describe('OperacionesLocalesRepository', () => {
     expect(detalle?.venta?.server_ref).toBe('srv-order-123');
   });
 
+  describe('CU-18 · cliente opcional en la venta sin conexión', () => {
+    function ventaCon(id: string, cliente_id: string | null): [VentaLocal, VentaItemLocal[], OperacionPendiente] {
+      const now = new Date().toISOString();
+      return [
+        { id, caja_id: 'caja-1', folio: 'OFF-' + id, tenant_id: 'ten-1', sucursal_id: 'suc-1', usuario_id: 'usr-1',
+          subtotal: 50, descuento: 0, total: 50, recibido: 50, vuelto: 0, forma_pago: 'EFECTIVO',
+          estado: 'PENDIENTE_SINCRONIZAR', creada_en: now, cliente_id, cliente_nombre: cliente_id ? 'Ana' : null },
+        [{ venta_id: id, variante_id: 'var-1', producto_nombre: 'Vestido', variante_desc: 'M · Rojo', cantidad: 1,
+          precio_unitario: 50, precio_regular: 50, total_linea: 50 }],
+        { id, venta_id: id, tipo: 'VENTA', tenant_id: 'ten-1', sucursal_id: 'suc-1', usuario_id: 'usr-1',
+          dispositivo_id: 'dev-1', creada_en: now, actualizada_en: now, ultimo_error: null, estado: 'PENDIENTE',
+          intentos: 0, payload: {} },
+      ];
+    }
+
+    it('envía customer_id en el payload cuando se eligió un cliente descargado', async () => {
+      const db = await openOfflineDb();
+      await db.put('clientes', { id: 'cli-1', nombre: 'Ana', documento_final: '1234', telefono: null });
+      db.close();
+      await repo.guardarVentaLocal(...ventaCon('vta-c1', 'cli-1'));
+      const [op] = await repo.tomarParaEnvio(new Date(Date.now() + 1000), 50, 'ten-1', 'usr-1');
+      expect(op.payload?.['customer_id']).toBe('cli-1');
+    });
+
+    it('sin cliente sigue funcionando y envía customer_id nulo', async () => {
+      await repo.guardarVentaLocal(...ventaCon('vta-c2', null));
+      const [op] = await repo.tomarParaEnvio(new Date(Date.now() + 1000), 50, 'ten-1', 'usr-1');
+      expect(op.payload?.['customer_id']).toBeNull();
+      expect(op.payload?.['items']).toHaveLength(1);
+    });
+
+    it('rechaza un cliente que no está en el catálogo descargado sin tocar existencias', async () => {
+      await expect(repo.guardarVentaLocal(...ventaCon('vta-c3', 'cli-x'))).rejects.toThrow('cliente');
+      const db = await openOfflineDb();
+      expect((await db.get('existencias', ['var-1', 'suc-1']))?.cantidad).toBe(10);
+      expect(await db.get('ventas_locales', 'vta-c3')).toBeUndefined();
+      db.close();
+    });
+  });
+
   it('guarda y lista historial de sincronizaciones', async () => {
     await repo.guardarHistorialSync({
       tenant_id: 't', usuario_id: 'u',
