@@ -21,12 +21,29 @@ import { PoseTrackingService } from '../../../shared/pose-tracking.service';
  */
 function conLienzoFalso() {
   const ctx = {
-    fillStyle: '', strokeStyle: '', lineWidth: 0, lineCap: '', lineJoin: '',
+    fillStyle: '',
+    strokeStyle: '',
+    lineWidth: 0,
+    lineCap: '',
+    lineJoin: '',
     globalCompositeOperation: '',
-    beginPath: () => {}, moveTo: () => {}, lineTo: () => {}, closePath: () => {},
-    fill: () => {}, stroke: () => {}, arc: () => {}, ellipse: () => {},
-    save: () => {}, restore: () => {}, clip: () => {}, translate: () => {},
-    rotate: () => {}, scale: () => {}, drawImage: vi.fn(), clearRect: () => {}, setTransform: () => {},
+    beginPath: () => {},
+    moveTo: () => {},
+    lineTo: () => {},
+    closePath: () => {},
+    fill: () => {},
+    stroke: () => {},
+    arc: () => {},
+    ellipse: () => {},
+    save: () => {},
+    restore: () => {},
+    clip: () => {},
+    translate: () => {},
+    rotate: () => {},
+    scale: () => {},
+    drawImage: vi.fn(),
+    clearRect: () => {},
+    setTransform: () => {},
   };
   return vi
     .spyOn(HTMLCanvasElement.prototype, 'getContext')
@@ -101,22 +118,28 @@ describe('Probador virtual: ubicación automática', () => {
     },
   };
 
-  async function setup(options: {
-    recurso?: unknown;
-    falla?: boolean;
-    poseOk?: boolean;
-    variante?: string | null;
-    variants?: { id: string; color: { id: string; name: string; hex_code?: string } }[];
-  } = {}) {
+  async function setup(
+    options: {
+      recurso?: unknown;
+      falla?: boolean;
+      poseOk?: boolean;
+      variante?: string | null;
+      variants?: { id: string; color: { id: string; name: string; hex_code?: string } }[];
+    } = {},
+  ) {
     const route = new BehaviorSubject(convertToParamMap({ slug: 'polera' }));
-    const query = new BehaviorSubject(convertToParamMap(options.variante === null ? {} : { variante: options.variante || 'v1' }));
+    const query = new BehaviorSubject(
+      convertToParamMap(options.variante === null ? {} : { variante: options.variante || 'v1' }),
+    );
     const catalog = {
       product: vi.fn().mockReturnValue(
         of({
           id: 'p1',
           name: 'Polera esencial',
           category: { name: 'Poleras' },
-          variants: options.variants ?? [{ id: 'v1', color: { id: 'c1', name: 'Bordó', hex_code: '#8E2B33' } }],
+          variants: options.variants ?? [
+            { id: 'v1', color: { id: 'c1', name: 'Bordó', hex_code: '#8E2B33' } },
+          ],
         }),
       ),
     };
@@ -200,7 +223,9 @@ describe('Probador virtual: ubicación automática', () => {
   });
 
   it('no superpone una foto comercial antigua que no garantiza transparencia', async () => {
-    const { component } = await setup({ recurso: { asset_type: 'image_overlay', asset_url: '/foto-blanca.webp' } });
+    const { component } = await setup({
+      recurso: { asset_type: 'image_overlay', asset_url: '/foto-blanca.webp' },
+    });
     expect(component.usaFoto()).toBe(false);
   });
 
@@ -219,7 +244,8 @@ describe('Probador virtual: ubicación automática', () => {
     const { component, api } = await setup({ variante: null });
     expect(component.varianteId).toBe('v1');
     expect(api.write).toHaveBeenCalledWith('POST', '/vestidor/sessions', {
-      product_id: 'p1', color_id: 'c1',
+      product_id: 'p1',
+      color_id: 'c1',
     });
   });
 
@@ -248,7 +274,8 @@ describe('Probador virtual: ubicación automática', () => {
     await fixture.whenStable();
     fixture.detectChanges();
     expect(api.write).toHaveBeenLastCalledWith('POST', '/vestidor/sessions', {
-      product_id: 'p1', color_id: 'c2',
+      product_id: 'p1',
+      color_id: 'c2',
     });
     expect(component.colorPrenda()).toBe('#1C4F91');
     expect(component.colorName()).toBe('Azul');
@@ -301,7 +328,10 @@ describe('Probador virtual: ubicación automática', () => {
     const harness = await setup();
     harness.pose.detectTorso.mockReturnValue(null);
     await conCamara(harness);
-    await new Promise((r) => setTimeout(r, 200));
+    // Esperar el fotograma procesado evita depender de la carga de la suite.
+    await vi.waitFor(() => expect(harness.component.guidance().code).toBe('sin-persona'), {
+      timeout: 2000,
+    });
     harness.fixture.detectChanges();
 
     expect(harness.component.guidance().code).toBe('sin-persona');
@@ -312,9 +342,11 @@ describe('Probador virtual: ubicación automática', () => {
   it('pide acercarse cuando la persona se ve demasiado chica', async () => {
     const harness = await setup();
     // Hombros muy juntos: la persona está lejos.
-    harness.pose.detectTorso.mockReturnValue(cuerpo(0.5, 0.35).map((p, i) =>
-      i === 11 ? { ...p, x: 0.48 } : i === 12 ? { ...p, x: 0.52 } : p,
-    ));
+    harness.pose.detectTorso.mockReturnValue(
+      cuerpo(0.5, 0.35).map((p, i) =>
+        i === 11 ? { ...p, x: 0.48 } : i === 12 ? { ...p, x: 0.52 } : p,
+      ),
+    );
     await conCamara(harness);
     await new Promise((r) => setTimeout(r, 200));
     expect(harness.component.guidance().code).toBe('lejos');
@@ -403,4 +435,3 @@ describe('Probador virtual: ubicación automática', () => {
     expect(enlace?.textContent?.trim()).toBe('Elegir talla');
   });
 });
-

@@ -1,0 +1,75 @@
+import {chromium} from '../../node_modules/playwright/index.mjs';
+import assert from 'node:assert/strict';
+import {fileURLToPath} from 'node:url';
+import {mkdir} from 'node:fs/promises';
+import {resolve} from 'node:path';
+const output=resolve(process.env.QA_ARTIFACTS_DIR||fileURLToPath(new URL('../../../tmp',import.meta.url)));
+await mkdir(output,{recursive:true});
+const artifact=name=>resolve(output,name);
+const password=process.env.QA_PASSWORD;
+if(!password)throw new Error('Definí QA_PASSWORD con la clave del fixture sintético; nunca uses una cuenta real.');
+const browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE});
+const context=await browser.newContext({serviceWorkers:'block',acceptDownloads:true});
+const failures=[];
+await context.route('**/*',async route=>{
+ const url=new URL(route.request().url());
+ if(url.hostname==='127.0.0.1')return route.continue();
+ if(url.origin!=='https://backendmarketplacemoda-production.up.railway.app')return route.abort();
+ const response=await route.fetch({url:'http://127.0.0.1:57519'+url.pathname+url.search});
+ if(response.status()>=400&&!url.pathname.includes('/health/'))failures.push([url.pathname,response.status()]);
+ return route.fulfill({response,headers:{...response.headers(),'access-control-allow-origin':'http://127.0.0.1:57520'}});
+});
+const page=await context.newPage();
+page.on('pageerror',e=>failures.push(['pageerror',e.message]));
+async function login(email,company){
+ await page.goto('http://127.0.0.1:57520/iniciar-sesion');await page.locator('[name=empresa]').selectOption(company);
+ await page.locator('[name=email]').fill(email);await page.locator('[name=password]').fill(password);
+ await page.locator('button[type=submit]').click();await page.waitForURL(u=>!u.pathname.includes('iniciar-sesion'));
+}
+try{
+ const ids=await(await fetch('http://127.0.0.1:57519/qa/ids')).json();
+ await login('admin0@example.com','moda-a');
+ await page.goto('http://127.0.0.1:57520/admin/empresa/configuracion');
+ await page.getByRole('heading',{name:'Tu empresa, tu tienda',exact:true}).waitFor();
+ await page.locator('[name=slogan]').fill('Tu estilo, a tu medida');await page.locator('[name=about]').fill('Configuración de una tienda sintética para verificar el recorrido completo.');
+ await page.getByRole('button',{name:'Guardar configuración',exact:true}).click();await page.getByText('Configuración guardada.',{exact:true}).waitFor();
+ await page.screenshot({path:artifact('saas-company-settings-qa.png'),fullPage:true});
+ await page.getByRole('link',{name:'Cobros de prendas',exact:true}).click();
+ await page.getByRole('button',{name:'Añadir medio de cobro',exact:true}).click();
+ await page.locator('fs-metodos-cobro [name=label]').fill('Pago al retirar en sucursal');
+ await page.locator('fs-metodos-cobro [name=instructions]').fill('Presentá el número de pedido en caja para coordinar el pago.');
+ await page.getByRole('button',{name:'Guardar medio de cobro',exact:true}).click();
+ await page.getByRole('heading',{name:'Pago al retirar en sucursal',exact:true}).waitFor();
+ console.log('COMPANY_SETTINGS_AND_PAYMENT_METHODS_OK');
+ await login('cliente0@example.com','moda-a');
+ await page.goto('http://127.0.0.1:57520/mi-cuenta/reservas');
+ await page.getByRole('button',{name:'Comprar prendas de esta reserva',exact:true}).click();
+ await page.getByRole('button',{name:'Crear pedido y revisar total',exact:true}).click();
+ await page.getByText('Pendiente de pago',{exact:false}).first().waitFor();
+ await page.getByRole('link',{name:'Ver pedido y pago →',exact:true}).click();
+ await page.getByRole('heading',{name:'Mis pedidos',exact:true}).waitFor();
+ let state=await(await fetch('http://127.0.0.1:57519/qa/estado')).json();assert.equal(state.ventas,2);assert.equal(state.stock,18);
+ console.log('RESERVATION_TO_ORDER_WITHOUT_DOUBLE_STOCK_OK');
+ const original=page.locator('article.order-card').filter({hasText:'QA-CAMBIO-001'});
+ await original.getByRole('button',{name:'Cambiar o devolver prendas',exact:true}).click();
+ await original.getByRole('button',{name:'Solicitar un cambio',exact:true}).click();
+ await original.locator('[name=original]').selectOption({index:1});
+ await original.locator('[name=replacement]').selectOption(ids.replacement);
+ await original.locator('[name=exchangeReason]').fill('Necesito otra talla y elijo una prenda de mayor valor.');
+ await original.getByRole('button',{name:'Enviar cambio',exact:true}).click();
+ await original.getByText('Pendiente de cobro',{exact:false}).waitFor();
+ console.log('CUSTOMER_EXCHANGE_DIFFERENT_PRICE_REQUEST_OK');
+ await login('admin0@example.com','moda-a');
+ await page.goto('http://127.0.0.1:57520/admin/devoluciones');
+ await page.getByText('QA-CAMBIO-001',{exact:false}).first().waitFor();
+ const request=page.locator('article').filter({hasText:'Necesito otra talla y elijo una prenda de mayor valor.'}).last();
+ await request.getByRole('button',{name:/Aprobar/}).click();await request.getByRole('button',{name:'Guardar',exact:true}).click();
+ await request.getByRole('button',{name:'Registrar prendas recibidas',exact:true}).click();
+ await request.locator('[name=cashConfirmed]').check();await request.locator('[name=settlementReference]').fill('Caja central · recibo QA-01');
+ await request.getByRole('button',{name:'Guardar',exact:true}).click();await request.getByText('Pago confirmado',{exact:false}).waitFor();
+ state=await(await fetch('http://127.0.0.1:57519/qa/estado')).json();assert.equal(state.stock,19);
+ await page.screenshot({path:artifact('saas-exchange-settlement-qa.png'),fullPage:true});
+ console.log('STAFF_EXCHANGE_CASH_SETTLEMENT_AND_STOCK_OK');
+ assert.deepEqual(failures,[]);console.log('NO_API_OR_BROWSER_ERRORS');
+}catch(error){console.log('PAGE',page.url(),(await page.locator('body').innerText()).slice(-3500));throw error;}
+finally{await context.unrouteAll({behavior:'wait'});await browser.close();}
