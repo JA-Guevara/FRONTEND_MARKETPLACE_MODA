@@ -111,15 +111,28 @@ export class SessionService {
   );
 
   readonly isClient = computed(() => {
-    const roles = this.user()?.roles ?? [];
-    return (
-      roles.length > 0 &&
-      roles.every((r) => {
-        const code = (r.code || '').toLowerCase().trim();
-        const name = (r.name || '').toLowerCase().trim();
-        return code === 'client' || code === 'cliente' || name === 'cliente';
-      })
-    );
+    const u = this.user();
+    if (!u) return false;
+    const staffCodes = new Set([
+      'superadmin',
+      'admin',
+      'store_manager',
+      'cashier',
+      'platform_admin',
+    ]);
+    const roles = u.roles ?? [];
+    const roleCodes = roles.map((r) => (r.code || '').toLowerCase().trim());
+    const roleNames = roles.map((r) => (r.name || '').toLowerCase().trim());
+    if (roleCodes.some((c) => staffCodes.has(c))) {
+      return false;
+    }
+    if (
+      roleCodes.some((c) => c === 'client' || c === 'cliente' || c === 'customer') ||
+      roleNames.some((n) => n === 'cliente' || n === 'client')
+    ) {
+      return true;
+    }
+    return roleCodes.length === 0;
   });
 
   readonly administrative = computed(() => {

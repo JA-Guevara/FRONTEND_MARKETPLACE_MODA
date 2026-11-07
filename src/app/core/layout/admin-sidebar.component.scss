@@ -157,15 +157,16 @@
       color: var(--ink);
     }
 
-    .arrow-glyph {
-      font-size: 11px;
-      line-height: 1;
-      display: inline-block;
-      transition: transform 0.2s ease;
-    }
+    .nav-chevron {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
-    &.expanded .arrow-glyph {
-      transform: rotate(0deg);
+      &.rotated {
+        transform: rotate(90deg);
+        color: var(--ink);
+      }
     }
   }
 

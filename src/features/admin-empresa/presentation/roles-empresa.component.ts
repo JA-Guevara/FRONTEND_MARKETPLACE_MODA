@@ -58,6 +58,9 @@ import { Permission } from '../../../shared/models';
     <div class="roles-layout">
       <!-- Panel izquierdo: lista de roles -->
       <div class="card role-list">
+        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--color-text-secondary, #6b7280); padding: 8px 12px 4px;">
+          Roles de empresa y plantillas ({{ roles().length }})
+        </div>
         @for (r of roles(); track r.id) {
           <button
             type="button"
@@ -69,7 +72,7 @@ import { Permission } from '../../../shared/models';
             <div style="flex:1">
               <b>{{ r.name }}</b>
               <span class="sub">
-                {{ r.is_template ? 'Sistema' : 'Propio' }} · {{ r.users_count }}
+                {{ r.is_template ? 'Plantilla sistema' : 'Propio de empresa' }} · {{ r.users_count }}
                 usuario{{ r.users_count === 1 ? '' : 's' }}
               </span>
             </div>
@@ -79,7 +82,7 @@ import { Permission } from '../../../shared/models';
               [class.plan]="!r.is_template && r.is_active"
               [class.danger]="!r.is_template && !r.is_active"
             >
-              {{ r.is_template ? 'Sistema' : r.is_active ? 'Propio' : 'Inactivo' }}
+              {{ r.is_template ? 'Plantilla' : r.is_active ? 'Propio' : 'Inactivo' }}
             </span>
           </button>
         }
@@ -122,10 +125,16 @@ import { Permission } from '../../../shared/models';
           @if (rol.is_template) {
             <div class="alert info" style="margin-top: 14px">
               <span>ⓘ</span>
-              <div>
-                <b>Rol de plantilla del sistema.</b> Los permisos son fijos. Para
-                personalizarlo usa «Duplicar como propio».
+              <div style="flex: 1">
+                <b>Rol de plantilla del sistema.</b> Los permisos de esta plantilla son de solo lectura porque aplican como base. Para personalizar permisos para tu empresa, usa <b>«Duplicar como propio»</b>.
               </div>
+              <button
+                type="button"
+                class="btn sm primary"
+                (click)="duplicarComoPropio(rol)"
+              >
+                Duplicar como propio
+              </button>
             </div>
           }
 

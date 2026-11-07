@@ -542,7 +542,14 @@ export class ResourcePageComponent implements OnInit {
         return;
       }
     }
-    this.current = item;
+    this.current = item
+      ? {
+          ...item,
+          ...(item['roles'] && !item['role_ids']
+            ? { role_ids: (item['roles'] as any[]).map((r: any) => r.id) }
+            : {}),
+        }
+      : null;
     this.productImages = item?.['images'] || [];
     this.assignment = '';
     this.editFields = this.config.fields;

@@ -2511,86 +2511,224 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
 /* ==========================================================================
    PORTAL GLOBAL SAAS - LANDING PAGE PROFESIONAL
    ========================================================================== */
+/* ==========================================================================
+   PORTAL GLOBAL SAAS - CABECERA INSTITUCIONAL Y ACCESOS
+   ========================================================================== */
+.site-header.is-landing-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(250, 249, 246, 0.96);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line, #e5e2da);
+
+  .header-inner {
+    min-height: 66px;
+    gap: 16px;
+  }
+
+  .brand.saas-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 20px;
+    letter-spacing: -0.8px;
+    font-weight: 800;
+    color: var(--ink, #24231f);
+    text-decoration: none;
+
+    .logo-pill {
+      background: var(--accent, #74394e);
+      color: #fff;
+      font-size: 11.5px;
+      font-weight: 800;
+      padding: 3px 7px;
+      border-radius: 6px;
+      letter-spacing: 0;
+    }
+    .saas-badge {
+      font-size: 11px;
+      font-weight: 700;
+      background: var(--surface-2, #ece8df);
+      color: var(--accent, #74394e);
+      padding: 2px 6px;
+      border-radius: 5px;
+      letter-spacing: 0;
+    }
+  }
+
+  .main-nav {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    a {
+      padding: 8px 0;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--muted, #6e6a62);
+      text-decoration: none;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s ease;
+      &:hover {
+        color: var(--accent, #74394e);
+      }
+    }
+  }
+}
+
+.login-split {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--line, #e5e2da);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: border-color 0.15s ease;
+
+  &:hover {
+    border-color: var(--accent, #74394e);
+  }
+
+  .btn-login-main {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink, #24231f);
+    text-decoration: none;
+    border-right: 1px solid var(--line, #e5e2da);
+    &:hover {
+      background: var(--surface-2, #f5f2eb);
+    }
+  }
+
+  .btn-login-toggle {
+    display: grid;
+    place-items: center;
+    padding: 0 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted, #6e6a62);
+    border-radius: 0 7px 7px 0;
+    font-size: 11px;
+    &:hover {
+      background: var(--surface-2, #f5f2eb);
+      color: var(--accent, #74394e);
+    }
+  }
+
+  .login-menu-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    width: 280px;
+    background: var(--surface, #fff);
+    border: 1px solid var(--line, #e5e2da);
+    border-radius: 10px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12);
+    padding: 6px;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+
+    .dropdown-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 9px 10px;
+      text-decoration: none;
+      border-radius: 6px;
+      transition: background 0.12s ease;
+
+      .icon {
+        font-size: 17px;
+        line-height: 1.2;
+      }
+
+      .menu-text {
+        display: flex;
+        flex-direction: column;
+        strong {
+          font-size: 12.5px;
+          color: var(--ink, #24231f);
+          font-weight: 700;
+        }
+        small {
+          font-size: 11px;
+          color: var(--muted, #6e6a62);
+          line-height: 1.3;
+        }
+      }
+
+      &:hover {
+        background: var(--surface-2, #f5f2eb);
+        .menu-text strong {
+          color: var(--accent, #74394e);
+        }
+      }
+    }
+  }
+}
+
+.ingress-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-crear-tienda {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 13px;
+  text-decoration: none;
+  .free-badge {
+    background: rgba(255, 255, 255, 0.22);
+    padding: 1px 6px;
+    border-radius: 99px;
+    font-size: 9.5px;
+    font-weight: 700;
+  }
+}
+
+.btn-subtle-reg {
+  font-size: 12.5px;
+  color: var(--muted, #6e6a62);
+  text-decoration: none;
+  padding: 6px 4px;
+  &:hover {
+    color: var(--ink, #24231f);
+    text-decoration: underline;
+  }
+}
+
+.user-avatar-circle {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent, #74394e);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  margin-right: 4px;
+}
+
 .landing-wrapper {
   background: var(--paper, #faf9f6);
   color: var(--ink, #24231f);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-
-  .landing-header {
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    background: rgba(250, 249, 246, 0.95);
-    backdrop-filter: blur(8px);
-    border-bottom: 1px solid var(--line, #e5e2da);
-
-    .header-inner {
-      height: 64px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-    }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-weight: 800;
-      font-size: 18px;
-
-      .logo-pill {
-        background: var(--accent, #74394e);
-        color: #fff;
-        font-size: 12px;
-        padding: 2px 7px;
-        border-radius: 5px;
-      }
-      small {
-        font-size: 11px;
-        background: #ece8df;
-        padding: 2px 5px;
-        border-radius: 4px;
-        color: var(--muted);
-      }
-    }
-    .nav-links {
-      display: flex;
-      gap: 20px;
-      @media (max-width: 860px) { display: none; }
-      a {
-        text-decoration: none;
-        font-size: 14px;
-        font-weight: 600;
-        color: var(--muted);
-        &:hover { color: var(--accent); }
-      }
-    }
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-
-      .btn-ghost {
-        text-decoration: none;
-        font-size: 13.5px;
-        font-weight: 600;
-        padding: 6px 12px;
-        border-radius: 6px;
-        &:hover { background: #ece8df; }
-      }
-      .btn-cta {
-        text-decoration: none;
-        font-size: 13.5px;
-        font-weight: 700;
-        background: var(--accent, #74394e);
-        color: #fff;
-        padding: 8px 16px;
-        border-radius: 7px;
-      }
-    }
-  }
 
   .hero-section {
     padding: 56px 0 40px;
@@ -2650,7 +2788,29 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
       font-size: 15px;
       text-decoration: none;
     }
-    .btn-secondary-large {
+    
+    .btn-login-portal {
+      background: #f7f5f0 !important;
+      color: var(--ink, #24231f) !important;
+      border: 1px solid var(--line, #e5e2da) !important;
+      &:hover {
+        background: #ede9e0 !important;
+      }
+    }
+    .existing-user-hint {
+      font-size: 12.5px;
+      color: var(--muted, #6e6a62);
+      margin: -10px 0 20px;
+      a {
+        color: var(--accent, #74394e);
+        font-weight: 700;
+        text-decoration: none;
+        &:hover {
+          text-decoration: underline;
+        }
+      }
+    }
+.btn-secondary-large {
       display: inline-flex;
       align-items: center;
       padding: 12px 18px;
@@ -2887,6 +3047,34 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
   }
 
   .brands-section {
+    .directory-hero-banner {
+      text-align: center;
+      max-width: 640px;
+      margin: 0 auto 24px;
+      .banner-badge {
+        display: inline-block;
+        font-size: 10.5px;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        color: var(--accent, #74394e);
+        background: #f4ecf0;
+        padding: 3px 10px;
+        border-radius: 99px;
+        margin-bottom: 8px;
+      }
+      h3 {
+        font-size: 24px;
+        font-weight: 800;
+        margin: 0 0 8px;
+      }
+      p {
+        font-size: 14px;
+        color: var(--muted, #6e6a62);
+        margin: 0;
+        line-height: 1.45;
+      }
+    }
+
     .search-box {
       margin-top: 14px;
       .store-search-input { width: 100%; max-width: 400px; padding: 9px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 13.5px; }
@@ -2906,6 +3094,50 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
       grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
       gap: 14px;
       .store-card {
+        &.cta-card {
+          border: 2px dashed color-mix(in oklab, var(--accent) 45%, var(--line));
+          background: #fdfcfb;
+          text-align: center;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          padding: 24px 18px;
+          .cta-icon {
+            font-size: 26px;
+            margin-bottom: 6px;
+          }
+          h4 {
+            margin: 0 0 6px;
+            font-size: 15px;
+            font-weight: 800;
+            color: var(--ink);
+          }
+          p {
+            font-size: 12px;
+            color: var(--muted);
+            margin: 0 0 14px;
+            line-height: 1.4;
+          }
+          .store-card-footer {
+            border-top: none;
+            padding: 0;
+          }
+          .btn-store-cta {
+            display: inline-block;
+            background: var(--accent, #74394e);
+            color: #fff;
+            padding: 7px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            text-decoration: none;
+            &:hover {
+              opacity: 0.92;
+            }
+          }
+        }
+
         background: #fff;
         border: 1px solid var(--line);
         border-radius: 10px;

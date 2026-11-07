@@ -1,33 +1,10 @@
 <div class="landing-wrapper">
-  <!-- Barra de Navegación Superior -->
-  <header class="landing-header">
-    <div class="header-inner container">
-      <div class="brand">
-        <span class="logo-pill">FS</span>
-        <span class="brand-text">FashionStore <small>SaaS</small></span>
-      </div>
-
-      <nav class="nav-links">
-        <a href="#soluciones">Soluciones</a>
-        <a href="#modulos">Módulos</a>
-        <a href="#planes">Planes</a>
-        <a href="#marcas">Directorio de Marcas</a>
-        <a href="#faq">Preguntas</a>
-      </nav>
-
-      <div class="header-actions">
-        <a class="btn-ghost" routerLink="/iniciar-sesion">Iniciar sesión</a>
-        <a class="btn-cta" routerLink="/crear-tienda">Crear mi Tienda</a>
-      </div>
-    </div>
-  </header>
-
   <!-- Hero Section -->
   <section class="hero-section">
     <div class="container hero-grid">
       <div class="hero-content">
         <div class="hero-chip">
-          <span class="dot"></span> Plataforma Omnicanal para Marcas de Moda
+          <span class="dot"></span> Plataforma Omnicanal para Marcas de Moda · Cajas 100% Offline
         </div>
         <h1 class="hero-title">
           Tu marca de ropa en línea y en mostrador, <span class="gradient-text">sin límites</span>.
@@ -48,6 +25,13 @@
           <a class="btn-secondary-large" href="#marcas">
             Explorar tiendas activas
           </a>
+          <a class="btn-secondary-large btn-login-portal" routerLink="/iniciar-sesion">
+            🏢 Acceso Consola Empresa
+          </a>
+        </div>
+
+        <div class="existing-user-hint">
+          ¿Ya tienes cuenta en una empresa? <a routerLink="/iniciar-sesion">Ingresar a tu consola de negocio →</a>
         </div>
 
         <div class="trust-strip">
@@ -61,7 +45,11 @@
           </div>
           <div class="trust-item">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-            <span>Tus datos 100% exportables</span>
+            <span>Operación de caja 100% offline</span>
+          </div>
+          <div class="trust-item">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Tus datos aislados y exportables</span>
           </div>
         </div>
       </div>
@@ -301,11 +289,13 @@
   <!-- Directorio de Marcas -->
   <section class="section brands-section" id="marcas">
     <div class="container">
-      <div class="section-header">
-        <span class="eyebrow">DIRECTORIO DE TIENDAS</span>
-        <h2>Marcas que crecen con FashionStore</h2>
-        <p>Descubre los catálogos y prendas de las tiendas que operan sobre nuestra plataforma.</p>
+      <div class="directory-hero-banner">
+        <div class="banner-badge">DIRECTORIO OFICIAL DE BOUTIQUES Y MARCAS</div>
+        <h3>Marcas y Boutiques que Confían en FashionStore</h3>
+        <p>Descubre los catálogos en línea de las tiendas activas en la plataforma. Cada marca cuenta con catálogo web propio, vestidor virtual 3D y reservas para retiro en sucursal.</p>
+      </div>
 
+      <div class="section-header">
         <div class="search-box">
           <input
             type="text"
@@ -358,6 +348,18 @@
               </div>
             </div>
           }
+
+          <!-- Tarjeta de invitación para nuevas empresas -->
+          <div class="store-card cta-card">
+            <div class="cta-icon">✨</div>
+            <h4>¿Tienes tu propia marca?</h4>
+            <p>Abre tu tienda en línea con probador virtual 3D y caja 100% offline lista para operar en 5 minutos.</p>
+            <div class="store-card-footer">
+              <a class="btn-store-cta" routerLink="/crear-tienda">
+                <span>Registrar mi Tienda Gratis →</span>
+              </a>
+            </div>
+          </div>
         </div>
       }
     </div>
@@ -424,13 +426,13 @@
         <a href="#soluciones">Soluciones</a>
         <a href="#modulos">Módulos</a>
         <a href="#planes">Planes y Precios</a>
-        <a href="#marcas">Directorio de Marcas</a>
+        <a href="#marcas">Directorio de Tiendas</a>
       </div>
 
       <div class="footer-col">
         <h5>Accesos</h5>
         <a routerLink="/crear-tienda">Crear Tienda</a>
-        <a routerLink="/iniciar-sesion">Iniciar Sesión</a>
+        <a routerLink="/iniciar-sesion">Iniciar Sesión de Empresa</a>
         <a routerLink="/sin-conexion/catalogo">Catálogo sin conexión</a>
       </div>
 

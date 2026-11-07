@@ -11,6 +11,10 @@ export const authGuard: CanActivateFn = (route, state) => {
       queryParams: { returnUrl: state.url, ...(tienda ? { tienda } : {}) },
     });
   }
+  if ((state.url.startsWith('/admin') || state.url === '/admin') && session.isClient()) {
+    const slug = session.tenant()?.slug;
+    return router.createUrlTree([slug ? `/tienda/${slug}` : '/mi-cuenta']);
+  }
   return session.can(route.data['permission']) || router.createUrlTree(['/sin-acceso']);
 };
 

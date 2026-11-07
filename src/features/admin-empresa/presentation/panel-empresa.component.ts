@@ -6,7 +6,7 @@ import {
   signal,
   computed,
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { BranchContextService } from '../../../app/core/layout/admin-topbar.component';
@@ -175,6 +175,7 @@ import { UpgradeCardComponent } from '../../../shared/ui/upgrade-card.component'
   styleUrl: './panel-empresa.component.scss',
 })
 export class PanelEmpresaComponent {
+  private router = inject(Router);
   session = inject(SessionService);
   private branchService = inject(BranchContextService);
   private api = inject(EmpresaAdminApi);
@@ -207,6 +208,11 @@ export class PanelEmpresaComponent {
   }
 
   constructor() {
+    if (this.session.isClient()) {
+      const slug = this.session.tenant()?.slug;
+      void this.router.navigateByUrl(slug ? `/tienda/${slug}` : '/mi-cuenta');
+      return;
+    }
     effect(() => {
       const bId = this.branchService.branchId();
       this.cargarDashboard(bId ?? undefined);

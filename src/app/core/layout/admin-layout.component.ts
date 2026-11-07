@@ -77,6 +77,12 @@ export class AdminLayoutComponent {
   session = inject(SessionService);
   connection = inject(ConnectivityService);
   sidebarOpen = signal(false);
+  constructor() {
+    if (this.session.isClient()) {
+      const slug = this.session.tenant()?.slug;
+      void this.router.navigateByUrl(slug ? `/tienda/${slug}` : '/mi-cuenta');
+    }
+  }
   private router = inject(Router);
   private currentUrl = toSignal(this.router.events.pipe(
     filter((event): event is NavigationEnd => event instanceof NavigationEnd),

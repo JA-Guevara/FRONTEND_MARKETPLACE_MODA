@@ -23,9 +23,12 @@ export const tenantScopeGuard: CanActivateFn = () => {
 export const administrativeGuard: CanActivateFn = () => {
   const session = inject(SessionService);
   const router = inject(Router);
-  if (session.administrative()) {
-    return true;
+  if (!session.user()) {
+    return router.parseUrl('/iniciar-sesion');
   }
-  const slug = session.tenant()?.slug;
-  return router.parseUrl(slug ? `/tienda/${slug}` : '/mi-cuenta');
+  if (session.isClient() || !session.administrative()) {
+    const slug = session.tenant()?.slug;
+    return router.parseUrl(slug ? `/tienda/${slug}` : '/mi-cuenta');
+  }
+  return true;
 };

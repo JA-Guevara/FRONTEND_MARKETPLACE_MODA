@@ -87,7 +87,6 @@ export const catalogResources: Resource[] = [
           type: 'multi',
           lookup: '/roles',
           required: true,
-          createOnly: true,
         },
         { key: 'is_verified', label: 'Correo verificado', type: 'checkbox' },
       ]),
