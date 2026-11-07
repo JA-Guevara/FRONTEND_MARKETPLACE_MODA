@@ -11,8 +11,10 @@ import { DashboardService } from '../../ia-reportes/infrastructure/dashboard.ser
 import { AssistantContextService } from '../../../shared/assistant-context.service';
 import { ApiService } from '../../../app/core/shared/api.service';
 
-function setup(options: { permissions?: string[] } = {}) {
-  const user = signal<{ id: string } | null>(null);
+function setup(options: { permissions?: string[]; platform?: boolean; guest?: boolean } = {}) {
+  const user = signal<{ id: string } | null>(options.guest ? null : { id: 'user-1' });
+  const scope = signal(options.platform ? 'platform' : 'tenant');
+  const tenant = signal<{id: string} | null>(options.platform ? null : { id: 'tenant-a' });
   const deferreds: { res: (v: { available: boolean; reply: string }) => void; rej: (e: Error) => void }[] = [];
   const write = vi.fn().mockImplementation(
     () =>
@@ -39,7 +41,7 @@ function setup(options: { permissions?: string[] } = {}) {
     imports: [AssistantWidgetComponent],
     providers: [
       { provide: CommerceService, useValue: { write, transcribeVoice } },
-      { provide: SessionService, useValue: { user, can: (p: string) => (options.permissions ?? []).includes(p) } },
+      { provide: SessionService, useValue: { user, scope, tenant, support: signal(null), can: (p: string) => (options.permissions ?? []).includes(p) } },
       { provide: CatalogService, useValue: catalog },
       { provide: DashboardService, useValue: dashboard },
       { provide: ApiService, useValue: api },
@@ -49,7 +51,7 @@ function setup(options: { permissions?: string[] } = {}) {
   const fixture = TestBed.createComponent(AssistantWidgetComponent);
   fixture.detectChanges();
   const ctx = TestBed.inject(AssistantContextService);
-  return { fixture, write, catalog, dashboard, deferreds, ctx, user, transcribeVoice, api };
+  return { fixture, write, catalog, dashboard, deferreds, ctx, user, tenant, scope, transcribeVoice, api, router: TestBed.inject(Router) };
 }
 
 function installVoiceRecorder(getUserMedia = vi.fn().mockResolvedValue({
@@ -84,6 +86,55 @@ function installVoiceRecorder(getUserMedia = vi.fn().mockResolvedValue({
 }
 
 describe('Asistente: indicador de espera con tres puntos', () => {
+
+  it('orienta al visitante sin pedir acceso a endpoints autenticados', async () => {
+    const { fixture, write, api } = setup({ guest: true });
+    await fixture.componentInstance.send('¿Cómo ingreso a mi empresa?');
+    expect(fixture.componentInstance.history().at(-1)?.text).toContain('elegí tu empresa');
+    expect(write).not.toHaveBeenCalled();
+    expect(api.write).not.toHaveBeenCalled();
+  });
+
+  it('abre las secciones reales de plataforma con permiso y sin modificar datos', async () => {
+    const { fixture, router, write, api } = setup({ platform: true, permissions: ['plans.read'] });
+    await fixture.componentInstance.send('Abrí los planes');
+    expect(router.navigate).toHaveBeenCalledWith(['/admin/plataforma/planes']);
+    expect(fixture.componentInstance.history().at(-1)?.text).toContain('Stripe Billing');
+    expect(write).not.toHaveBeenCalled();
+    expect(api.write).not.toHaveBeenCalled();
+  });
+
+  it('no abre ni consulta secciones de plataforma sin permiso', async () => {
+    const { fixture, router, write } = setup({ platform: true });
+    await fixture.componentInstance.send('Mostrame empresas y suscripciones');
+    expect(router.navigate).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.history().at(-1)?.text).toContain('no tiene permiso');
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it('mantiene orientación sin conexión sin enviar operaciones al servidor', async () => {
+    const { fixture, write, api } = setup({ permissions: ['catalog.write'] });
+    const online = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    try {
+      await fixture.componentInstance.send('Creá una prenda a 450');
+      expect(fixture.componentInstance.history().at(-1)?.text).toContain('provisionales');
+      expect(write).not.toHaveBeenCalled();
+      expect(api.write).not.toHaveBeenCalled();
+    } finally { online.mockRestore(); }
+  });
+
+  it('descarta respuestas y confirmaciones al cambiar de empresa con el mismo usuario', async () => {
+    const { fixture, tenant, deferreds } = setup();
+    const pending = fixture.componentInstance.send('¿Qué talla me conviene?');
+    fixture.componentInstance.confirmInput.set('datos anteriores');
+    tenant.set({ id: 'tenant-b' });
+    fixture.detectChanges();
+    deferreds[0].res({ available: true, reply: 'Respuesta de empresa A' });
+    await pending;
+    expect(fixture.componentInstance.history()).toEqual([]);
+    expect(fixture.componentInstance.confirmInput()).toBe('');
+    expect(fixture.componentInstance.busy()).toBe(false);
+  });
 
   it('el reintento de un borrador vuelve a preparar el borrador y no cae en el chat general', async () => {
     const { fixture, write, catalog } = setup({ permissions: ['catalog.write'] });

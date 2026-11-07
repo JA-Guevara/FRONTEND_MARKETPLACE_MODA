@@ -141,6 +141,8 @@ const SUGGESTIONS = [
     .ai-panel.expanded { height: calc(100dvh - 40px); }
     .ai-widget { right: max(22px, env(safe-area-inset-right)); bottom: max(22px, env(safe-area-inset-bottom)); z-index: 1100; }
     .ai-launcher { width: 62px; height: 62px; }
+    .ai-launcher, .ai-launcher:hover { background: linear-gradient(155deg, var(--accent), var(--accent-hover)); color: var(--on-accent); }
+    .ai-panel__title small { color: inherit; opacity: 0.85; }
     .ai-panel__actions { display: flex; gap: 2px; margin-left: auto; }
     .ai-panel__actions button, .ai-panel__close {
       min-width: 34px; min-height: 34px; padding: 6px; border-radius: 8px;
@@ -838,7 +840,7 @@ private lastUserText = '';
     return 'Preguntame sobre reservas, pedidos, cambios, reportes o cómo usar esta pantalla. Las acciones se revisan antes de confirmarlas.';
   }
   contextLabel() {
-    return this.currentModule() || 'Te acompaño en toda la tienda';
+    return this.currentModule() || (this.platformScope() ? 'Consola de plataforma SaaS' : 'Te acompaño en FashionStore');
   }
   /** Sugerencias del panel vacío: las de siempre, más una por cada acción
    * extra que el usuario logueado puede pedirle al asistente que haga. */
@@ -911,7 +913,9 @@ private lastUserText = '';
     this.lastUserText = text;
     this.history.update((h) => [...h, { from: 'user', text }]);
     this.scrollToBottom();
-    if (await this.localGuidance(text)) return;
+    if (!navigator.onLine || this.platformScope() || !this.session.user()) {
+      if (await this.localGuidance(text)) return;
+    }
     // El registro central resuelve la orden: primer chequeo de permiso con el
     // catálogo de permisos del backend; el backend valida de nuevo al ejecutar.
     const registered = resolveAction(text);
