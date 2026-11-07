@@ -1,0 +1,25 @@
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { TestBed } from '@angular/core/testing';
+import { environment } from '../../../environments/environment';
+import { MLApi } from './ml.api';
+
+describe('Modelos ML de plataforma', () => {
+  beforeEach(() => TestBed.configureTestingModule({
+    providers: [provideHttpClient(), provideHttpClientTesting()],
+  }));
+
+  afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+  it('entrega los modelos y las ejecuciones de la respuesta de la API', async () => {
+    const api = TestBed.inject(MLApi);
+    const http = TestBed.inject(HttpTestingController);
+    const models = api.getPlatformModels();
+    const runs = api.getPlatformRuns();
+    const data = [{ id: 'demo-1', tenant_name: 'FashionStore Demo' }];
+    http.expectOne(environment.apiUrl + '/platform/ml/models').flush({ success: true, data });
+    http.expectOne(environment.apiUrl + '/platform/ml/runs').flush({ success: true, data });
+    expect(await models).toEqual(data);
+    expect(await runs).toEqual(data);
+  });
+});

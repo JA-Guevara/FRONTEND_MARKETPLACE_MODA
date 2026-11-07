@@ -50,27 +50,17 @@ export class MLApi {
     return res.data;
   }
 
-  async initialize(seed = 42): Promise<any> {
-    const res = await firstValueFrom(
-      this.api.post<{ success: boolean; data: any }>(
-        `/analytics/ml/initialize?seed=${seed}`,
-        {}
-      )
+  async initializeDemo(seed = 42) {
+    return firstValueFrom(
+      this.api.post<{ status: string }>(`/platform/ml/initialize?seed=${seed}`, {}),
     );
-    return res.data;
   }
 
   async getPlatformRuns(): Promise<MLTrainingRun[]> {
-    const res = await firstValueFrom(
-      this.api.get<{ success: boolean; data: MLTrainingRun[] }>('/platform/ml/runs')
-    );
-    return res.data;
+    return firstValueFrom(this.api.get<MLTrainingRun[]>('/platform/ml/runs'));
   }
 
   async getPlatformModels(): Promise<MLModelSummary[]> {
-    const res = await firstValueFrom(
-      this.api.get<{ success: boolean; data: MLModelSummary[] }>('/platform/ml/models')
-    );
-    return res.data;
+    return firstValueFrom(this.api.get<MLModelSummary[]>('/platform/ml/models'));
   }
 }

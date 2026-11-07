@@ -2,6 +2,8 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { errorMessage } from '../../../shared/errors';
+import { ADMIN_NAV } from '../../../app/core/layout/admin-nav';
 import { PlataformaApi } from '../infrastructure/plataforma.api';
 import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { SandboxStatus } from '../domain/gobierno.models';
@@ -19,8 +21,8 @@ import { SandboxStatus } from '../domain/gobierno.models';
         </div>
         <div class="actions">
           <button class="btn btn-secondary" (click)="loadSandbox()">Actualizar</button>
-          <button class="btn btn-danger" [disabled]="resetting()" (click)="confirmReset()">
-            {{ resetting() ? 'Restableciendo...' : 'Restablecer demo' }}
+          <button class="btn btn-danger" [disabled]="loading() || resetting()" (click)="confirmReset()">
+            {{ resetting() ? 'Preparando…' : sandbox()?.tenant_id ? 'Restablecer demo' : 'Preparar demo' }}
           </button>
         </div>
       </header>
@@ -50,6 +52,9 @@ import { SandboxStatus } from '../domain/gobierno.models';
           </div>
         </div>
 
+        @if (!s.tenant_id) {
+          <p>Prepará la empresa demo para crear sus sucursales, el catálogo de prueba y habilitar la vista previa de módulos.</p>
+        } @else {
         <section class="section">
           <h3>Módulos activos en Demo</h3>
           <p class="section-desc">Selecciona un módulo para previsualizarlo mediante una sesión de soporte de escritura</p>
@@ -83,6 +88,7 @@ import { SandboxStatus } from '../domain/gobierno.models';
             </table>
           </div>
         </section>
+        }
       }
     </div>
   `,
@@ -185,14 +191,17 @@ export class DemoSandboxComponent implements OnInit {
         this.loading.set(false);
       },
       error: (err) => {
-        this.error.set(err?.message || 'Error al cargar sandbox.');
+        this.error.set(errorMessage(err));
         this.loading.set(false);
       }
     });
   }
 
   confirmReset(): void {
-    if (!confirm('¿Restablecer la empresa demo a su estado inicial? Esto limpiará ventas y productos de prueba generados durante el preview.')) {
+    const mensaje = this.sandbox()?.tenant_id
+      ? '¿Restablecer el catálogo, las existencias y las sucursales de la demo? Se conservará el historial de operaciones.'
+      : '¿Preparar la empresa demo con un catálogo y sucursales de prueba?';
+    if (!confirm(mensaje)) {
       return;
     }
     this.resetting.set(true);
@@ -202,7 +211,7 @@ export class DemoSandboxComponent implements OnInit {
         this.resetting.set(false);
       },
       error: (err) => {
-        alert(err?.message || 'No se pudo restablecer la demo.');
+        alert(errorMessage(err));
         this.resetting.set(false);
       }
     });
@@ -211,11 +220,19 @@ export class DemoSandboxComponent implements OnInit {
   previewModule(code: string): void {
     this.api.sandboxPreview(code).subscribe({
       next: (start) => {
+        if (!start.access_token) {
+          alert('La sesión de prueba todavía no está disponible.');
+          return;
+        }
         this.session.startSupport(start);
-        this.router.navigate(['/admin']);
+        const item = ADMIN_NAV.filter(section => section.scope === 'tenant')
+          .flatMap(section => section.items.flatMap(item => [item, ...(item.children ?? [])]))
+          .find(item => item.feature === code);
+        const path = code === 'products' ? '/admin/products' : item?.path ?? '/admin';
+        void this.router.navigateByUrl(path);
       },
       error: (err) => {
-        alert(err?.message || 'Error al iniciar vista previa del módulo.');
+        alert(errorMessage(err));
       }
     });
   }

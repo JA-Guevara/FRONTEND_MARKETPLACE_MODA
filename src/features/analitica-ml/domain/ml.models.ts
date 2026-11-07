@@ -1,5 +1,7 @@
 export interface MLModelSummary {
   id: string;
+  tenant_name?: string;
+  metrics?: { r2?: number; mae?: number; rmse?: number } | null;
   model_type: 'DEMAND' | 'RFM' | 'ANOMALY';
   version: string;
   is_active: boolean;
@@ -77,12 +79,10 @@ export interface CustomerSegmentItem {
 export interface MLTrainingRun {
   id: string;
   tenant_id: string;
+  tenant_name: string;
   model_type: string;
-  version: string;
   status: string;
-  r2_score?: number;
-  mae?: number;
-  rmse?: number;
+  metrics?: { r2?: number; mae?: number; rmse?: number } | null;
   error_message?: string;
   created_at: string;
   completed_at?: string;

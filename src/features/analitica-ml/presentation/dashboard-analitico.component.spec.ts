@@ -138,7 +138,7 @@ describe('Componentes de Analítica ML', () => {
             created_at: '2026-11-04T10:00:00Z',
           },
         ]),
-        initialize: vi.fn().mockResolvedValue({ status: 'COMPLETED' }),
+        initializeDemo: vi.fn().mockResolvedValue({ status: 'COMPLETED' }),
       };
 
       comp = new ModelosAnaliticosComponent(mockApi as MLApi);
@@ -153,7 +153,7 @@ describe('Componentes de Analítica ML', () => {
 
     it('dispara entrenamiento y recarga datos', async () => {
       await comp.entrenarModelos();
-      expect(mockApi.initialize).toHaveBeenCalledWith(42);
+      expect(mockApi.initializeDemo).toHaveBeenCalledWith(42);
       expect(comp.mensajeExito()).toContain('completado');
     });
   });

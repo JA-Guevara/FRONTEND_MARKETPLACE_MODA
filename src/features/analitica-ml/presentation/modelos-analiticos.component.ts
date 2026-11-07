@@ -2,6 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MLApi } from '../infrastructure/ml.api';
 import { MLModelSummary, MLTrainingRun } from '../domain/ml.models';
+import { errorMessage } from '../../../shared/errors';
 
 @Component({
   selector: 'app-modelos-analiticos',
@@ -13,13 +14,13 @@ import { MLModelSummary, MLTrainingRun } from '../domain/ml.models';
         <div>
           <h1>Gestión de Modelos de Machine Learning</h1>
           <p class="subtitle">
-            Ciclo de vida, ejecuciones de entrenamiento (Training Runs) y modelos desplegados en la plataforma.
+            Modelos por empresa e historial de entrenamiento. El botón entrena con datos sintéticos en la empresa demo.
           </p>
         </div>
         <div class="header-actions">
           <button class="btn btn-primary" (click)="entrenarModelos()" [disabled]="entrenando()">
             <span *ngIf="entrenando()">Entrenando y Evaluando...</span>
-            <span *ngIf="!entrenando()">Entrenar / Reentrenar Modelos</span>
+            <span *ngIf="!entrenando()">Entrenar empresa demo</span>
           </button>
           <button class="btn btn-secondary" (click)="cargarDatos()" [disabled]="cargando()">
             Actualizar
@@ -41,31 +42,31 @@ import { MLModelSummary, MLTrainingRun } from '../domain/ml.models';
           <table class="data-table">
             <thead>
               <tr>
+                <th>Empresa</th>
                 <th>Tipo</th>
                 <th>Versión</th>
                 <th>Estado</th>
                 <th>Métricas</th>
                 <th>Creado</th>
-                <th>Publicado</th>
               </tr>
             </thead>
             <tbody>
               <tr *ngFor="let m of models()">
+                <td>{{ m.tenant_name }}</td>
                 <td><strong>{{ m.model_type }}</strong></td>
                 <td><code>v{{ m.version }}</code></td>
                 <td>
-                  <span *ngIf="m.is_active" class="pill pill-success">Producción</span>
+                  <span *ngIf="m.is_active" class="pill pill-success">Activo</span>
                   <span *ngIf="!m.is_active" class="pill pill-neutral">Inactivo</span>
                 </td>
                 <td>
-                  <span *ngIf="m.r2_score !== undefined">R²: {{ m.r2_score | number:'1.2-2' }}, MAE: {{ m.mae | number:'1.2-2' }}</span>
+                  <span *ngIf="m.metrics as metrics">R²: {{ metrics.r2 | number:'1.2-2' }}, MAE: {{ metrics.mae | number:'1.2-2' }}</span>
                   <span *ngIf="m.silhouette_score !== undefined">Silhouette: {{ m.silhouette_score | number:'1.2-2' }}</span>
                   <span *ngIf="m.contamination !== undefined">Contaminación: {{ m.contamination | percent }}</span>
                 </td>
                 <td>{{ m.created_at | date:'short' }}</td>
-                <td>{{ m.published_at ? (m.published_at | date:'short') : '-' }}</td>
               </tr>
-              <tr *ngIf="!models().length">
+              <tr *ngIf="!cargando() && !error() && !models().length">
                 <td colspan="6" class="text-center text-muted">No hay modelos registrados.</td>
               </tr>
             </tbody>
@@ -82,7 +83,7 @@ import { MLModelSummary, MLTrainingRun } from '../domain/ml.models';
               <tr>
                 <th>ID</th>
                 <th>Tipo</th>
-                <th>Versión</th>
+                <th>Empresa</th>
                 <th>Estado</th>
                 <th>R²</th>
                 <th>MAE</th>
@@ -94,18 +95,18 @@ import { MLModelSummary, MLTrainingRun } from '../domain/ml.models';
               <tr *ngFor="let r of runs()">
                 <td><code>{{ r.id.substring(0, 8) }}</code></td>
                 <td>{{ r.model_type }}</td>
-                <td>v{{ r.version }}</td>
+                <td>{{ r.tenant_name }}</td>
                 <td>
                   <span *ngIf="r.status === 'COMPLETED'" class="pill pill-success">Completado</span>
                   <span *ngIf="r.status === 'RUNNING'" class="pill pill-warning">En Ejecución</span>
                   <span *ngIf="r.status === 'FAILED'" class="pill pill-danger">Falló</span>
                 </td>
-                <td>{{ r.r2_score ? (r.r2_score | number:'1.2-2') : '-' }}</td>
-                <td>{{ r.mae ? (r.mae | number:'1.2-2') : '-' }}</td>
-                <td>{{ r.rmse ? (r.rmse | number:'1.2-2') : '-' }}</td>
+                <td>{{ (r.metrics?.r2 | number:'1.2-2') ?? '—' }}</td>
+                <td>{{ (r.metrics?.mae | number:'1.2-2') ?? '—' }}</td>
+                <td>{{ (r.metrics?.rmse | number:'1.2-2') ?? '—' }}</td>
                 <td>{{ r.created_at | date:'short' }}</td>
               </tr>
-              <tr *ngIf="!runs().length">
+              <tr *ngIf="!cargando() && !error() && !runs().length">
                 <td colspan="8" class="text-center text-muted">No se registran ejecuciones de entrenamiento aún.</td>
               </tr>
             </tbody>
@@ -237,8 +238,8 @@ export class ModelosAnaliticosComponent implements OnInit {
       ]);
       this.models.set(m);
       this.runs.set(r);
-    } catch (err: any) {
-      this.error.set(err?.error?.message ?? err?.message ?? 'Error al cargar modelos.');
+    } catch (err) {
+      this.error.set(errorMessage(err));
     } finally {
       this.cargando.set(false);
     }
@@ -248,12 +249,12 @@ export class ModelosAnaliticosComponent implements OnInit {
     this.entrenando.set(true);
     this.error.set(null);
     try {
-      await this.mlApi.initialize(42);
+      await this.mlApi.initializeDemo(42);
       this.mensajeExito.set('Entrenamiento completado y modelos actualizados exitosamente.');
       setTimeout(() => this.mensajeExito.set(null), 4000);
       await this.cargarDatos();
-    } catch (err: any) {
-      this.error.set(err?.error?.message ?? err?.message ?? 'Error durante el entrenamiento.');
+    } catch (err) {
+      this.error.set(errorMessage(err));
     } finally {
       this.entrenando.set(false);
     }
