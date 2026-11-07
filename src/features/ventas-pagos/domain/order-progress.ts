@@ -99,13 +99,22 @@ export function etapasDelPedido(order: Order): EtapaPedido[] {
       // El pago puede estar acreditado aunque el pedido siga en preparación.
       (plantilla.clave === 'paid' && pagado);
     let estado: EstadoEtapa = alcanzada ? 'hecha' : 'pendiente';
-    if (alcanzada && indice === Math.max(indiceActual, pagado && indiceActual < 1 ? 1 : indiceActual))
+    if (
+      alcanzada &&
+      indice === Math.max(indiceActual, pagado && indiceActual < 1 ? 1 : indiceActual)
+    )
       estado = 'actual';
     if (cancelado && !alcanzada) estado = 'cancelada';
     return {
       clave: plantilla.clave,
-      titulo: plantilla.titulo,
-      detalle: plantilla.detalle,
+      titulo:
+        order.address?.pickup && plantilla.clave === 'delivered'
+          ? 'Retirado en sucursal'
+          : plantilla.titulo,
+      detalle:
+        order.address?.pickup && plantilla.clave === 'delivered'
+          ? 'El personal confirmó que retiraste tus prendas en la sucursal.'
+          : plantilla.detalle,
       icono: plantilla.icono,
       estado,
       fecha: alcanzada ? fechaDe(order, plantilla.clave) : undefined,
@@ -126,7 +135,7 @@ export function etapasDelPedido(order: Order): EtapaPedido[] {
       fecha: evento?.date,
     });
   }
-  return etapas;
+  return order.address?.pickup ? etapas.filter((etapa) => etapa.clave !== 'shipped') : etapas;
 }
 
 /** Avance del pedido, de 0 a 100, para dibujar la barra de progreso. */

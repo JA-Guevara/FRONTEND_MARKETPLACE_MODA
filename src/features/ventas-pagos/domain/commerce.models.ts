@@ -47,6 +47,7 @@ export interface SavedAddress {
   is_default: boolean;
 }
 export interface DeliveryAddress {
+  pickup?: boolean;
   recipient: string;
   phone: string;
   line1: string;

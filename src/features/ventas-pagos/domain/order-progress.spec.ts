@@ -27,6 +27,18 @@ function pedido(cambios: Partial<Order> = {}): Order {
 const estados = (o: Order) => etapasDelPedido(o).map((e) => `${e.clave}:${e.estado}`);
 
 describe('Etapas del pedido', () => {
+  it('el retiro en sucursal termina sin inventar una etapa de envío', () => {
+    const pickup = pedido({
+      status: 'delivered',
+      payment_status: 'paid',
+      address: { ...pedido().address, pickup: true },
+    });
+    const steps = etapasDelPedido(pickup);
+    expect(steps.some((step) => step.clave === 'shipped')).toBe(false);
+    expect(steps.find((step) => step.estado === 'actual')?.titulo).toBe('Retirado en sucursal');
+    expect(progresoPedido(steps)).toBe(100);
+    expect(etapasDelPedido(pedido()).some((step) => step.clave === 'shipped')).toBe(true);
+  });
   it('un pedido recién creado está en la primera etapa y el resto queda pendiente', () => {
     expect(estados(pedido())).toEqual([
       'pending_payment:actual',
@@ -84,7 +96,9 @@ describe('Etapas del pedido', () => {
   it('un pedido cancelado no muestra etapas futuras como pendientes', () => {
     const cancelado = pedido({
       status: 'cancelled',
-      tracking: [{ status: 'cancelled', note: 'Cancelado por el cliente', date: '2026-09-12T08:00:00Z' }],
+      tracking: [
+        { status: 'cancelled', note: 'Cancelado por el cliente', date: '2026-09-12T08:00:00Z' },
+      ],
     });
     const etapas = etapasDelPedido(cancelado);
     expect(etapas.some((e) => e.estado === 'pendiente')).toBe(false);
@@ -102,8 +116,12 @@ describe('Etapas del pedido', () => {
 describe('Avance y resumen', () => {
   it('el avance crece con cada etapa cumplida', () => {
     const inicio = progresoPedido(etapasDelPedido(pedido()));
-    const medio = progresoPedido(etapasDelPedido(pedido({ status: 'processing', payment_status: 'paid' })));
-    const fin = progresoPedido(etapasDelPedido(pedido({ status: 'delivered', payment_status: 'paid' })));
+    const medio = progresoPedido(
+      etapasDelPedido(pedido({ status: 'processing', payment_status: 'paid' })),
+    );
+    const fin = progresoPedido(
+      etapasDelPedido(pedido({ status: 'delivered', payment_status: 'paid' })),
+    );
     expect(inicio).toBe(0);
     expect(medio).toBeGreaterThan(inicio);
     expect(fin).toBe(100);

@@ -10,7 +10,15 @@ import { SessionService } from '../../usuarios-catalogo/application/session.serv
 import { errorMessage } from '../../../shared/errors';
 @Component({
   selector: 'fs-orders-page',
-  imports: [FormsModule, RouterLink, DatePipe, DecimalPipe, UpperCasePipe, OrderTrackerComponent, OrderReturnsComponent],
+  imports: [
+    FormsModule,
+    RouterLink,
+    DatePipe,
+    DecimalPipe,
+    UpperCasePipe,
+    OrderTrackerComponent,
+    OrderReturnsComponent,
+  ],
   styleUrl: './commerce.scss',
   template: ` <section class="commerce-page">
     <p class="eyebrow">{{ admin ? 'GESTIÓN COMERCIAL' : 'MI CUENTA' }}</p>
@@ -72,7 +80,12 @@ import { errorMessage } from '../../../shared/errors';
         </label>
         <label class="orders-search">
           Buscar
-          <input name="q" [(ngModel)]="consulta" type="search" placeholder="N.º de pedido o correo" />
+          <input
+            name="q"
+            [(ngModel)]="consulta"
+            type="search"
+            placeholder="N.º de pedido o correo"
+          />
         </label>
         <button type="submit" [disabled]="busy()">Buscar</button>
         @if (hayFiltros()) {
@@ -98,7 +111,9 @@ import { errorMessage } from '../../../shared/errors';
                 <span class="order-flag">Caja</span>
               }
               @if (admin && o.has_open_return) {
-                <a class="order-flag is-aviso" routerLink="/admin/devoluciones">Devolución abierta</a>
+                <a class="order-flag is-aviso" routerLink="/admin/devoluciones"
+                  >Devolución abierta</a
+                >
               }
               <p>
                 <strong>{{ o.currency | uppercase }} {{ o.total | number: '1.2-2' }}</strong>
@@ -128,12 +143,18 @@ import { errorMessage } from '../../../shared/errors';
             }
             <h3>Entrega</h3>
             <p>{{ o.address.recipient }} · {{ o.address.phone }}</p>
-            <p>{{ o.address.line1 }}, {{ o.address.city }} · {{ o.address.country }}</p>
+            @if (o.address.pickup) {
+              <p>Retiro en la sucursal de tu reserva.</p>
+            } @else {
+              <p>{{ o.address.line1 }}, {{ o.address.city }} · {{ o.address.country }}</p>
+            }
             <dl>
-              <dt>Transportista</dt>
-              <dd>{{ o.carrier || 'Por asignar' }}</dd>
-              <dt>N.º seguimiento</dt>
-              <dd>{{ o.tracking_number || 'Todavía no asignado' }}</dd>
+              @if (!o.address.pickup) {
+                <dt>Transportista</dt>
+                <dd>{{ o.carrier || 'Por asignar' }}</dd>
+                <dt>N.º seguimiento</dt>
+                <dd>{{ o.tracking_number || 'Todavía no asignado' }}</dd>
+              }
               <dt>Referencia de pago</dt>
               <dd>{{ o.payment_reference || 'Sin confirmación' }}</dd>
             </dl>
@@ -141,8 +162,14 @@ import { errorMessage } from '../../../shared/errors';
           @if (!admin && o.status === 'delivered') {
             <fs-order-returns [pedido]="o" />
           }
-          @if (o.status === 'pending_payment' && o.payment_method === 'stripe' && (!admin || session.can('commerce.write'))) {
-            <button [disabled]="busy()" (click)="verifyPayment(o.id)">Verificar pago con Stripe</button>
+          @if (
+            o.status === 'pending_payment' &&
+            o.payment_method === 'stripe' &&
+            (!admin || session.can('commerce.write'))
+          ) {
+            <button [disabled]="busy()" (click)="verifyPayment(o.id)">
+              Verificar pago con Stripe
+            </button>
           }
           @if (!admin && o.status === 'pending_payment' && o.payment_status !== 'paid') {
             <div class="commerce-actions">
@@ -175,7 +202,11 @@ import { errorMessage } from '../../../shared/errors';
             }
             @if (nextStatus(o)) {
               <button (click)="edit(o, 'tracking')" [disabled]="busy()">
-                {{ label(nextStatus(o)) }} →
+                {{
+                  o.address.pickup && nextStatus(o) === 'delivered'
+                    ? 'Registrar retiro en sucursal'
+                    : label(nextStatus(o)) + ' →'
+                }}
               </button>
             }
             @if (editing() === o.id) {
@@ -331,11 +362,15 @@ export class OrdersPageComponent {
       if (this.selected) await this.verifyPayment(this.selected);
       else {
         // Sesiones antiguas de Stripe no incluyen pedido en success_url.
-        const pending = this.orders().filter(o => o.payment_method === 'stripe' && o.status === 'pending_payment');
+        const pending = this.orders().filter(
+          (o) => o.payment_method === 'stripe' && o.status === 'pending_payment',
+        );
         for (const order of pending.slice(0, 5)) await this.verifyPayment(order.id);
       }
     } else if (returned === 'cancelled') {
-      this.message.set('Volviste del pago. Tu pedido sigue pendiente hasta que Stripe confirme el cobro.');
+      this.message.set(
+        'Volviste del pago. Tu pedido sigue pendiente hasta que Stripe confirme el cobro.',
+      );
     } else {
       // Al abrir «Mis pedidos» sin venir del pago, se consulta igual el estado
       // de los pedidos con tarjeta sin acreditar.
@@ -374,16 +409,24 @@ export class OrdersPageComponent {
     this.message.set('Consultando la confirmación de Stripe…');
     try {
       const updated = await this.api.verifyPayment(id, this.admin);
-      this.orders.update(orders => orders.some(o => o.id === id)
-        ? orders.map(o => o.id === id ? updated : o) : [updated, ...orders]);
-      this.message.set(updated.payment_status === 'paid'
-        ? 'Pago confirmado por Stripe. Tu pedido está pagado.'
-        : updated.status === 'expired' ? 'La sesión de pago expiró. Las existencias fueron liberadas.'
-        : 'Stripe todavía no confirma el pago. Si ya pagaste, volvé a verificar en unos momentos.');
+      this.orders.update((orders) =>
+        orders.some((o) => o.id === id)
+          ? orders.map((o) => (o.id === id ? updated : o))
+          : [updated, ...orders],
+      );
+      this.message.set(
+        updated.payment_status === 'paid'
+          ? 'Pago confirmado por Stripe. Tu pedido está pagado.'
+          : updated.status === 'expired'
+            ? 'La sesión de pago expiró. Las existencias fueron liberadas.'
+            : 'Stripe todavía no confirma el pago. Si ya pagaste, volvé a verificar en unos momentos.',
+      );
     } catch (e) {
       this.message.set('');
       this.error.set(errorMessage(e));
-    } finally { this.busy.set(false); }
+    } finally {
+      this.busy.set(false);
+    }
   }
   async load() {
     this.busy.set(true);
@@ -401,6 +444,7 @@ export class OrdersPageComponent {
     void this.load();
   }
   nextStatus(o: Order) {
+    if (o.address.pickup && ['paid', 'processing'].includes(o.status)) return 'delivered';
     return (
       (
         { paid: 'processing', processing: 'shipped', shipped: 'delivered' } as Record<
@@ -469,4 +513,3 @@ export class OrdersPageComponent {
     }
   }
 }
-

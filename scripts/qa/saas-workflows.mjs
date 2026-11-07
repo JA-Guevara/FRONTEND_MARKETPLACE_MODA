@@ -44,7 +44,9 @@ try{
  await login('cliente0@example.com','moda-a');
  await page.goto('http://127.0.0.1:57520/mi-cuenta/reservas');
  await page.getByRole('button',{name:'Comprar prendas de esta reserva',exact:true}).click();
+ const createdResponse=page.waitForResponse(response=>response.request().method()==='POST' && response.url().includes('/reservations/') && response.url().endsWith('/order'));
  await page.getByRole('button',{name:'Crear pedido y revisar total',exact:true}).click();
+ const pickupOrder=(await(await createdResponse).json()).data;
  await page.getByText('Pendiente de pago',{exact:false}).first().waitFor();
  await page.getByRole('link',{name:'Ver pedido y pago →',exact:true}).click();
  await page.getByRole('heading',{name:'Mis pedidos',exact:true}).waitFor();
@@ -60,6 +62,16 @@ try{
  await original.getByText('Pendiente de cobro',{exact:false}).waitFor();
  console.log('CUSTOMER_EXCHANGE_DIFFERENT_PRICE_REQUEST_OK');
  await login('admin0@example.com','moda-a');
+ await page.goto('http://127.0.0.1:57520/admin/pedidos?pedido='+pickupOrder.id);
+ const pickup=page.locator('article.order-card').filter({hasText:pickupOrder.number});
+ await pickup.getByRole('button',{name:'Registrar pago recibido',exact:true}).click();
+ await pickup.locator('[name=method]').selectOption('cash');await pickup.locator('[name=reference]').fill('Caja central · retiro QA-02');
+ await pickup.getByRole('button',{name:'Guardar confirmación',exact:true}).click();
+ await pickup.getByRole('button',{name:'Registrar retiro en sucursal',exact:true}).click();
+ await pickup.getByRole('button',{name:'Guardar confirmación',exact:true}).click();
+ await pickup.getByText('Retirado en sucursal',{exact:true}).first().waitFor();
+ assert.equal(await pickup.getByText('En camino',{exact:true}).count(),0);
+ console.log('RESERVATION_ORDER_PAID_AND_COLLECTED_WITHOUT_SHIPPING_OK');
  await page.goto('http://127.0.0.1:57520/admin/devoluciones');
  await page.getByText('QA-CAMBIO-001',{exact:false}).first().waitFor();
  const request=page.locator('article').filter({hasText:'Necesito otra talla y elijo una prenda de mayor valor.'}).last();
@@ -70,6 +82,16 @@ try{
  state=await(await fetch('http://127.0.0.1:57519/qa/estado')).json();assert.equal(state.stock,19);
  await page.screenshot({path:artifact('saas-exchange-settlement-qa.png'),fullPage:true});
  console.log('STAFF_EXCHANGE_CASH_SETTLEMENT_AND_STOCK_OK');
+ await page.goto('http://127.0.0.1:57520/admin/cambios');
+ await page.getByPlaceholder('Ingrese número de folio o código de orden (ej. ORD-001)...').fill(pickupOrder.number);
+ await page.getByRole('button',{name:/Buscar Pedido/}).click();
+ await page.getByRole('button',{name:/Seleccionar/}).first().click();
+ await page.locator('select').filter({has:page.locator('option[value="'+ids.replacement+'"]')}).selectOption(ids.replacement);
+ await page.getByRole('button',{name:'Calcular Diferencia de Precio',exact:true}).click();
+ await page.getByRole('button',{name:'Confirmar Cambio y Actualizar Existencias',exact:true}).click();
+ await page.getByRole('heading',{name:'Comprobante de Cambio de Prenda',exact:true}).waitFor();
+ state=await(await fetch('http://127.0.0.1:57519/qa/estado')).json();assert.equal(state.stock,20);
+ console.log('COUNTER_EXCHANGE_AFTER_PICKUP_USES_REAL_PRICES_AND_STOCK_OK');
  assert.deepEqual(failures,[]);console.log('NO_API_OR_BROWSER_ERRORS');
 }catch(error){console.log('PAGE',page.url(),(await page.locator('body').innerText()).slice(-3500));throw error;}
 finally{await context.unrouteAll({behavior:'wait'});await browser.close();}
