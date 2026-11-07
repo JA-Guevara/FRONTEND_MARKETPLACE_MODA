@@ -21,6 +21,6 @@ describe('Contrato de cambios de prenda',()=>{
    expect(request.request.body.original_order_id).toBe('pedido-A');
    request.flush({success:true,data:{difference_amount:'30.00',lineas:[]}});
    http.expectOne(environment.apiUrl+'/commerce/admin/exchanges/options/sucursal-A').flush({success:true,data:[]});
-   expect((await calculation).difference_amount).toBe('30.00');expect(await options).toEqual([]);
+   expect((await calculation).difference_amount).toBe(30);expect(await options).toEqual([]);
  });
 });

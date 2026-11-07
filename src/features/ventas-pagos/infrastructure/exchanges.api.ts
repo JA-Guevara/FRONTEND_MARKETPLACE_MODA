@@ -10,6 +10,14 @@ import {
   ExecuteExchangePayload,
 } from '../domain/cambios.models';
 
+const moneyFields=new Set(['unit_price','subtotal','original_unit_price','new_unit_price','returned_total','delivered_total','price_difference','difference','returned_value','delivered_value','difference_amount','total_returned_value','total_delivered_value','cash_received','cash_returned']);
+function exchangeNumbers<T>(value:T):T{
+  if(Array.isArray(value))return value.map(item=>exchangeNumbers(item)) as T;
+  if(value && typeof value==='object')return Object.fromEntries(Object.entries(value).map(([key,item])=>
+    [key,moneyFields.has(key) && item!=null?Number(item):exchangeNumbers(item)])) as T;
+  return value;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ExchangesApi {
   private api = inject(ApiService);
@@ -18,14 +26,14 @@ export class ExchangesApi {
     const res = await firstValueFrom(
       this.api.get<ExchangePolicy>('/commerce/admin/exchanges/policy'),
     );
-    return res;
+    return exchangeNumbers(res);
   }
 
   async updatePolicy(exchange_days: number): Promise<ExchangePolicy> {
     const res = await firstValueFrom(
       this.api.put<ExchangePolicy>('/commerce/admin/exchanges/policy', { exchange_days }),
     );
-    return res;
+    return exchangeNumbers(res);
   }
 
   async lookupOrder(orderIdOrNumber: string): Promise<ExchangeOrderLookup> {
@@ -34,7 +42,7 @@ export class ExchangesApi {
         `/commerce/admin/exchanges/lookup/${encodeURIComponent(orderIdOrNumber.trim())}`,
       ),
     );
-    return res;
+    return exchangeNumbers(res);
   }
 
   async calculate(branchId: string, lines: any[], orderId?:string): Promise<ExchangeCalculation> {
@@ -45,7 +53,7 @@ export class ExchangesApi {
         original_order_id:orderId,
       }),
     );
-    return res;
+    return exchangeNumbers(res);
   }
 
   options(branchId: string) {
@@ -60,7 +68,7 @@ export class ExchangesApi {
     const res = await firstValueFrom(
       this.api.post<ExchangeDetail>('/commerce/admin/exchanges', payload),
     );
-    return res;
+    return exchangeNumbers(res);
   }
 
   async listExchanges(page = 1, pageSize = 20): Promise<ExchangeListResponse> {
@@ -69,13 +77,13 @@ export class ExchangesApi {
         `/commerce/admin/exchanges?page=${page}&page_size=${pageSize}`,
       ),
     );
-    return res;
+    return exchangeNumbers(res);
   }
 
   async getExchange(id: string): Promise<ExchangeDetail> {
     const res = await firstValueFrom(
       this.api.get<ExchangeDetail>(`/commerce/admin/exchanges/${id}`),
     );
-    return res;
+    return exchangeNumbers(res);
   }
 }

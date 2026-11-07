@@ -954,7 +954,7 @@ export class CambiosPageComponent implements OnInit {
           calc.difference_amount < 0
             ? -calc.difference_amount
             : this.metodoPago === 'cash'
-              ? this.efectivoRecibido - calc.difference_amount
+              ? Number((this.efectivoRecibido - calc.difference_amount).toFixed(2))
               : 0,
         notes: this.notasCambio,
         lines: [
