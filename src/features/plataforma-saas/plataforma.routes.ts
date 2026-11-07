@@ -26,16 +26,49 @@ export const citiesResource: Resource = {
 };
 
 export const PLATAFORMA_ROUTES: Routes = [
-  { path: 'plataforma/operacion/continuidad', title: 'Copias globales | Plataforma SaaS', canActivate: [authGuard, platformScopeGuard], data: { permission: 'platform.ops.read' }, loadComponent: () => import('./presentation/continuidad-page.component').then(m => m.ContinuidadPageComponent) },
-  { path: 'plataforma/operacion/despliegues', title: 'Diagnóstico técnico | Plataforma SaaS', canActivate: [authGuard, platformScopeGuard], data: { permission: 'platform.ops.read' }, loadComponent: () => import('./presentation/despliegues-page.component').then(m => m.DesplieguesPageComponent) },
-  { path: 'plataforma/operacion/salud', title: 'Estado del sistema | Plataforma SaaS', canActivate: [authGuard, platformScopeGuard], data: { permission: 'platform.ops.read' }, loadComponent: () => import('./presentation/salud-page.component').then(m => m.SaludPageComponent) },
+  {
+    path: 'plataforma/empresas/:id/datos',
+    title: 'Datos y respaldos de empresa | Plataforma SaaS',
+    canActivate: [authGuard, platformScopeGuard],
+    data: { permission: 'platform.ops.read' },
+    loadComponent: () =>
+      import('../admin-empresa/presentation/datos-respaldos.component').then(
+        (m) => m.DatosRespaldosComponent,
+      ),
+  },
+  {
+    path: 'plataforma/operacion/continuidad',
+    title: 'Copias globales | Plataforma SaaS',
+    canActivate: [authGuard, platformScopeGuard],
+    data: { permission: 'platform.ops.read' },
+    loadComponent: () =>
+      import('./presentation/continuidad-page.component').then((m) => m.ContinuidadPageComponent),
+  },
+  {
+    path: 'plataforma/operacion/despliegues',
+    title: 'Diagnóstico técnico | Plataforma SaaS',
+    canActivate: [authGuard, platformScopeGuard],
+    data: { permission: 'platform.ops.read' },
+    loadComponent: () =>
+      import('./presentation/despliegues-page.component').then((m) => m.DesplieguesPageComponent),
+  },
+  {
+    path: 'plataforma/operacion/salud',
+    title: 'Estado del sistema | Plataforma SaaS',
+    canActivate: [authGuard, platformScopeGuard],
+    data: { permission: 'platform.ops.read' },
+    loadComponent: () =>
+      import('./presentation/salud-page.component').then((m) => m.SaludPageComponent),
+  },
   {
     path: 'plataforma',
     title: 'Tablero | Plataforma SaaS',
     canActivate: [authGuard, platformScopeGuard],
-    data: { permission: 'tenants.read' },
+    data: { permission: 'subscriptions.read' },
     loadComponent: () =>
-      import('./presentation/tablero-plataforma.component').then((m) => m.TableroPlataformaComponent),
+      import('./presentation/analitica-plataforma.component').then(
+        (m) => m.AnaliticaPlataformaComponent,
+      ),
   },
   {
     path: 'plataforma/empresas',
@@ -47,7 +80,10 @@ export const PLATAFORMA_ROUTES: Routes = [
   },
   {
     path: 'plataforma/suscripciones',
-    redirectTo: () => inject(Router).createUrlTree(['/admin/plataforma/empresas'], {queryParams: {filtro: 'por_vencer'}}),
+    redirectTo: () =>
+      inject(Router).createUrlTree(['/admin/plataforma/empresas'], {
+        queryParams: { filtro: 'por_vencer' },
+      }),
     pathMatch: 'full',
   },
   {
@@ -64,7 +100,9 @@ export const PLATAFORMA_ROUTES: Routes = [
     canActivate: [authGuard, platformScopeGuard],
     data: { permission: 'subscriptions.read' },
     loadComponent: () =>
-      import('./presentation/suscripcion-empresa.component').then((m) => m.SuscripcionEmpresaComponent),
+      import('./presentation/suscripcion-empresa.component').then(
+        (m) => m.SuscripcionEmpresaComponent,
+      ),
   },
   {
     path: 'plataforma/planes',

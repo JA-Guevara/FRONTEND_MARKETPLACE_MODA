@@ -14,17 +14,11 @@ export class MLApi {
   private api = inject(ApiService);
 
   async getDashboard(): Promise<MLDashboard> {
-    const res = await firstValueFrom(
-      this.api.get<{ success: boolean; data: MLDashboard }>('/analytics/ml/dashboard')
-    );
-    return res.data;
+    return firstValueFrom(this.api.get<MLDashboard>('/analytics/ml/dashboard'));
   }
 
   async getSegments(): Promise<CustomerSegmentItem[]> {
-    const res = await firstValueFrom(
-      this.api.get<{ success: boolean; data: CustomerSegmentItem[] }>('/analytics/ml/segments')
-    );
-    return res.data;
+    return firstValueFrom(this.api.get<CustomerSegmentItem[]>('/analytics/ml/segments'));
   }
 
   async getAnomalies(resolved?: boolean): Promise<AnomaliaItem[]> {
@@ -32,22 +26,13 @@ export class MLApi {
     if (resolved !== undefined) {
       params['resolved'] = String(resolved);
     }
-    const res = await firstValueFrom(
-      this.api.get<{ success: boolean; data: AnomaliaItem[] }>('/analytics/ml/anomalies', {
-        params,
-      })
-    );
-    return res.data;
+    return firstValueFrom(this.api.get<AnomaliaItem[]>('/analytics/ml/anomalies', params));
   }
 
   async resolveAnomaly(id: string, notes: string): Promise<AnomaliaItem> {
-    const res = await firstValueFrom(
-      this.api.post<{ success: boolean; data: AnomaliaItem }>(
-        `/analytics/ml/anomalies/${id}/resolve`,
-        { notes }
-      )
+    return firstValueFrom(
+      this.api.post<AnomaliaItem>(`/analytics/ml/anomalies/${id}/resolve`, { notes }),
     );
-    return res.data;
   }
 
   async initializeDemo(seed = 42) {

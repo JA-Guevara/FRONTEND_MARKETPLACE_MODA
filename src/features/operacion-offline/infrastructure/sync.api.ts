@@ -14,6 +14,7 @@ export interface SyncBatchResponse {
 }
 
 export interface SyncConflictItem {
+  refund?: { amount: string; currency: string; status: string; reference?: string | null };
   id: string;
   tenant_id: string;
   branch_id: string;
@@ -29,11 +30,18 @@ export interface SyncConflictItem {
   payload_snapshot: any;
   server_state_snapshot: any;
   resolution_payload?: any;
-  lines?: { variant_id: string; product_name: string; requested_quantity: number;
-    available_quantity: number; unit_price: string; current_price: string }[];
+  lines?: {
+    variant_id: string;
+    product_name: string;
+    requested_quantity: number;
+    available_quantity: number;
+    unit_price: string;
+    current_price: string;
+  }[];
 }
 
 interface ConflictWire {
+  refund?: SyncConflictItem['refund'];
   id: string;
   client_request_id: string;
   branch_id: string;
@@ -49,14 +57,28 @@ interface ConflictWire {
 
 function convertirConflicto(item: ConflictWire): SyncConflictItem {
   return {
-    id: item.id, tenant_id: '', client_request_id: item.client_request_id, branch_id: item.branch_id,
-    operation_type: item.operation_type, conflict_type: item.type,
-    status: item.status === 'OPEN' ? 'PENDING' : 'RESOLVED', detected_at: item.created_at,
-    resolved_at: item.resolved_at, resolution: item.resolution, resolution_notes: item.resolution_note,
-    lines: item.lines, payload_snapshot: item.lines.map(line => ({
-      prenda: line.product_name, cantidad: line.requested_quantity, precio: line.unit_price,
-    })), server_state_snapshot: item.lines.map(line => ({
-      prenda: line.product_name, disponible: line.available_quantity, precio: line.current_price,
+    refund: item.refund,
+    id: item.id,
+    tenant_id: '',
+    client_request_id: item.client_request_id,
+    branch_id: item.branch_id,
+    operation_type: item.operation_type,
+    conflict_type: item.type,
+    status: item.status === 'OPEN' ? 'PENDING' : 'RESOLVED',
+    detected_at: item.created_at,
+    resolved_at: item.resolved_at,
+    resolution: item.resolution,
+    resolution_notes: item.resolution_note,
+    lines: item.lines,
+    payload_snapshot: item.lines.map((line) => ({
+      prenda: line.product_name,
+      cantidad: line.requested_quantity,
+      precio: line.unit_price,
+    })),
+    server_state_snapshot: item.lines.map((line) => ({
+      prenda: line.product_name,
+      disponible: line.available_quantity,
+      precio: line.current_price,
     })),
   };
 }
@@ -81,22 +103,27 @@ export class SyncApi {
   postBatch(operations: SyncOperationWire[]): Promise<SyncBatchResponse> {
     return firstValueFrom(
       this.api.write<SyncBatchResponse>('POST', '/sync/batch', {
-        device_id: operations[0]?.device_id, client_version: 'web-offline-v2', operations,
+        device_id: operations[0]?.device_id,
+        client_version: 'web-offline-v2',
+        operations,
       }),
-    ).then(r => {
+    ).then((r) => {
       const data = r.data;
-      return { ...data, total_operations: operations.length,
-        confirmed: data.results.filter(result => result.status === 'CONFIRMED').length,
-        conflicts: data.results.filter(result => result.status === 'CONFLICT').length,
-        rejected: data.results.filter(result => result.status === 'REJECTED').length,
-        retry: data.results.filter(result => result.status === 'RETRY').length };
+      return {
+        ...data,
+        total_operations: operations.length,
+        confirmed: data.results.filter((result) => result.status === 'CONFIRMED').length,
+        conflicts: data.results.filter((result) => result.status === 'CONFLICT').length,
+        rejected: data.results.filter((result) => result.status === 'REJECTED').length,
+        retry: data.results.filter((result) => result.status === 'RETRY').length,
+      };
     });
   }
 
   getStatus(clientRequestIds: string[]): Promise<{ operations: SyncResult[] }> {
     return firstValueFrom(
       this.api.post<SyncResult[]>('/sync/status', { client_request_ids: clientRequestIds }),
-    ).then(operations => ({ operations }));
+    ).then((operations) => ({ operations }));
   }
 
   getConflicts(
@@ -106,30 +133,41 @@ export class SyncApi {
     pageSize = 20,
   ): Promise<ConflictsListResponse> {
     return firstValueFrom(
-      this.api.get<Omit<ConflictsListResponse, 'items'> & { items: ConflictWire[] }>('/sync/conflicts', {
-        branch_id: branchId || undefined,
-        status: status === 'PENDING' ? 'OPEN' : status || undefined,
-        page,
-        page_size: pageSize,
-      }),
-    ).then(result => ({ ...result, items: result.items.map(convertirConflicto) }));
+      this.api.get<Omit<ConflictsListResponse, 'items'> & { items: ConflictWire[] }>(
+        '/sync/conflicts',
+        {
+          branch_id: branchId || undefined,
+          status:
+            status === 'REFUNDS' ? 'RESOLVED' : status === 'PENDING' ? 'OPEN' : status || 'ALL',
+          refund_status: status === 'REFUNDS' ? 'pending' : undefined,
+          page,
+          page_size: pageSize,
+        },
+      ),
+    ).then((result) => ({ ...result, items: result.items.map(convertirConflicto) }));
   }
 
   getConflict(id: string): Promise<SyncConflictItem> {
-    return firstValueFrom(
-      this.api.get<ConflictWire>(`/sync/conflicts/${id}`),
-    ).then(convertirConflicto);
+    return firstValueFrom(this.api.get<ConflictWire>(`/sync/conflicts/${id}`)).then(
+      convertirConflicto,
+    );
   }
 
   resolveConflict(id: string, payload: ResolveConflictPayload): Promise<SyncConflictItem> {
     return firstValueFrom(
       this.api.post<ConflictWire>(`/sync/conflicts/${id}/resolve`, {
-        action: payload.resolution, note: payload.resolution_notes ?? 'Reevaluar operación pendiente',
+        action: payload.resolution,
+        note: payload.resolution_notes ?? 'Reevaluar operación pendiente',
         quantities: payload.line_adjustments,
       }),
     ).then(convertirConflicto);
   }
 
+  confirmRefund(id: string, body: unknown): Promise<SyncConflictItem> {
+    return firstValueFrom(
+      this.api.post<ConflictWire>('/sync/conflicts/' + id + '/refund', body),
+    ).then(convertirConflicto);
+  }
   getBatches(
     page = 1,
     pageSize = 20,
@@ -143,8 +181,8 @@ export class SyncApi {
   }
 
   getBatchDetails(batchId: string): Promise<any> {
-    return firstValueFrom(
-      this.api.get<any>(`/sync/batches/${batchId}`),
-    ).then((r: any) => (r && r.data ? r.data : r));
+    return firstValueFrom(this.api.get<any>(`/sync/batches/${batchId}`)).then((r: any) =>
+      r && r.data ? r.data : r,
+    );
   }
 }

@@ -61,7 +61,15 @@ describe('AdminShell (Layout, Topbar, Sidebar)', () => {
       email: 'jose@fashionstore.bo',
       tenant: null,
       phone: null,
-      roles: [{ id: 'r1', code: 'platform_admin', name: 'Super administrador', is_active: true, permissions: [] }],
+      roles: [
+        {
+          id: 'r1',
+          code: 'platform_admin',
+          name: 'Super administrador',
+          is_active: true,
+          permissions: [],
+        },
+      ],
       is_active: true,
       is_verified: true,
     });
@@ -73,7 +81,7 @@ describe('AdminShell (Layout, Topbar, Sidebar)', () => {
     fixture.detectChanges();
 
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.textContent).toContain('Tablero');
+    expect(compiled.textContent).toContain('Panel de plataforma');
     expect(compiled.textContent).toContain('elegir empresa');
     // La barra de la consola es la única: el layout del sitio no agrega otra (sin «Salir» suelto).
     expect(compiled.querySelectorAll('header').length).toBe(1);
@@ -109,7 +117,13 @@ describe('AdminShell (Layout, Topbar, Sidebar)', () => {
         features: {},
         limits: {},
       },
-      permissions: ['commerce.read', 'commerce.write', 'stock.read', 'stock.write', 'dashboard.read'],
+      permissions: [
+        'commerce.read',
+        'commerce.write',
+        'stock.read',
+        'stock.write',
+        'dashboard.read',
+      ],
     };
 
     mockSession.support.set(fakeSupport);
@@ -137,7 +151,15 @@ describe('AdminShell (Layout, Topbar, Sidebar)', () => {
       email: 'lucia@modacrucena.bo',
       tenant: { id: 't-moda', trade_name: 'Moda Cruceña', slug: 'moda-crucena', status: 'ACTIVA' },
       phone: null,
-      roles: [{ id: 'r2', code: 'tenant_admin', name: 'Administradora de empresa', is_active: true, permissions: [] }],
+      roles: [
+        {
+          id: 'r2',
+          code: 'tenant_admin',
+          name: 'Administradora de empresa',
+          is_active: true,
+          permissions: [],
+        },
+      ],
       is_active: true,
       is_verified: true,
     });

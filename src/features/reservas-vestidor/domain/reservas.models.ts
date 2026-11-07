@@ -20,6 +20,10 @@ export interface Reservation {
   created_at: string;
   updated_at: string;
   inventory_held?: boolean;
+  order_id?: string | null;
+  order_number?: string | null;
+  order_status?: string | null;
+  payment_status?: string | null;
   /** Campos enriquecidos por el backend administrativo (solo lectura). */
   branch_name?: string | null;
   user_name?: string | null;
@@ -41,7 +45,8 @@ export const reservationLabel = (value: string): string =>
     pending: 'Pendiente de confirmación',
     confirmed: 'Confirmada',
     ready: 'Prendas preparadas',
-    attended: 'Atendida',
+    attended: 'Visita atendida',
+    converted: 'Convertida a pedido',
     cancelled: 'Cancelada',
   })[value] || value;
 

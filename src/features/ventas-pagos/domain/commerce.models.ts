@@ -16,7 +16,14 @@ export interface Cart {
   items: CartItem[];
   subtotal?: string;
   discount_total?: string;
-  discounts?: { promotion_id: string; name: string; code: string | null; type: string; amount: string; message?: string | null }[];
+  discounts?: {
+    promotion_id: string;
+    name: string;
+    code: string | null;
+    type: string;
+    amount: string;
+    message?: string | null;
+  }[];
   coupon_code?: string | null;
   total: string;
   currency: string;
@@ -74,13 +81,22 @@ export interface Order {
 }
 /** Devolución de prendas de un pedido entregado (CU19). */
 export interface OrderReturn {
+  difference_amount?: string;
+  settlement_status?: string;
+  settlement_method?: string | null;
+  settlement_reference?: string | null;
   id: string;
   order_id: string;
   branch_id: string;
   status: 'requested' | 'approved' | 'rejected' | 'completed';
   kind?: 'return' | 'exchange';
   reason: string;
-  items: (CartItem & { replacement_variant_id?: string; replacement_name?: string; replacement_size?: string; replacement_color?: string })[];
+  items: (CartItem & {
+    replacement_variant_id?: string;
+    replacement_name?: string;
+    replacement_size?: string;
+    replacement_color?: string;
+  })[];
   refund_amount: string;
   currency: string;
   resolution_note: string | null;
@@ -96,6 +112,8 @@ export interface OrderReturn {
 }
 /** Qué puede devolver el cliente de un pedido, y si no puede, por qué. */
 export interface ReturnAvailability {
+  can_exchange?: boolean;
+  exchange_reason?: string | null;
   can_request: boolean;
   reason: string | null;
   /** Unidades que quedan por devolver, por variante. */

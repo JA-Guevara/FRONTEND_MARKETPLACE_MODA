@@ -15,7 +15,6 @@ describe('admin-nav', () => {
     expect(titles).toEqual([
       'Plataforma SaaS',
       'Producto',
-      'Operación',
       'Personas y seguridad',
       'Catálogos globales',
     ]);
@@ -25,15 +24,30 @@ describe('admin-nav', () => {
     const product = ADMIN_NAV.find((section) => section.title === 'Producto');
     expect(product?.items.find((item) => item.key === 'demo')?.permission).toBe('sandbox.manage');
     const security = ADMIN_NAV.find((section) => section.title === 'Personas y seguridad');
-    expect(security?.items.some((item) => item.label === 'Superadministradores' && item.path.endsWith('/equipo'))).toBe(true);
+    expect(
+      security?.items.some(
+        (item) => item.label === 'Superadministradores' && item.path.endsWith('/equipo'),
+      ),
+    ).toBe(true);
     expect(security?.items.some((item) => item.label === 'Roles y permisos')).toBe(true);
   });
   it('las rutas nuevas conservan guard de plataforma y el enlace anterior del equipo redirige', () => {
-    for (const path of ['plataforma/modulos', 'plataforma/demo', 'plataforma/roles', 'plataforma/equipo']) {
-      expect(PLATAFORMA_ROUTES.find((route) => route.path === path)?.canActivate).toContain(platformScopeGuard);
+    for (const path of [
+      'plataforma/modulos',
+      'plataforma/demo',
+      'plataforma/roles',
+      'plataforma/equipo',
+    ]) {
+      expect(PLATAFORMA_ROUTES.find((route) => route.path === path)?.canActivate).toContain(
+        platformScopeGuard,
+      );
     }
-    expect(PLATAFORMA_ROUTES.find((route) => route.path === 'plataforma/demo')?.data?.['permission']).toBe('sandbox.manage');
-    expect(PLATAFORMA_ROUTES.find((route) => route.path === 'plataforma/administradores')?.redirectTo).toBe('plataforma/equipo');
+    expect(
+      PLATAFORMA_ROUTES.find((route) => route.path === 'plataforma/demo')?.data?.['permission'],
+    ).toBe('sandbox.manage');
+    expect(
+      PLATAFORMA_ROUTES.find((route) => route.path === 'plataforma/administradores')?.redirectTo,
+    ).toBe('plataforma/equipo');
   });
 
   it('scope tenant + isSupport excluye la seccion Sin conexion', () => {
@@ -86,23 +100,43 @@ describe('admin-nav', () => {
   });
 
   it('permite descubrir los CRUD de empresa desde sus grupos', () => {
-    const sections = visibleSections(ADMIN_NAV, { scope: 'tenant', isSupport: false, can: () => true });
-    const links = sections.flatMap((section) => section.items.flatMap((item) => item.children ?? [item]));
-    expect(links.map((link) => link.path)).toEqual(expect.arrayContaining([
-      '/admin/cash-points', '/admin/cities', '/admin/sizes', '/admin/colors',
-      '/admin/seasons', '/admin/collections', '/admin/abastecimiento',
-      '/admin/recursos-ar', '/admin/roles', '/admin/permissions',
-    ]));
+    const sections = visibleSections(ADMIN_NAV, {
+      scope: 'tenant',
+      isSupport: false,
+      can: () => true,
+    });
+    const links = sections.flatMap((section) =>
+      section.items.flatMap((item) => item.children ?? [item]),
+    );
+    expect(links.map((link) => link.path)).toEqual(
+      expect.arrayContaining([
+        '/admin/cash-points',
+        '/admin/cities',
+        '/admin/sizes',
+        '/admin/colors',
+        '/admin/seasons',
+        '/admin/collections',
+        '/admin/abastecimiento',
+        '/admin/recursos-ar',
+        '/admin/roles',
+        '/admin/permissions',
+      ]),
+    );
     expect(links.some((link) => link.path.startsWith('/admin/plataforma'))).toBe(false);
   });
 
   it('abre Roles para quien puede gestionar roles sin acceso a Usuarios', () => {
     const sections = visibleSections(ADMIN_NAV, {
-      scope: 'tenant', isSupport: false, can: (permission) => !permission || permission === 'roles.read',
+      scope: 'tenant',
+      isSupport: false,
+      can: (permission) => !permission || permission === 'roles.read',
     });
     const personal = sections.find((section) => section.title === 'Personal')?.items[0];
     expect(personal?.path).toBe('/admin/roles');
-    expect(personal?.children?.map((item) => item.path)).toEqual(['/admin/roles', '/admin/permissions']);
+    expect(personal?.children?.map((item) => item.path)).toEqual([
+      '/admin/roles',
+      '/admin/permissions',
+    ]);
   });
 
   it('lockedByPlan(Reportes con IA) sin ai_reports retorna true', () => {

@@ -4,34 +4,55 @@ import { tenantScopeGuard } from '../../app/core/scope.guard';
 
 export const EMPRESA_ROUTES: Routes = [
   {
+    path: 'empresa/configuracion',
+    title: 'Configuración de empresa | FashionStore',
+    canActivate: [tenantScopeGuard, authGuard],
+    data: { permission: 'storefront.write' },
+    loadComponent: () =>
+      import('./presentation/configuracion-empresa.component').then(
+        (m) => m.ConfiguracionEmpresaComponent,
+      ),
+  },
+  {
+    path: 'empresa/datos',
+    title: 'Datos y respaldos | FashionStore',
+    canActivate: [tenantScopeGuard, authGuard],
+    data: { permission: 'tenant.data_export' },
+    loadComponent: () =>
+      import('./presentation/datos-respaldos.component').then((m) => m.DatosRespaldosComponent),
+  },
+  {
     path: 'empresa/cobros',
     title: 'Cobros con tarjeta | FashionStore',
     canActivate: [tenantScopeGuard, authGuard],
     data: { permission: 'payment_methods.write' },
-    loadComponent: () => import('./presentation/cobros-tarjeta.component').then(m => m.CobrosTarjetaComponent),
+    loadComponent: () =>
+      import('./presentation/cobros-tarjeta.component').then((m) => m.CobrosTarjetaComponent),
   },
   {
     path: 'empresa/suscripcion',
     title: 'Mi suscripción | FashionStore',
     canActivate: [tenantScopeGuard, authGuard],
     data: { permission: 'my_subscription.read' },
-    loadComponent: () => import('../plataforma-saas/presentation/mi-suscripcion.component').then(m => m.MiSuscripcionComponent),
+    loadComponent: () =>
+      import('../plataforma-saas/presentation/mi-suscripcion.component').then(
+        (m) => m.MiSuscripcionComponent,
+      ),
   },
   {
     path: '',
     title: 'Panel | FashionStore',
     canActivate: [tenantScopeGuard, authGuard],
     loadComponent: () =>
-      import('./presentation/panel-empresa.component').then(
-        (m) => m.PanelEmpresaComponent
-      ),
+      import('./presentation/panel-empresa.component').then((m) => m.PanelEmpresaComponent),
   },
   {
     path: 'permissions',
     title: 'Catálogo de permisos | FashionStore',
     canActivate: [tenantScopeGuard, authGuard],
     data: { permission: 'roles.read', permissionsCatalog: true },
-    loadComponent: () => import('./presentation/roles-empresa.component').then(m => m.RolesEmpresaComponent),
+    loadComponent: () =>
+      import('./presentation/roles-empresa.component').then((m) => m.RolesEmpresaComponent),
   },
   {
     path: 'roles',
@@ -39,9 +60,7 @@ export const EMPRESA_ROUTES: Routes = [
     canActivate: [tenantScopeGuard, authGuard],
     data: { permission: 'roles.read' },
     loadComponent: () =>
-      import('./presentation/roles-empresa.component').then(
-        (m) => m.RolesEmpresaComponent
-      ),
+      import('./presentation/roles-empresa.component').then((m) => m.RolesEmpresaComponent),
   },
   {
     path: 'empresa/perfil',
@@ -49,9 +68,7 @@ export const EMPRESA_ROUTES: Routes = [
     canActivate: [tenantScopeGuard, authGuard],
     data: { permission: 'my_subscription.read' },
     loadComponent: () =>
-      import('./presentation/perfil-empresa.component').then(
-        (m) => m.PerfilEmpresaComponent
-      ),
+      import('./presentation/perfil-empresa.component').then((m) => m.PerfilEmpresaComponent),
   },
   {
     path: 'empresa/accesos-soporte',
@@ -59,9 +76,7 @@ export const EMPRESA_ROUTES: Routes = [
     canActivate: [tenantScopeGuard, authGuard],
     data: { permission: 'support_sessions.read' },
     loadComponent: () =>
-      import('./presentation/accesos-soporte.component').then(
-        (m) => m.AccesosSoporteComponent
-      ),
+      import('./presentation/accesos-soporte.component').then((m) => m.AccesosSoporteComponent),
   },
   {
     path: 'empresa/dispositivos',
@@ -69,9 +84,7 @@ export const EMPRESA_ROUTES: Routes = [
     canActivate: [tenantScopeGuard, authGuard],
     data: { permission: 'devices.read' },
     loadComponent: () =>
-      import('./presentation/dispositivos.component').then(
-        (m) => m.DispositivosComponent
-      ),
+      import('./presentation/dispositivos.component').then((m) => m.DispositivosComponent),
   },
   {
     path: 'empresa/integraciones',
@@ -79,9 +92,7 @@ export const EMPRESA_ROUTES: Routes = [
     canActivate: [tenantScopeGuard, authGuard],
     data: { permission: 'integrations.read' },
     loadComponent: () =>
-      import('./presentation/integraciones.component').then(
-        (m) => m.IntegracionesComponent
-      ),
+      import('./presentation/integraciones.component').then((m) => m.IntegracionesComponent),
   },
   {
     path: 'mi-suscripcion',
@@ -90,7 +101,7 @@ export const EMPRESA_ROUTES: Routes = [
     data: { permission: 'my_subscription.read' },
     loadComponent: () =>
       import('../plataforma-saas/presentation/mi-suscripcion.component').then(
-        (m) => m.MiSuscripcionComponent
+        (m) => m.MiSuscripcionComponent,
       ),
   },
 ];

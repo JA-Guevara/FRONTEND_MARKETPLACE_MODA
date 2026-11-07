@@ -50,7 +50,11 @@ const SIGUIENTES: Record<string, { status: string; titulo: string; icono: string
       </label>
       <label>
         Sucursal
-        <select [ngModel]="sucursal()" (ngModelChange)="sucursal.set($event); filtrar()" name="sucursal">
+        <select
+          [ngModel]="sucursal()"
+          (ngModelChange)="sucursal.set($event); filtrar()"
+          name="sucursal"
+        >
           <option value="">Todas</option>
           @for (b of branches(); track b.id) {
             <option [value]="b.id">{{ b.name }}</option>
@@ -62,14 +66,17 @@ const SIGUIENTES: Record<string, { status: string; titulo: string; icono: string
         <input name="q" [(ngModel)]="consulta" type="search" placeholder="N.º de pedido" />
       </label>
       <button type="submit" [disabled]="busy()"><fs-icon name="search" /> Buscar</button>
-      <button type="button" (click)="load()" [disabled]="busy()"><fs-icon name="refresh" /> Actualizar</button>
+      <button type="button" (click)="load()" [disabled]="busy()">
+        <fs-icon name="refresh" /> Actualizar
+      </button>
     </form>
 
     @if (pendientes().length) {
       <!-- Lo que hay que resolver, y cuánto dinero está comprometido en ello. -->
       <p class="alert" role="status">
-        <strong>{{ pendientes().length }}</strong> solicitud(es) sin resolver. Reintegros pendientes:
-        <strong>{{ comprometido() | number: '1.2-2' }}</strong>.
+        <strong>{{ pendientes().length }}</strong> solicitud(es) sin resolver. Reintegros
+        pendientes: <strong>{{ comprometido() | number: '1.2-2' }}</strong
+        >.
       </p>
     }
 
@@ -95,7 +102,8 @@ const SIGUIENTES: Record<string, { status: string; titulo: string; icono: string
                 }
               </h2>
               <p class="muted">
-                {{ d.kind === 'exchange' ? 'Cambio' : 'Devolución' }} {{ codigo(d) }} · {{ d.created_at | date: 'dd/MM/yyyy HH:mm' }}
+                {{ d.kind === 'exchange' ? 'Cambio' : 'Devolución' }} {{ codigo(d) }} ·
+                {{ d.created_at | date: 'dd/MM/yyyy HH:mm' }}
               </p>
               <p class="muted">
                 {{ d.customer_name || 'Consumidor final' }}
@@ -108,14 +116,30 @@ const SIGUIENTES: Record<string, { status: string; titulo: string; icono: string
               </p>
             </div>
             <div>
-              <span class="commerce-status">{{ label(d.status) }}</span>
-              @if (d.kind !== 'exchange') {<p>
-                <strong>{{ d.currency | uppercase }} {{ d.refund_amount | number: '1.2-2' }}</strong>
-              </p>}
+              <span class="commerce-status">{{ returnLabel(d) }}</span>
+              @if (d.kind !== 'exchange') {
+                <p>
+                  <strong
+                    >{{ d.currency | uppercase }} {{ d.refund_amount | number: '1.2-2' }}</strong
+                  >
+                </p>
+              }
             </div>
           </div>
 
           <p><strong>Motivo del cliente:</strong> {{ d.reason }}</p>
+          @if (d.kind === 'exchange') {
+            <p>
+              <strong>Diferencia: {{ d.currency }} {{ d.difference_amount || '0.00' }}</strong> ·
+              {{
+                d.settlement_status === 'paid'
+                  ? 'Pago confirmado'
+                  : d.settlement_status === 'refunded'
+                    ? 'Reintegro confirmado'
+                    : 'Se liquida antes de entregar el reemplazo'
+              }}
+            </p>
+          }
           @for (i of d.items; track i.variant_id) {
             <div class="commerce-item">
               @if (i.image_url) {
@@ -127,7 +151,10 @@ const SIGUIENTES: Record<string, { status: string; titulo: string; icono: string
                 <h3>{{ i.name }}</h3>
                 <p>{{ i.size }} · {{ i.color }} · {{ i.quantity }} unidad(es)</p>
                 @if (i.replacement_variant_id) {
-                  <p>Cambiar por {{ i.replacement_name }} · {{ i.replacement_size }} · {{ i.replacement_color }}</p>
+                  <p>
+                    Cambiar por {{ i.replacement_name }} · {{ i.replacement_size }} ·
+                    {{ i.replacement_color }}
+                  </p>
                 }
                 <small>{{ i.sku }}</small>
               </div>
@@ -166,14 +193,47 @@ const SIGUIENTES: Record<string, { status: string; titulo: string; icono: string
                 ></textarea>
               </label>
               @if (destino() === 'completed') {
+                @if (
+                  d.kind === 'exchange' &&
+                  +(d.difference_amount || 0) !== 0 &&
+                  d.settlement_status !== 'paid'
+                ) {
+                  <p>
+                    Si la diferencia se paga en efectivo, confirmá la entrega del importe exacto.
+                    Los cobros y reintegros de Stripe se comprueban en línea antes de completar el
+                    cambio.
+                  </p>
+                  <label
+                    ><input
+                      type="checkbox"
+                      name="cashConfirmed"
+                      [(ngModel)]="cashConfirmed"
+                    />Confirmo el {{ +(d.difference_amount || 0) > 0 ? 'cobro' : 'reintegro' }} en
+                    efectivo de {{ d.currency }}
+                    {{ absoluteDifference(d) | number: '1.2-2' }}</label
+                  >
+                  @if (cashConfirmed) {
+                    <label
+                      >Referencia de caja<input
+                        name="settlementReference"
+                        [(ngModel)]="settlementReference"
+                        minlength="3"
+                        required
+                        maxlength="255"
+                    /></label>
+                  }
+                }
                 <p class="muted">
-                  Al guardar, las prendas recibidas vuelven al stock de la sucursal con su movimiento de inventario.
+                  Al guardar, las prendas recibidas vuelven al stock de la sucursal con su
+                  movimiento de inventario.
                 </p>
               }
               <div class="commerce-actions">
                 <button type="submit" class="primary" [disabled]="busy() || !form.valid">
                   Guardar</button
-                ><button type="button" (click)="editando.set('')" [disabled]="busy()">Volver</button>
+                ><button type="button" (click)="editando.set('')" [disabled]="busy()">
+                  Volver
+                </button>
               </div>
             </form>
           }
@@ -190,11 +250,19 @@ const SIGUIENTES: Record<string, { status: string; titulo: string; icono: string
     <div class="commerce-actions">
       <button (click)="page(-1)" [disabled]="offset() === 0 || busy()">Anterior</button
       ><span>Página {{ offset() / 50 + 1 }}</span
-      ><button (click)="page(1)" [disabled]="devoluciones().length < 50 || busy()">Siguiente</button>
+      ><button (click)="page(1)" [disabled]="devoluciones().length < 50 || busy()">
+        Siguiente
+      </button>
     </div>
   </section>`,
 })
 export class AdminReturnsComponent {
+  returnLabel(d:OrderReturn){return d.kind==='exchange'?({requested:'Cambio solicitado',approved:'Cambio aprobado',rejected:'Cambio rechazado',completed:'Cambio completado'} as Record<string,string>)[d.status]:this.label(d.status);}
+  cashConfirmed = false;
+  settlementReference = '';
+  absoluteDifference(d: OrderReturn) {
+    return Math.abs(Number(d.difference_amount || 0));
+  }
   private api = inject(CommerceService);
   session = inject(SessionService);
   devoluciones = signal<OrderReturn[]>([]);
@@ -241,9 +309,11 @@ export class AdminReturnsComponent {
   }
   titulo() {
     return (
-      { approved: 'Aprobar la devolución', rejected: 'Rechazar la devolución', completed: 'Registrar prendas recibidas' }[
-        this.destino()
-      ] || 'Resolver devolución'
+      {
+        approved: 'Aprobar la devolución',
+        rejected: 'Rechazar la devolución',
+        completed: 'Registrar prendas recibidas',
+      }[this.destino()] || 'Resolver devolución'
     );
   }
 
@@ -273,6 +343,8 @@ export class AdminReturnsComponent {
     void this.load();
   }
   abrir(d: OrderReturn, status: string) {
+    this.cashConfirmed = false;
+    this.settlementReference = '';
     this.editando.set(d.id);
     this.destino.set(status);
     this.nota = '';
@@ -283,9 +355,19 @@ export class AdminReturnsComponent {
     this.error.set('');
     this.message.set('');
     try {
-      await this.api.resolveReturn(d.id, { status: this.destino(), note: this.nota || null });
+      await this.api.resolveReturn(d.id, {
+        status: this.destino(),
+        note: this.nota || null,
+        ...(this.cashConfirmed
+          ? {
+              settlement_method: 'cash',
+              settlement_amount: this.absoluteDifference(d),
+              settlement_reference: this.settlementReference,
+            }
+          : {}),
+      });
       this.editando.set('');
-      this.message.set('Devolución actualizada. El cliente recibió el aviso por correo.');
+      this.message.set('Solicitud actualizada.');
       await this.load();
     } catch (e) {
       this.error.set(errorMessage(e));
@@ -294,4 +376,3 @@ export class AdminReturnsComponent {
     }
   }
 }
-

@@ -56,10 +56,13 @@ describe('CambiosPageComponent', () => {
   beforeEach(() => {
     mockApi = {
       getPolicy: vi.fn().mockResolvedValue({ tenant_id: 't-1', exchange_days: 15 }),
+      options: vi.fn().mockResolvedValue([]),
       lookupOrder: vi.fn().mockResolvedValue(mockOrder),
       calculate: vi.fn().mockResolvedValue(mockCalc),
       executeExchange: vi.fn().mockResolvedValue(mockExchange),
-      listExchanges: vi.fn().mockResolvedValue({ items: [mockExchange as any], total: 1, page: 1, page_size: 20 }),
+      listExchanges: vi
+        .fn()
+        .mockResolvedValue({ items: [mockExchange as any], total: 1, page: 1, page_size: 20 }),
     };
 
     comp = new CambiosPageComponent(mockApi as ExchangesApi);

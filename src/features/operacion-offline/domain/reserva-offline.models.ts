@@ -1,16 +1,8 @@
 export type EstadoOperacion =
-  | 'PENDIENTE'
-  | 'ENVIADA'
-  | 'CONFIRMADA'
-  | 'RECHAZADA'
-  | 'CONFLICTO'
-  | 'ANULADA';
+  'PENDIENTE' | 'ENVIADA' | 'CONFIRMADA' | 'RECHAZADA' | 'CONFLICTO' | 'ANULADA';
 
 export type EstadoReservaLocal =
-  | 'PENDIENTE_CONFIRMACION'
-  | 'ANULADA_LOCAL'
-  | 'CONFIRMADA'
-  | 'RECHAZADA';
+  'PENDIENTE_CONFIRMACION' | 'ANULADA_LOCAL' | 'CONFIRMADA' | 'RECHAZADA';
 
 export interface ReservaLocal {
   id: string;
@@ -45,6 +37,8 @@ export interface CrearReservaPayload {
 }
 
 export interface OperacionPendiente {
+  refund_amount?: string | null;
+  refund_status?: 'pending' | 'confirmed' | null;
   id: string;
   tipo: 'RESERVA' | 'VENTA' | 'SALE' | 'RESERVATION';
   estado: EstadoOperacion;

@@ -74,6 +74,11 @@ import { errorMessage } from '../../../shared/errors';
         </div>
 
         <div class="acts">
+          @if (session.can('platform.ops.read')) {
+            <a class="btn" [routerLink]="['/admin/plataforma/empresas', t.id, 'datos']"
+              >Datos y respaldos</a
+            >
+          }
           <span
             class="badge"
             [class.ok]="t.status === 'ACTIVA' && t.subscription_status !== 'SUSPENDIDA'"

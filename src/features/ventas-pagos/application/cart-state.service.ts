@@ -14,19 +14,21 @@ export class CartStateService {
 
   constructor() {
     effect(() => {
-      if (this.session.user()) void this.refresh();
+      if (this.session.user()?.tenant) void this.refresh();
       else this.count.set(0);
     });
   }
 
   async refresh() {
-    if (!this.session.user()) {
+    const user = this.session.user();
+    if (!user?.tenant) {
       this.count.set(0);
       return;
     }
     try {
       const cart = await this.commerce.cart();
-      this.count.set(cart.items.reduce((total, item) => total + item.quantity, 0));
+      if (this.session.user()?.id === user.id && this.session.user()?.tenant?.id === user.tenant.id)
+        this.count.set(cart.items.reduce((total, item) => total + item.quantity, 0));
     } catch {
       // Red caida o sesion expirada: el contador no debe romper la navegacion.
     }

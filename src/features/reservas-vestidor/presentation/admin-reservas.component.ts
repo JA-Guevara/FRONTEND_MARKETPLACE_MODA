@@ -8,17 +8,22 @@ import { Branch } from '../../ventas-pagos/domain/commerce.models';
 import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { IconComponent } from '../../../shared/icon.component';
 import { errorMessage } from '../../../shared/errors';
+import { ReservationPurchaseComponent } from './reservation-purchase.component';
 
-const NEXT_STATUS: Record<string, string> = { pending: 'confirmed', confirmed: 'ready', ready: 'attended' };
+const NEXT_STATUS: Record<string, string> = {
+  pending: 'confirmed',
+  confirmed: 'ready',
+  ready: 'attended',
+};
 
 @Component({
   selector: 'fs-admin-reservas',
-  imports: [DatePipe, FormsModule, IconComponent],
+  imports: [DatePipe, FormsModule, IconComponent, ReservationPurchaseComponent],
   template: `<p class="eyebrow">GESTIÓN COMERCIAL</p>
     <h1>Reservas de prendas</h1>
     <p class="muted">
-      Atendé las reservas: confirmá, prepará las prendas y registrá la recepción del
-      cliente. Las reservas registradas aparecen en esta bandeja de la sucursal.
+      Atendé las reservas: confirmá, prepará las prendas y registrá la recepción del cliente. Las
+      reservas registradas aparecen en esta bandeja de la sucursal.
     </p>
     <div class="toolbar" aria-label="Bandeja de reservas">
       <button type="button" [disabled]="loading()" (click)="status = 'pending'; page = 1; apply()">
@@ -27,7 +32,9 @@ const NEXT_STATUS: Record<string, string> = { pending: 'confirmed', confirmed: '
       <button type="button" [disabled]="loading()" (click)="apply()">
         <fs-icon name="refresh" />Actualizar bandeja
       </button>
-      @if (updatedAt()) { <span class="muted">Actualizada {{ updatedAt() | date: 'HH:mm:ss' }}</span> }
+      @if (updatedAt()) {
+        <span class="muted">Actualizada {{ updatedAt() | date: 'HH:mm:ss' }}</span>
+      }
     </div>
     <form class="toolbar" (ngSubmit)="page = 1; apply()">
       <label
@@ -51,12 +58,11 @@ const NEXT_STATUS: Record<string, string> = { pending: 'confirmed', confirmed: '
           <option value="confirmed">Confirmada</option>
           <option value="ready">Prendas preparadas</option>
           <option value="attended">Atendida</option>
+          <option value="converted">Convertida a pedido</option>
           <option value="cancelled">Cancelada</option>
         </select></label
-      ><label
-        >Desde<input name="date_from" type="date" [(ngModel)]="date_from" /></label
-      ><label
-        >Hasta<input name="date_to" type="date" [(ngModel)]="date_to" /></label
+      ><label>Desde<input name="date_from" type="date" [(ngModel)]="date_from" /></label
+      ><label>Hasta<input name="date_to" type="date" [(ngModel)]="date_to" /></label
       ><button class="primary" type="submit">Filtrar</button>
     </form>
     @if (error()) {
@@ -96,6 +102,13 @@ const NEXT_STATUS: Record<string, string> = { pending: 'confirmed', confirmed: '
                 <td>{{ label(r.status) }}</td>
                 <td>
                   @if (session.can('reservations.write')) {
+                    @if (session.can('commerce.write')) {
+                      <fs-reservation-purchase
+                        [reservation]="r"
+                        [admin]="true"
+                        (converted)="apply()"
+                      />
+                    }
                     @if (nextStatus(r)) {
                       <button [disabled]="!!busy()" (click)="transition(r, nextStatus(r))">
                         {{ actionLabel(r) }}
@@ -199,10 +212,11 @@ export class AdminReservasComponent {
   }
   actionLabel(r: Reservation) {
     return (
-      { confirmed: 'Confirmar', ready: 'Marcar prendas listas', attended: 'Confirmar recepción del cliente' } as Record<
-        string,
-        string
-      >
+      {
+        confirmed: 'Confirmar',
+        ready: 'Marcar prendas listas',
+        attended: 'Confirmar recepción del cliente',
+      } as Record<string, string>
     )[this.nextStatus(r)];
   }
   async transition(r: Reservation, status: string) {

@@ -1,11 +1,5 @@
-import {
-  EstadoReservaLocal,
-  EstadoVentaLocal,
-} from '../../../app/core/offline/offline-db';
-import {
-  EstadoOperacion,
-  OperacionPendiente,
-} from './reserva-offline.models';
+import { EstadoReservaLocal, EstadoVentaLocal } from '../../../app/core/offline/offline-db';
+import { EstadoOperacion, OperacionPendiente } from './reserva-offline.models';
 
 export interface SyncOperationWire {
   client_request_id: string;
@@ -27,6 +21,7 @@ export interface SyncResult {
   message: string;
   replay?: boolean;
   refund_amount?: string | null;
+  refund_status?: 'pending' | 'confirmed' | null;
 }
 
 export function aOperacionReserva(op: OperacionPendiente): SyncOperationWire {
@@ -62,9 +57,7 @@ export function listaParaEnviar(op: OperacionPendiente, ahora: Date): boolean {
 }
 
 export function ordenarParaEnvio(ops: OperacionPendiente[]): OperacionPendiente[] {
-  return [...ops].sort(
-    (a, b) => new Date(a.creada_en).getTime() - new Date(b.creada_en).getTime(),
-  );
+  return [...ops].sort((a, b) => new Date(a.creada_en).getTime() - new Date(b.creada_en).getTime());
 }
 
 export function aplicarResultado(
@@ -72,7 +65,12 @@ export function aplicarResultado(
   r: SyncResult,
   ahora: Date,
 ): OperacionPendiente {
-  const updated = { ...op, actualizada_en: ahora.toISOString() };
+  const updated = {
+    ...op,
+    actualizada_en: ahora.toISOString(),
+    refund_amount: r.refund_amount ?? op.refund_amount,
+    refund_status: r.refund_status ?? op.refund_status,
+  };
 
   if (r.status === 'CONFIRMED') {
     return {
@@ -143,12 +141,7 @@ export function estadoReserva(op: OperacionPendiente): EstadoReservaLocal {
   }
 }
 
-export type CodigoErrorSync =
-  | 'NETWORK'
-  | 'TIMEOUT'
-  | 'AUTH'
-  | 'HTTP_4XX'
-  | 'HTTP_5XX';
+export type CodigoErrorSync = 'NETWORK' | 'TIMEOUT' | 'AUTH' | 'HTTP_4XX' | 'HTTP_5XX';
 
 export function clasificarError(e: any): {
   codigo: CodigoErrorSync;

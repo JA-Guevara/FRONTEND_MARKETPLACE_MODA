@@ -5,10 +5,11 @@ import { ReservasService } from '../infrastructure/reservas.service';
 import { Reservation, reservationLabel } from '../domain/reservas.models';
 import { errorMessage } from '../../../shared/errors';
 import { IconComponent } from '../../../shared/icon.component';
+import { ReservationPurchaseComponent } from './reservation-purchase.component';
 @Component({
   selector: 'fs-mis-reservas',
   styleUrl: './reservas.scss',
-  imports: [DatePipe, RouterLink, IconComponent],
+  imports: [DatePipe, RouterLink, IconComponent, ReservationPurchaseComponent],
   template: `<section class="container section">
     <p class="eyebrow">MI CUENTA</p>
     <h1>Mis reservas</h1>
@@ -83,6 +84,7 @@ import { IconComponent } from '../../../shared/icon.component';
                 }
               </ol>
             </details>
+            <fs-reservation-purchase [reservation]="r" (converted)="load()" />
             @if (['pending', 'confirmed', 'ready'].includes(r.status)) {
               <button [disabled]="busy() === r.id" (click)="cancel(r)">
                 {{ busy() === r.id ? 'Cancelando…' : 'Cancelar reserva' }}

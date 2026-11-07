@@ -3,7 +3,13 @@ import { DatePipe, DecimalPipe, UpperCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { IconComponent } from '../../../shared/icon.component';
 import { CommerceService } from '../infrastructure/commerce.service';
-import { CartItem, Order, OrderReturn, ReturnAvailability, commerceLabel } from '../domain/commerce.models';
+import {
+  CartItem,
+  Order,
+  OrderReturn,
+  ReturnAvailability,
+  commerceLabel,
+} from '../domain/commerce.models';
 import { errorMessage } from '../../../shared/errors';
 
 /**
@@ -39,15 +45,45 @@ import { errorMessage } from '../../../shared/errors';
             @for (d of info.returns; track d.id) {
               <li class="is-{{ d.status }}">
                 <div>
-                  <strong>{{ d.kind === 'exchange' ? 'Cambio' : 'Devolución' }} · {{ etiqueta(d.status) }}</strong>
+                  <strong
+                    >{{ returnLabel(d) }}</strong
+                  >
                   <small>{{ d.created_at | date: 'dd/MM/yyyy HH:mm' }}</small>
                 </div>
                 <p class="muted">{{ resumen(d.items) }}</p>
                 @if (d.kind === 'exchange') {
-                  <p>Cambio por: {{ d.items[0].replacement_name }} · {{ d.items[0].replacement_size }} · {{ d.items[0].replacement_color }}</p>
-                } @else {<p>
-                  Reintegro: <strong>{{ d.currency | uppercase }} {{ d.refund_amount | number: '1.2-2' }}</strong>
-                </p>}
+                  <p>
+                    Cambio por: {{ d.items[0].replacement_name }} ·
+                    {{ d.items[0].replacement_size }} · {{ d.items[0].replacement_color }}
+                  </p>
+                  <p>
+                    Diferencia: {{ d.currency }} {{ d.difference_amount || '0.00' }} ·
+                    {{ settlementLabel(d.settlement_status) }}
+                  </p>
+                  @if (
+                    d.status === 'approved' &&
+                    +(d.difference_amount || 0) > 0 &&
+                    d.settlement_status !== 'paid'
+                  ) {
+                    <button type="button" [disabled]="busy()" (click)="payDifference(d)">
+                      Pagar diferencia con tarjeta
+                    </button>
+                    <button type="button" [disabled]="busy()" (click)="checkDifference(d)">
+                      Ya pagué · verificar
+                    </button>
+                    <p class="muted">
+                      También podés coordinar el pago en efectivo al entregar la prenda en la
+                      sucursal.
+                    </p>
+                  }
+                } @else {
+                  <p>
+                    Reintegro:
+                    <strong
+                      >{{ d.currency | uppercase }} {{ d.refund_amount | number: '1.2-2' }}</strong
+                    >
+                  </p>
+                }
                 @if (d.resolution_note) {
                   <p class="muted">{{ d.resolution_note }}</p>
                 }
@@ -56,12 +92,18 @@ import { errorMessage } from '../../../shared/errors';
           </ul>
         }
 
-        @if (info.can_request) {
+        @if (info.can_request || info.can_exchange) {
           @if (!formulario() && !formularioCambio()) {
-            <button type="button" class="primary" (click)="formulario.set(true)">
-              <fs-icon name="plus" /> Solicitar una devolución
-            </button>
-            <button type="button" (click)="formularioCambio.set(true)">Solicitar un cambio</button>
+            @if (info.can_request) {
+              <button type="button" class="primary" (click)="formulario.set(true)">
+                <fs-icon name="plus" /> Solicitar una devolución
+              </button>
+            }
+            @if (info.can_exchange ?? info.can_request) {
+              <button type="button" (click)="formularioCambio.set(true)">
+                Solicitar un cambio
+              </button>
+            }
           } @else if (formulario()) {
             <form #form="ngForm" (ngSubmit)="form.valid && enviar()" class="returns-form">
               <h3>¿Qué querés devolver?</h3>
@@ -69,7 +111,9 @@ import { errorMessage } from '../../../shared/errors';
                 <label class="returns-item">
                   <span>
                     {{ i.name }}
-                    <small>{{ i.size }} · {{ i.color }} · quedan {{ disponible(i.variant_id) }}</small>
+                    <small
+                      >{{ i.size }} · {{ i.color }} · quedan {{ disponible(i.variant_id) }}</small
+                    >
                   </span>
                   <input
                     type="number"
@@ -97,7 +141,11 @@ import { errorMessage } from '../../../shared/errors';
                 las recibimos en la sucursal.
               </p>
               <div class="commerce-actions">
-                <button type="submit" class="primary" [disabled]="busy() || !form.valid || total() === 0">
+                <button
+                  type="submit"
+                  class="primary"
+                  [disabled]="busy() || !form.valid || total() === 0"
+                >
                   Enviar solicitud</button
                 ><button type="button" (click)="formulario.set(false)" [disabled]="busy()">
                   Volver
@@ -106,33 +154,79 @@ import { errorMessage } from '../../../shared/errors';
             </form>
           }
           @if (formularioCambio()) {
-            <form #exchangeForm="ngForm" (ngSubmit)="exchangeForm.valid && enviarCambio()" class="returns-form">
+            <form
+              #exchangeForm="ngForm"
+              (ngSubmit)="exchangeForm.valid && enviarCambio()"
+              class="returns-form"
+            >
               <h3>Solicitar un cambio</h3>
-              <label>Prenda del pedido
-                <select name="original" [ngModel]="originalCambio()" (ngModelChange)="elegirOriginal($event)" required>
+              <label
+                >Prenda del pedido
+                <select
+                  name="original"
+                  [ngModel]="originalCambio()"
+                  (ngModelChange)="elegirOriginal($event)"
+                  required
+                >
                   <option value="">Elegí una prenda</option>
                   @for (i of devolvibles(); track i.variant_id) {
-                    <option [value]="i.variant_id">{{ i.name }} · {{ i.size }} · {{ i.color }}</option>
+                    <option [value]="i.variant_id">
+                      {{ i.name }} · {{ i.size }} · {{ i.color }}
+                    </option>
                   }
                 </select>
               </label>
               @if (originalCambio()) {
-                <label>Nueva prenda o talla
+                <label
+                  >Nueva prenda o talla
                   <select name="replacement" [(ngModel)]="reemplazoCambio" required>
-                    <option value="">Elegí una opción disponible al mismo precio</option>
+                    <option value="">Elegí una prenda disponible</option>
                     @for (o of opcionesCambio(); track o.variant_id) {
-                      <option [value]="o.variant_id">{{ o.product_name }} · {{ o.size }} · {{ o.color }} · {{ o.available }} disponibles</option>
+                      <option [value]="o.variant_id">
+                        {{ o.product_name }} · {{ o.size }} · {{ o.color }} · {{ o.price }} BOB ·
+                        {{ o.available }} disponibles
+                      </option>
                     }
                   </select>
                 </label>
-                <label>Cantidad
-                  <input type="number" name="exchangeQuantity" [(ngModel)]="cantidadCambio" min="1" [max]="maxCambio()" required />
+                <label
+                  >Cantidad
+                  <input
+                    type="number"
+                    name="exchangeQuantity"
+                    [(ngModel)]="cantidadCambio"
+                    min="1"
+                    [max]="maxCambio()"
+                    required
+                  />
                 </label>
-                <label>Motivo
-                  <textarea name="exchangeReason" [(ngModel)]="motivoCambio" minlength="5" maxlength="500" required></textarea>
+                <label
+                  >Motivo
+                  <textarea
+                    name="exchangeReason"
+                    [(ngModel)]="motivoCambio"
+                    minlength="5"
+                    maxlength="500"
+                    required
+                  ></textarea>
                 </label>
-                <p class="muted">La nueva prenda queda apartada al solicitar el cambio. La original vuelve al inventario cuando se recibe en la sucursal.</p>
-                <button type="submit" class="primary" [disabled]="busy() || !exchangeForm.valid || !reemplazoCambio || cantidadCambio > maxCambio()">Enviar cambio</button>
+                <p class="muted">
+                  La nueva prenda queda apartada al solicitar el cambio. Si cambia el precio, verás
+                  la diferencia a pagar o reintegrar en la solicitud. El reintegro y la entrega se
+                  confirman con conexión cuando la sucursal recibe la prenda original.
+                </p>
+                <button
+                  type="submit"
+                  class="primary"
+                  [disabled]="
+                    busy() ||
+                    !exchangeForm.valid ||
+                    !reemplazoCambio ||
+                    cantidadCambio > maxCambio()
+                  "
+                >
+                  Enviar cambio
+                </button>
               }
               <button type="button" (click)="formularioCambio.set(false)">Volver</button>
             </form>
@@ -145,22 +239,84 @@ import { errorMessage } from '../../../shared/errors';
   </div>`,
 })
 export class OrderReturnsComponent {
+  returnLabel(d:OrderReturn){return d.kind==='exchange'?({requested:'Cambio solicitado',approved:'Cambio aprobado',rejected:'Cambio rechazado',completed:'Cambio completado'} as Record<string,string>)[d.status]:this.etiqueta(d.status);}
+  settlementLabel(value?: string) {
+    return (
+      (
+        {
+          payment_pending: 'Pendiente de cobro',
+          refund_pending: 'Pendiente de reintegro',
+          paid: 'Diferencia pagada',
+          refunded: 'Reintegro confirmado',
+          not_required: 'Sin diferencia',
+        } as Record<string, string>
+      )[value || 'not_required'] || value
+    );
+  }
+  async payDifference(d: OrderReturn) {
+    if (this.busy()) return;
+    this.busy.set(true);
+    this.error.set('');
+    try {
+      const result = await this.api.exchangeCheckout(d.id);
+      if (result.url) {
+        const url = new URL(result.url);
+        if (url.protocol !== 'https:' || url.hostname !== 'checkout.stripe.com')
+          throw new Error('Enlace de pago no válido.');
+        window.location.assign(url.href);
+      } else {
+        await this.cargar();
+      }
+    } catch (e) {
+      this.error.set(errorMessage(e));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+  async checkDifference(d: OrderReturn) {
+    if (this.busy()) return;
+    this.busy.set(true);
+    this.error.set('');
+    try {
+      const result = await this.api.exchangePaymentStatus(d.id);
+      await this.cargar();
+      this.message.set(
+        result.settlement_status === 'paid'
+          ? 'El pago fue confirmado. La sucursal puede completar el cambio.'
+          : 'El proveedor todavía no confirmó el pago.',
+      );
+    } catch (e) {
+      this.error.set(errorMessage(e));
+    } finally {
+      this.busy.set(false);
+    }
+  }
   @Input({ required: true }) pedido!: Order;
   private api = inject(CommerceService);
   abierto = signal(false);
   formulario = signal(false);
   formularioCambio = signal(false);
   originalCambio = signal('');
-  opcionesCambio = signal<{ variant_id: string; product_name: string; size: string; color: string; available: number; price: string }[]>([]);
+  opcionesCambio = signal<
+    {
+      variant_id: string;
+      product_name: string;
+      size: string;
+      color: string;
+      available: number;
+      price: string;
+    }[]
+  >([]);
   reemplazoCambio = '';
   cantidadCambio = 1;
   motivoCambio = '';
   private pendingReturn?: { fingerprint: string; id: string };
   private pendingExchange?: { fingerprint: string; id: string };
-  maxCambio = () => Math.min(
-    this.disponible(this.originalCambio()),
-    this.opcionesCambio().find((row) => row.variant_id === this.reemplazoCambio)?.available || 0,
-  );
+  maxCambio = () =>
+    Math.min(
+      this.disponible(this.originalCambio()),
+      this.opcionesCambio().find((row) => row.variant_id === this.reemplazoCambio)?.available || 0,
+    );
   estado = signal<ReturnAvailability | null>(null);
   busy = signal(false);
   error = signal('');
@@ -268,21 +424,31 @@ export class OrderReturnsComponent {
   }
 
   async enviarCambio() {
-    if (!this.originalCambio() || !this.reemplazoCambio ||
-        this.cantidadCambio < 1 || this.cantidadCambio > this.maxCambio()) return;
+    if (
+      !this.originalCambio() ||
+      !this.reemplazoCambio ||
+      this.cantidadCambio < 1 ||
+      this.cantidadCambio > this.maxCambio()
+    )
+      return;
     this.busy.set(true);
     this.error.set('');
     this.message.set('');
     try {
       const payload = {
-        variant_id: this.originalCambio(), replacement_variant_id: this.reemplazoCambio,
-        quantity: Number(this.cantidadCambio), reason: this.motivoCambio.trim(),
+        variant_id: this.originalCambio(),
+        replacement_variant_id: this.reemplazoCambio,
+        quantity: Number(this.cantidadCambio),
+        reason: this.motivoCambio.trim(),
       };
       await this.api.requestExchange(this.pedido.id, {
-        ...payload, client_request_id: this.requestId('exchange', payload),
+        ...payload,
+        client_request_id: this.requestId('exchange', payload),
       });
       this.pendingExchange = undefined;
-      this.message.set('Registramos el cambio y apartamos la nueva prenda. Te avisaremos cuando lo revisen.');
+      this.message.set(
+        'Registramos el cambio y apartamos la nueva prenda. Te avisaremos cuando lo revisen.',
+      );
       this.formularioCambio.set(false);
       this.originalCambio.set('');
       this.reemplazoCambio = '';

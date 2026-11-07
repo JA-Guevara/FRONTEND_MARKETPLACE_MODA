@@ -4,7 +4,15 @@ import { firstValueFrom, map } from 'rxjs';
 import { ApiService } from '../../../app/core/shared/api.service';
 import { ApiResponse } from '../../../shared/models';
 import { environment } from '../../../environments/environment';
-import { Branch, Cart, CashPoint, Order, OrderReturn, PosLookup, ReturnAvailability } from '../domain/commerce.models';
+import {
+  Branch,
+  Cart,
+  CashPoint,
+  Order,
+  OrderReturn,
+  PosLookup,
+  ReturnAvailability,
+} from '../domain/commerce.models';
 @Injectable({ providedIn: 'root' })
 export class CommerceService {
   private api = inject(ApiService);
@@ -37,8 +45,16 @@ export class CommerceService {
     return this.write('PUT', '/cart/items/' + variant, { quantity });
   }
   async checkout(id: string) {
-    const data = await this.write<{ url: string | null; status?: string }>('POST', '/orders/' + id + '/checkout');
-    if (!data.url && data.status && ['paid', 'processing', 'shipped', 'delivered'].includes(data.status)) return false;
+    const data = await this.write<{ url: string | null; status?: string }>(
+      'POST',
+      '/orders/' + id + '/checkout',
+    );
+    if (
+      !data.url &&
+      data.status &&
+      ['paid', 'processing', 'shipped', 'delivered'].includes(data.status)
+    )
+      return false;
     if (!data.url) throw new Error('No se recibió un enlace de pago válido.');
     const url = new URL(data.url);
     if (url.protocol !== 'https:' || url.hostname !== 'checkout.stripe.com')
@@ -55,11 +71,28 @@ export class CommerceService {
     return this.write<OrderReturn>('POST', '/orders/' + orderId + '/returns', body);
   }
   exchangeOptions(orderId: string, variantId: string) {
-    return this.get<{ variant_id: string; product_name: string; size: string; color: string; available: number; price: string }[]>(
-      '/orders/' + orderId + '/exchange-options', { variant_id: variantId });
+    return this.get<
+      {
+        variant_id: string;
+        product_name: string;
+        size: string;
+        color: string;
+        available: number;
+        price: string;
+      }[]
+    >('/orders/' + orderId + '/exchange-options', { variant_id: variantId });
   }
   requestExchange(orderId: string, body: unknown) {
     return this.write<OrderReturn>('POST', '/orders/' + orderId + '/exchanges', body);
+  }
+  exchangeCheckout(id: string) {
+    return this.write<{ url: string | null; status: string }>(
+      'POST',
+      '/returns/' + id + '/checkout',
+    );
+  }
+  exchangePaymentStatus(id: string) {
+    return this.write<OrderReturn>('POST', '/returns/' + id + '/payment-status');
   }
   adminReturns(filtros: Record<string, unknown> = {}, offset = 0) {
     return this.get<OrderReturn[]>('/admin/returns', { limit: 50, offset, ...filtros });
@@ -73,7 +106,9 @@ export class CommerceService {
     return this.get<CashPoint[]>('/admin/cash-points', { branch_id });
   }
   posStock(branch_id: string) {
-    return this.get<import('../domain/commerce.models').CartItem[]>('/admin/pos/stock', { branch_id });
+    return this.get<import('../domain/commerce.models').CartItem[]>('/admin/pos/stock', {
+      branch_id,
+    });
   }
   posSale(body: unknown) {
     return this.write<Order & { idempotent_replay?: boolean }>('POST', '/admin/pos/sales', body);
@@ -87,7 +122,10 @@ export class CommerceService {
   }
 
   verifyPayment(id: string, admin = false) {
-    return this.write<Order>('POST', (admin ? '/admin/orders/' : '/orders/') + id + '/payment-status');
+    return this.write<Order>(
+      'POST',
+      (admin ? '/admin/orders/' : '/orders/') + id + '/payment-status',
+    );
   }
 
   /** Sube una nota de voz efímera para que el backend la transcriba. El audio

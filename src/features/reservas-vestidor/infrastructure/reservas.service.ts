@@ -49,9 +49,9 @@ export class ReservasService {
     return firstValueFrom(this.api.get<Reservation>('/reservations/' + id));
   }
   cancel(id: string): Promise<Reservation> {
-    return firstValueFrom(this.api.write<Reservation>('POST', '/reservations/' + id + '/cancel')).then(
-      (r) => r.data,
-    );
+    return firstValueFrom(
+      this.api.write<Reservation>('POST', '/reservations/' + id + '/cancel'),
+    ).then((r) => r.data);
   }
   admin(
     page = 1,
@@ -75,6 +75,14 @@ export class ReservasService {
         order,
         direction,
       }),
+    );
+  }
+  toOrder(id: string, body: unknown, admin = false) {
+    return firstValueFrom(
+      this.api.post<import('../../ventas-pagos/domain/commerce.models').Order>(
+        '/reservations/' + (admin ? 'admin/' : '') + id + '/order',
+        body,
+      ),
     );
   }
   updateStatus(id: string, status: string, note = ''): Promise<Reservation> {

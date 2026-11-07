@@ -2,11 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { Subject } from 'rxjs';
 import { SyncApi, SyncBatchResponse } from '../infrastructure/sync.api';
 import { OperacionesLocalesRepository } from '../infrastructure/operaciones-locales.repository';
-import {
-  SyncOperationWire,
-  enLotes,
-  clasificarError,
-} from '../domain/sincronizacion.models';
+import { SyncOperationWire, enLotes, clasificarError } from '../domain/sincronizacion.models';
 import { OperacionPendiente } from '../domain/reserva-offline.models';
 import { SessionService } from '../../usuarios-catalogo/application/session.service';
 
@@ -77,7 +73,10 @@ export class SincronizacionService {
         this.conflictosCount.set(0);
         return;
       }
-      const ops = await this.operacionesRepo.listarOperaciones({ tenantId: user.tenant.id, usuarioId: user.id });
+      const ops = await this.operacionesRepo.listarOperaciones({
+        tenantId: user.tenant.id,
+        usuarioId: user.id,
+      });
       const pendientes = ops.filter((o) => o.estado === 'PENDIENTE').length;
       const conflictos = ops.filter((o) => o.estado === 'CONFLICTO').length;
       this.pendientesCount.set(pendientes);
@@ -128,18 +127,37 @@ export class SincronizacionService {
     try {
       if (this.session.offlineSession()) await this.session.restore();
       const user = this.session.user();
-      if (!user?.tenant || this.session.offlineSession() || this.session.isSupport() || !this.session.can('sync.write')) {
-        this.ultimoError.set('Ingresá con conexión a tu empresa para sincronizar las operaciones guardadas.');
+      if (
+        !user?.tenant ||
+        this.session.offlineSession() ||
+        this.session.isSupport() ||
+        !this.session.can('sync.write')
+      ) {
+        this.ultimoError.set(
+          'Ingresá con conexión a tu empresa para sincronizar las operaciones guardadas.',
+        );
         return stats;
       }
       const scope = { tenantId: user.tenant.id, usuarioId: user.id };
       const previous = await this.operacionesRepo.listarOperaciones(scope);
-      const unsettled = previous.filter(op => ['CONFLICTO', 'ENVIADA'].includes(op.estado)).slice(0, 200);
+      const unsettled = previous
+        .filter(
+          (op) => ['CONFLICTO', 'ENVIADA'].includes(op.estado) || op.refund_status === 'pending',
+        )
+        .slice(0, 200);
       if (unsettled.length) {
-        const status = await this.syncApi.getStatus(unsettled.map(op => op.id));
-        await this.operacionesRepo.aplicarResultados(status.operations.filter(result => result.status !== 'UNKNOWN'), ahora);
+        const status = await this.syncApi.getStatus(unsettled.map((op) => op.id));
+        await this.operacionesRepo.aplicarResultados(
+          status.operations.filter((result) => result.status !== 'UNKNOWN'),
+          ahora,
+        );
       }
-      const pendientes = await this.operacionesRepo.tomarParaEnvio(ahora, 50, user.tenant.id, user.id);
+      const pendientes = await this.operacionesRepo.tomarParaEnvio(
+        ahora,
+        50,
+        user.tenant.id,
+        user.id,
+      );
       if (pendientes.length === 0) {
         await this.actualizarContadores();
         return stats;
@@ -163,10 +181,14 @@ export class SincronizacionService {
           const resp: SyncBatchResponse = await this.syncApi.postBatch(wireOperations);
           if (resp && resp.results) {
             await this.operacionesRepo.aplicarResultados(resp.results, new Date());
-            const received = new Set(resp.results.map(result => result.client_request_id));
-            const missing = lote.filter(op => !received.has(op.id)).map(op => ({
-              client_request_id: op.id, status: 'RETRY' as const, message: 'El servidor no confirmó esta operación.',
-            }));
+            const received = new Set(resp.results.map((result) => result.client_request_id));
+            const missing = lote
+              .filter((op) => !received.has(op.id))
+              .map((op) => ({
+                client_request_id: op.id,
+                status: 'RETRY' as const,
+                message: 'El servidor no confirmó esta operación.',
+              }));
             if (missing.length) await this.operacionesRepo.aplicarResultados(missing, new Date());
             stats.confirmadas += resp.confirmed || 0;
             stats.conflictos += resp.conflicts || 0;
@@ -174,7 +196,8 @@ export class SincronizacionService {
           }
 
           await this.operacionesRepo.guardarHistorialSync({
-            tenant_id: user.tenant.id, usuario_id: user.id,
+            tenant_id: user.tenant.id,
+            usuario_id: user.id,
             iniciado_en: ahora.toISOString(),
             terminado_en: new Date().toISOString(),
             enviadas: wireOperations.length,
@@ -187,13 +210,18 @@ export class SincronizacionService {
         } catch (err: any) {
           const clasif = clasificarError(err);
           this.ultimoError.set(`Error de sincronización (${clasif.codigo})`);
-          await this.operacionesRepo.aplicarResultados(lote.map(op => ({
-            client_request_id: op.id, status: 'RETRY' as const,
-            message: 'El envío no se completó. Se conserva la operación para reintentar.',
-          })), new Date());
+          await this.operacionesRepo.aplicarResultados(
+            lote.map((op) => ({
+              client_request_id: op.id,
+              status: 'RETRY' as const,
+              message: 'El envío no se completó. Se conserva la operación para reintentar.',
+            })),
+            new Date(),
+          );
 
           await this.operacionesRepo.guardarHistorialSync({
-            tenant_id: user.tenant.id, usuario_id: user.id,
+            tenant_id: user.tenant.id,
+            usuario_id: user.id,
             iniciado_en: ahora.toISOString(),
             terminado_en: new Date().toISOString(),
             enviadas: wireOperations.length,
@@ -212,7 +240,9 @@ export class SincronizacionService {
 
       this.ultimoSync.set(new Date());
     } catch {
-      this.ultimoError.set('No se pudo contactar al servidor. Las operaciones siguen guardadas en este dispositivo.');
+      this.ultimoError.set(
+        'No se pudo contactar al servidor. Las operaciones siguen guardadas en este dispositivo.',
+      );
     } finally {
       this.sincronizando.set(false);
       await this.actualizarContadores();

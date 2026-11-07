@@ -1,6 +1,7 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { CartItem } from '../domain/commerce.models';
 import { ExchangesApi } from '../infrastructure/exchanges.api';
 import {
   ExchangeCalculation,
@@ -20,7 +21,8 @@ import {
         <div>
           <h1>Gestión de Cambios de Prenda</h1>
           <p class="subtitle">
-            Validación de política de plazo de cambio, recálculo de diferencias y actualización dual de existencias.
+            Validación de política de plazo de cambio, recálculo de diferencias y actualización dual
+            de existencias.
           </p>
         </div>
         <div class="policy-badge" *ngIf="policy()">
@@ -31,10 +33,18 @@ import {
 
       <!-- Pestañas de navegación -->
       <div class="tabs">
-        <button class="tab-btn" [class.active]="tabActiva() === 'nuevo'" (click)="tabActiva.set('nuevo')">
+        <button
+          class="tab-btn"
+          [class.active]="tabActiva() === 'nuevo'"
+          (click)="tabActiva.set('nuevo')"
+        >
           Nuevo Cambio de Prenda
         </button>
-        <button class="tab-btn" [class.active]="tabActiva() === 'historial'" (click)="cargarHistorial()">
+        <button
+          class="tab-btn"
+          [class.active]="tabActiva() === 'historial'"
+          (click)="cargarHistorial()"
+        >
           Historial de Cambios
         </button>
       </div>
@@ -60,7 +70,11 @@ import {
               placeholder="Ingrese número de folio o código de orden (ej. ORD-001)..."
               (keyup.enter)="buscarOrden()"
             />
-            <button class="btn btn-primary" (click)="buscarOrden()" [disabled]="!busquedaOrden.trim() || buscando()">
+            <button
+              class="btn btn-primary"
+              (click)="buscarOrden()"
+              [disabled]="!busquedaOrden.trim() || buscando()"
+            >
               <span *ngIf="buscando()">Buscando...</span>
               <span *ngIf="!buscando()">Buscar Pedido</span>
             </button>
@@ -74,7 +88,7 @@ import {
                 <span class="text-muted"> ({{ orden()?.customer_email }})</span>
               </div>
               <div>
-                Fecha de Compra: <strong>{{ orden()?.purchase_date | date:'mediumDate' }}</strong>
+                Fecha de Compra: <strong>{{ orden()?.purchase_date | date: 'mediumDate' }}</strong>
               </div>
               <div [class.text-danger]="(orden()?.remaining_days ?? 0) <= 0">
                 Días restantes de cambio: <strong>{{ orden()?.remaining_days }} días</strong>
@@ -82,8 +96,12 @@ import {
             </div>
 
             <!-- Advertencia si plazo vencido -->
-            <div *ngIf="!orden()?.can_exchange && (orden()?.remaining_days ?? 0) <= 0" class="alert alert-error mt-2">
-              El plazo para realizar cambios para este pedido ha expirado (Límite: {{ orden()?.deadline_days }} días).
+            <div
+              *ngIf="!orden()?.can_exchange && (orden()?.remaining_days ?? 0) <= 0"
+              class="alert alert-error mt-2"
+            >
+              El plazo para realizar cambios para este pedido ha expirado (Límite:
+              {{ orden()?.deadline_days }} días).
             </div>
 
             <!-- Tabla de prendas del pedido -->
@@ -103,9 +121,11 @@ import {
                 </thead>
                 <tbody>
                   <tr *ngFor="let it of orden()?.items">
-                    <td><strong>{{ it.product_name }}</strong></td>
+                    <td>
+                      <strong>{{ it.product_name }}</strong>
+                    </td>
                     <td>{{ it.size ?? '-' }} / {{ it.color ?? '-' }}</td>
-                    <td>{{ it.unit_price | currency:'BOB':'symbol':'1.2-2' }}</td>
+                    <td>{{ it.unit_price | currency: 'BOB' : 'symbol' : '1.2-2' }}</td>
                     <td>{{ it.original_quantity }}</td>
                     <td>{{ it.already_exchanged_quantity }}</td>
                     <td>
@@ -120,7 +140,11 @@ import {
                         [disabled]="prendaDevuelta()?.variant_id === it.variant_id"
                         (click)="seleccionarPrendaDevolucion(it)"
                       >
-                        {{ prendaDevuelta()?.variant_id === it.variant_id ? 'Seleccionada' : 'Seleccionar' }}
+                        {{
+                          prendaDevuelta()?.variant_id === it.variant_id
+                            ? 'Seleccionada'
+                            : 'Seleccionar'
+                        }}
                       </button>
                     </td>
                   </tr>
@@ -139,7 +163,10 @@ import {
             <div class="card-column">
               <h3>Prenda a Devolver</h3>
               <div class="line-summary">
-                <p><strong>{{ dev.product_name }}</strong> (Talla: {{ dev.size }}, Color: {{ dev.color }})</p>
+                <p>
+                  <strong>{{ dev.product_name }}</strong> (Talla: {{ dev.size }}, Color:
+                  {{ dev.color }})
+                </p>
                 <div class="form-group">
                   <label>Cantidad a Devolver (Máx: {{ dev.available_for_exchange }}):</label>
                   <input
@@ -151,8 +178,16 @@ import {
                     (change)="limpiarCalculo()"
                   />
                 </div>
-                <p>Precio Unitario Original: <strong>{{ dev.unit_price | currency:'BOB':'symbol':'1.2-2' }}</strong></p>
-                <p>Valor total devuelto: <strong>{{ (dev.unit_price * cantidadDevolver) | currency:'BOB':'symbol':'1.2-2' }}</strong></p>
+                <p>
+                  Precio Unitario Original:
+                  <strong>{{ dev.unit_price | currency: 'BOB' : 'symbol' : '1.2-2' }}</strong>
+                </p>
+                <p>
+                  Valor total devuelto:
+                  <strong>{{
+                    dev.unit_price * cantidadDevolver | currency: 'BOB' : 'symbol' : '1.2-2'
+                  }}</strong>
+                </p>
               </div>
             </div>
 
@@ -160,14 +195,22 @@ import {
             <div class="card-column">
               <h3>Nueva Prenda a Entregar</h3>
               <div class="form-group">
-                <label>ID o SKU de la Variante Nueva:</label>
-                <input
-                  type="text"
+                <label>Prenda disponible en la sucursal:</label>
+                <select
                   class="form-control"
                   [(ngModel)]="nuevaVarianteId"
-                  placeholder="ID de variante de la nueva prenda..."
-                  (change)="limpiarCalculo()"
-                />
+                  (ngModelChange)="selectReplacement($event)"
+                >
+                  <option value="">Seleccioná una prenda</option>
+                  @for (item of replacements(); track item.variant_id) {
+                    @if (item.variant_id !== dev.variant_id && item.available > 0) {
+                      <option [value]="item.variant_id">
+                        {{ item.name }} · {{ item.size }} · {{ item.color }} ·
+                        {{ item.unit_price }} BOB · {{ item.available }} disponibles
+                      </option>
+                    }
+                  }
+                </select>
               </div>
               <div class="form-group">
                 <label>Cantidad a Entregar:</label>
@@ -185,12 +228,18 @@ import {
                   type="number"
                   class="form-control"
                   [(ngModel)]="nuevoPrecioUnitario"
+                  readonly
                   step="0.01"
                   [min]="0"
                   (change)="limpiarCalculo()"
                 />
               </div>
-              <p>Valor total a entregar: <strong>{{ (nuevoPrecioUnitario * cantidadEntregar) | currency:'BOB':'symbol':'1.2-2' }}</strong></p>
+              <p>
+                Valor total a entregar:
+                <strong>{{
+                  nuevoPrecioUnitario * cantidadEntregar | currency: 'BOB' : 'symbol' : '1.2-2'
+                }}</strong>
+              </p>
             </div>
           </div>
 
@@ -198,7 +247,13 @@ import {
             <button
               class="btn btn-secondary"
               (click)="calcularDiferencia()"
-              [disabled]="!nuevaVarianteId.trim() || cantidadDevolver <= 0 || cantidadEntregar <= 0 || nuevoPrecioUnitario < 0 || calculando()"
+              [disabled]="
+                !nuevaVarianteId.trim() ||
+                cantidadDevolver <= 0 ||
+                cantidadEntregar <= 0 ||
+                nuevoPrecioUnitario < 0 ||
+                calculando()
+              "
             >
               <span *ngIf="calculando()">Calculando...</span>
               <span *ngIf="!calculando()">Calcular Diferencia de Precio</span>
@@ -206,22 +261,29 @@ import {
           </div>
 
           <!-- Resultado del cálculo de diferencia -->
-          <div *ngIf="calculo()" class="calculation-result-box mt-3" [ngClass]="calculo()?.tipo_diferencia">
+          <div
+            *ngIf="calculo()"
+            class="calculation-result-box mt-3"
+            [ngClass]="calculo()?.tipo_diferencia"
+          >
             <div class="calc-header">
               <span class="calc-label">Resultado del Recálculo:</span>
-              <strong class="calc-amount">{{ calculo()?.difference_amount | currency:'BOB':'symbol':'1.2-2' }}</strong>
+              <strong class="calc-amount">{{
+                calculo()?.difference_amount | currency: 'BOB' : 'symbol' : '1.2-2'
+              }}</strong>
             </div>
 
             <div *ngIf="calculo()?.tipo_diferencia === 'PAGO_CLIENTE'" class="calc-msg">
               <strong>El cliente debe pagar una diferencia</strong> de
-              {{ calculo()?.difference_amount | currency:'BOB':'symbol':'1.2-2' }}
+              {{ calculo()?.difference_amount | currency: 'BOB' : 'symbol' : '1.2-2' }}
               por llevar una prenda de mayor valor.
             </div>
 
             <div *ngIf="calculo()?.tipo_diferencia === 'REINTEGRO_O_SALDO'" class="calc-msg">
               <strong>Diferencia a favor del cliente:</strong>
-              {{ (calculo()?.difference_amount ?? 0) * -1 | currency:'BOB':'symbol':'1.2-2' }}.
-              Se puede aplicar en saldo a favor o reintegro.
+              {{ (calculo()?.difference_amount ?? 0) * -1 | currency: 'BOB' : 'symbol' : '1.2-2' }}.
+              El reintegro se confirma al finalizar. Los pagos Stripe se reintegran a la cuenta
+              original; el efectivo se entrega en caja.
             </div>
 
             <div *ngIf="calculo()?.tipo_diferencia === 'CAMBIO_DIRECTO'" class="calc-msg">
@@ -234,12 +296,13 @@ import {
                 <label>Método de pago de la diferencia:</label>
                 <select class="form-control" [(ngModel)]="metodoPago">
                   <option value="cash">Efectivo</option>
-                  <option value="card">Tarjeta de Débito / Crédito</option>
-                  <option value="qr">Pago QR</option>
                 </select>
               </div>
 
-              <div class="form-group" *ngIf="calculo()?.tipo_diferencia === 'PAGO_CLIENTE' && metodoPago === 'cash'">
+              <div
+                class="form-group"
+                *ngIf="calculo()?.tipo_diferencia === 'PAGO_CLIENTE' && metodoPago === 'cash'"
+              >
                 <label>Efectivo recibido del cliente (BOB):</label>
                 <input
                   type="number"
@@ -248,8 +311,15 @@ import {
                   step="0.01"
                   [min]="calculo()?.difference_amount ?? 0"
                 />
-                <small *ngIf="efectivoRecibido >= (calculo()?.difference_amount ?? 0)" class="text-success">
-                  Cambio a devolver: {{ (efectivoRecibido - (calculo()?.difference_amount ?? 0)) | currency:'BOB':'symbol':'1.2-2' }}
+                <small
+                  *ngIf="efectivoRecibido >= (calculo()?.difference_amount ?? 0)"
+                  class="text-success"
+                >
+                  Cambio a devolver:
+                  {{
+                    efectivoRecibido - (calculo()?.difference_amount ?? 0)
+                      | currency: 'BOB' : 'symbol' : '1.2-2'
+                  }}
                 </small>
               </div>
 
@@ -281,9 +351,15 @@ import {
             <h2>Comprobante de Cambio de Prenda</h2>
             <span class="pill pill-success">COMPLETADO</span>
           </div>
-          <p>Folio de Cambio: <strong>#{{ ex.id.substring(0, 8) }}</strong></p>
-          <p>Pedido Original: <strong>{{ ex.original_order_number ?? ex.original_order_id }}</strong></p>
-          <p>Fecha: <strong>{{ ex.created_at | date:'medium' }}</strong></p>
+          <p>
+            Folio de Cambio: <strong>#{{ ex.id.substring(0, 8) }}</strong>
+          </p>
+          <p>
+            Pedido Original: <strong>{{ ex.original_order_number ?? ex.original_order_id }}</strong>
+          </p>
+          <p>
+            Fecha: <strong>{{ ex.created_at | date: 'medium' }}</strong>
+          </p>
 
           <table class="data-table mt-2">
             <thead>
@@ -301,30 +377,45 @@ import {
                   <td><span class="pill pill-warning">Devuelta</span></td>
                   <td>{{ l.original_product_name ?? l.original_sku ?? l.original_variant_id }}</td>
                   <td>{{ l.returned_quantity }}</td>
-                  <td>{{ l.original_unit_price | currency:'BOB':'symbol':'1.2-2' }}</td>
-                  <td>-{{ l.returned_total | currency:'BOB':'symbol':'1.2-2' }}</td>
+                  <td>{{ l.original_unit_price | currency: 'BOB' : 'symbol' : '1.2-2' }}</td>
+                  <td>-{{ l.returned_total | currency: 'BOB' : 'symbol' : '1.2-2' }}</td>
                 </tr>
                 <tr class="row-delivery">
                   <td><span class="pill pill-success">Entregada</span></td>
                   <td>{{ l.new_product_name ?? l.new_sku ?? l.new_variant_id }}</td>
                   <td>{{ l.delivered_quantity }}</td>
-                  <td>{{ l.new_unit_price | currency:'BOB':'symbol':'1.2-2' }}</td>
-                  <td>+{{ l.delivered_total | currency:'BOB':'symbol':'1.2-2' }}</td>
+                  <td>{{ l.new_unit_price | currency: 'BOB' : 'symbol' : '1.2-2' }}</td>
+                  <td>+{{ l.delivered_total | currency: 'BOB' : 'symbol' : '1.2-2' }}</td>
                 </tr>
               </ng-container>
             </tbody>
           </table>
 
           <div class="receipt-summary mt-3">
-            <div>Diferencia total: <strong>{{ ex.difference_amount | currency:'BOB':'symbol':'1.2-2' }}</strong></div>
-            <div>Método: <strong>{{ ex.payment_method }}</strong></div>
-            <div *ngIf="ex.cash_received">Efectivo recibido: <strong>{{ ex.cash_received | currency:'BOB':'symbol':'1.2-2' }}</strong></div>
-            <div *ngIf="ex.cash_returned">Cambio entregado: <strong>{{ ex.cash_returned | currency:'BOB':'symbol':'1.2-2' }}</strong></div>
+            <div>
+              Diferencia total:
+              <strong>{{ ex.difference_amount | currency: 'BOB' : 'symbol' : '1.2-2' }}</strong>
+            </div>
+            <div>
+              Método: <strong>{{ ex.payment_method }}</strong>
+            </div>
+            <div *ngIf="ex.cash_received">
+              Efectivo recibido:
+              <strong>{{ ex.cash_received | currency: 'BOB' : 'symbol' : '1.2-2' }}</strong>
+            </div>
+            <div *ngIf="ex.cash_returned">
+              Cambio entregado:
+              <strong>{{ ex.cash_returned | currency: 'BOB' : 'symbol' : '1.2-2' }}</strong>
+            </div>
           </div>
 
           <div class="receipt-actions mt-3">
-            <button class="btn btn-secondary" (click)="imprimirComprobante()">Imprimir Comprobante</button>
-            <button class="btn btn-primary" (click)="resetFormulario()">Realizar Otro Cambio</button>
+            <button class="btn btn-secondary" (click)="imprimirComprobante()">
+              Imprimir Comprobante
+            </button>
+            <button class="btn btn-primary" (click)="resetFormulario()">
+              Realizar Otro Cambio
+            </button>
           </div>
         </section>
       </div>
@@ -358,17 +449,25 @@ import {
               </thead>
               <tbody>
                 <tr *ngFor="let h of historial()">
-                  <td><code>#{{ h.id.substring(0, 8) }}</code></td>
-                  <td><strong>{{ h.original_order_number ?? h.original_order_id.substring(0, 8) }}</strong></td>
-                  <td>{{ h.created_at | date:'short' }}</td>
+                  <td>
+                    <code>#{{ h.id.substring(0, 8) }}</code>
+                  </td>
+                  <td>
+                    <strong>{{
+                      h.original_order_number ?? h.original_order_id.substring(0, 8)
+                    }}</strong>
+                  </td>
+                  <td>{{ h.created_at | date: 'short' }}</td>
                   <td>{{ h.lines_count }} prenda(s)</td>
                   <td>
                     <strong [class.text-primary]="h.difference_amount > 0">
-                      {{ h.difference_amount | currency:'BOB':'symbol':'1.2-2' }}
+                      {{ h.difference_amount | currency: 'BOB' : 'symbol' : '1.2-2' }}
                     </strong>
                   </td>
                   <td>{{ h.payment_method }}</td>
-                  <td><span class="pill pill-success">{{ h.status }}</span></td>
+                  <td>
+                    <span class="pill pill-success">{{ h.status }}</span>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -377,251 +476,322 @@ import {
       </div>
     </div>
   `,
-  styles: [`
-    .cambios-container {
-      padding: 1.5rem;
-      max-width: 1100px;
-      margin: 0 auto;
-    }
-    .page-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1.5rem;
-      flex-wrap: wrap;
-      gap: 1rem;
-    }
-    .page-header h1 {
-      margin: 0;
-      font-size: 1.6rem;
-      color: #1f2937;
-    }
-    .subtitle {
-      margin: 0.25rem 0 0;
-      color: #6b7280;
-      font-size: 0.9rem;
-    }
-    .policy-badge {
-      background: #eff6ff;
-      border: 1px solid #bfdbfe;
-      border-radius: 8px;
-      padding: 0.5rem 1rem;
-      font-size: 0.85rem;
-      color: #1e40af;
-      display: flex;
-      gap: 0.5rem;
-      align-items: center;
-    }
-    .tabs {
-      display: flex;
-      gap: 0.5rem;
-      margin-bottom: 1.5rem;
-      border-bottom: 2px solid #e5e7eb;
-    }
-    .tab-btn {
-      padding: 0.75rem 1.25rem;
-      border: none;
-      background: none;
-      font-size: 0.95rem;
-      font-weight: 600;
-      color: #6b7280;
-      cursor: pointer;
-      border-bottom: 2px solid transparent;
-      margin-bottom: -2px;
-    }
-    .tab-btn.active {
-      color: #2563eb;
-      border-bottom-color: #2563eb;
-    }
-    .section-card {
-      background: white;
-      border: 1px solid #e5e7eb;
-      border-radius: 8px;
-      padding: 1.5rem;
-      margin-bottom: 1.5rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
-    .section-card h2 {
-      margin-top: 0;
-      font-size: 1.2rem;
-      color: #1f2937;
-    }
-    .search-bar {
-      display: flex;
-      gap: 0.75rem;
-      margin-bottom: 1rem;
-    }
-    .order-found-box {
-      background: #f8fafc;
-      border: 1px solid #cbd5e1;
-      border-radius: 6px;
-      padding: 1rem;
-    }
-    .order-header-info {
-      display: flex;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 1rem;
-      font-size: 0.9rem;
-    }
-    .grid-2-cols {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1.5rem;
-    }
-    @media (max-width: 768px) {
-      .grid-2-cols { grid-template-columns: 1fr; }
-    }
-    .card-column {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 6px;
-      padding: 1rem;
-    }
-    .card-column h3 {
-      margin-top: 0;
-      font-size: 1rem;
-      color: #334155;
-    }
-    .form-group {
-      margin-bottom: 0.85rem;
-    }
-    .form-group label {
-      display: block;
-      font-size: 0.85rem;
-      font-weight: 500;
-      margin-bottom: 0.25rem;
-      color: #4b5563;
-    }
-    .form-control {
-      width: 100%;
-      padding: 0.5rem;
-      border: 1px solid #d1d5db;
-      border-radius: 6px;
-      font-family: inherit;
-      box-sizing: border-box;
-    }
-    .calculation-result-box {
-      border: 2px solid #cbd5e1;
-      border-radius: 8px;
-      padding: 1.25rem;
-      background: #f8fafc;
-    }
-    .calculation-result-box.PAGO_CLIENTE {
-      border-color: #3b82f6;
-      background: #eff6ff;
-    }
-    .calculation-result-box.REINTEGRO_O_SALDO {
-      border-color: #f59e0b;
-      background: #fffbeb;
-    }
-    .calculation-result-box.CAMBIO_DIRECTO {
-      border-color: #10b981;
-      background: #ecfdf5;
-    }
-    .calc-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 0.5rem;
-    }
-    .calc-amount {
-      font-size: 1.5rem;
-    }
-    .calc-msg {
-      font-size: 0.95rem;
-      margin-bottom: 1rem;
-    }
-    .receipt-card {
-      border-left: 6px solid #10b981;
-    }
-    .receipt-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .row-return { background: #fffbeb; }
-    .row-delivery { background: #f0fdf4; }
-    .receipt-summary {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 6px;
-      padding: 1rem;
-      display: flex;
-      gap: 2rem;
-      flex-wrap: wrap;
-    }
-    .receipt-actions {
-      display: flex;
-      gap: 0.75rem;
-    }
-    .data-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.875rem;
-    }
-    .data-table th, .data-table td {
-      padding: 0.6rem 0.85rem;
-      text-align: left;
-      border-bottom: 1px solid #e5e7eb;
-    }
-    .data-table th { background: #f1f5f9; color: #475569; }
-    .badge {
-      display: inline-block;
-      padding: 0.2rem 0.5rem;
-      border-radius: 4px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      background: #e2e8f0;
-    }
-    .badge-success { background: #dcfce7; color: #166534; }
-    .pill {
-      display: inline-block;
-      padding: 0.2rem 0.5rem;
-      border-radius: 9999px;
-      font-size: 0.75rem;
-      font-weight: 600;
-    }
-    .pill-success { background: #dcfce7; color: #166534; }
-    .pill-warning { background: #fef3c7; color: #92400e; }
-    .alert {
-      padding: 0.75rem 1rem;
-      border-radius: 6px;
-      margin-bottom: 1rem;
-      font-size: 0.9rem;
-    }
-    .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #f87171; }
-    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
-    .btn {
-      padding: 0.5rem 1rem;
-      border-radius: 6px;
-      font-size: 0.875rem;
-      font-weight: 500;
-      cursor: pointer;
-      border: 1px solid transparent;
-    }
-    .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
-    .btn-lg { padding: 0.75rem 1.5rem; font-size: 1rem; font-weight: 600; }
-    .btn-primary { background: #2563eb; color: white; }
-    .btn-secondary { background: #e5e7eb; color: #1f2937; }
-    .btn-outline { background: white; border-color: #cbd5e1; color: #334155; }
-    .btn-outline:hover { background: #f1f5f9; }
-    .text-danger { color: #dc2626; }
-    .text-success { color: #16a34a; }
-    .text-primary { color: #2563eb; }
-    .text-muted { color: #6b7280; }
-    .mt-2 { margin-top: 0.5rem; }
-    .mt-3 { margin-top: 1rem; }
-    .loading-state, .empty-state { text-align: center; padding: 2rem; color: #6b7280; }
-    .spinner {
-      width: 28px; height: 28px;
-      border: 3px solid #e5e7eb; border-top-color: #2563eb;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin: 0 auto 0.75rem;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-  `]
+  styles: [
+    `
+      .cambios-container {
+        padding: 1.5rem;
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+      }
+      .page-header h1 {
+        margin: 0;
+        font-size: 1.6rem;
+        color: #1f2937;
+      }
+      .subtitle {
+        margin: 0.25rem 0 0;
+        color: #6b7280;
+        font-size: 0.9rem;
+      }
+      .policy-badge {
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        font-size: 0.85rem;
+        color: #1e40af;
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+      .tabs {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        border-bottom: 2px solid #e5e7eb;
+      }
+      .tab-btn {
+        padding: 0.75rem 1.25rem;
+        border: none;
+        background: none;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #6b7280;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+      }
+      .tab-btn.active {
+        color: #2563eb;
+        border-bottom-color: #2563eb;
+      }
+      .section-card {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      }
+      .section-card h2 {
+        margin-top: 0;
+        font-size: 1.2rem;
+        color: #1f2937;
+      }
+      .search-bar {
+        display: flex;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+      }
+      .order-found-box {
+        background: #f8fafc;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 1rem;
+      }
+      .order-header-info {
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem;
+        font-size: 0.9rem;
+      }
+      .grid-2-cols {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+      }
+      @media (max-width: 768px) {
+        .grid-2-cols {
+          grid-template-columns: 1fr;
+        }
+      }
+      .card-column {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 1rem;
+      }
+      .card-column h3 {
+        margin-top: 0;
+        font-size: 1rem;
+        color: #334155;
+      }
+      .form-group {
+        margin-bottom: 0.85rem;
+      }
+      .form-group label {
+        display: block;
+        font-size: 0.85rem;
+        font-weight: 500;
+        margin-bottom: 0.25rem;
+        color: #4b5563;
+      }
+      .form-control {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-family: inherit;
+        box-sizing: border-box;
+      }
+      .calculation-result-box {
+        border: 2px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 1.25rem;
+        background: #f8fafc;
+      }
+      .calculation-result-box.PAGO_CLIENTE {
+        border-color: #3b82f6;
+        background: #eff6ff;
+      }
+      .calculation-result-box.REINTEGRO_O_SALDO {
+        border-color: #f59e0b;
+        background: #fffbeb;
+      }
+      .calculation-result-box.CAMBIO_DIRECTO {
+        border-color: #10b981;
+        background: #ecfdf5;
+      }
+      .calc-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+      }
+      .calc-amount {
+        font-size: 1.5rem;
+      }
+      .calc-msg {
+        font-size: 0.95rem;
+        margin-bottom: 1rem;
+      }
+      .receipt-card {
+        border-left: 6px solid #10b981;
+      }
+      .receipt-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .row-return {
+        background: #fffbeb;
+      }
+      .row-delivery {
+        background: #f0fdf4;
+      }
+      .receipt-summary {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 1rem;
+        display: flex;
+        gap: 2rem;
+        flex-wrap: wrap;
+      }
+      .receipt-actions {
+        display: flex;
+        gap: 0.75rem;
+      }
+      .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.875rem;
+      }
+      .data-table th,
+      .data-table td {
+        padding: 0.6rem 0.85rem;
+        text-align: left;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .data-table th {
+        background: #f1f5f9;
+        color: #475569;
+      }
+      .badge {
+        display: inline-block;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        background: #e2e8f0;
+      }
+      .badge-success {
+        background: #dcfce7;
+        color: #166534;
+      }
+      .pill {
+        display: inline-block;
+        padding: 0.2rem 0.5rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+      }
+      .pill-success {
+        background: #dcfce7;
+        color: #166534;
+      }
+      .pill-warning {
+        background: #fef3c7;
+        color: #92400e;
+      }
+      .alert {
+        padding: 0.75rem 1rem;
+        border-radius: 6px;
+        margin-bottom: 1rem;
+        font-size: 0.9rem;
+      }
+      .alert-error {
+        background: #fee2e2;
+        color: #991b1b;
+        border: 1px solid #f87171;
+      }
+      .alert-success {
+        background: #dcfce7;
+        color: #166534;
+        border: 1px solid #86efac;
+      }
+      .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        border: 1px solid transparent;
+      }
+      .btn-sm {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+      }
+      .btn-lg {
+        padding: 0.75rem 1.5rem;
+        font-size: 1rem;
+        font-weight: 600;
+      }
+      .btn-primary {
+        background: #2563eb;
+        color: white;
+      }
+      .btn-secondary {
+        background: #e5e7eb;
+        color: #1f2937;
+      }
+      .btn-outline {
+        background: white;
+        border-color: #cbd5e1;
+        color: #334155;
+      }
+      .btn-outline:hover {
+        background: #f1f5f9;
+      }
+      .text-danger {
+        color: #dc2626;
+      }
+      .text-success {
+        color: #16a34a;
+      }
+      .text-primary {
+        color: #2563eb;
+      }
+      .text-muted {
+        color: #6b7280;
+      }
+      .mt-2 {
+        margin-top: 0.5rem;
+      }
+      .mt-3 {
+        margin-top: 1rem;
+      }
+      .loading-state,
+      .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: #6b7280;
+      }
+      .spinner {
+        width: 28px;
+        height: 28px;
+        border: 3px solid #e5e7eb;
+        border-top-color: #2563eb;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin: 0 auto 0.75rem;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    `,
+  ],
 })
 export class CambiosPageComponent implements OnInit {
   tabActiva = signal<'nuevo' | 'historial'>('nuevo');
@@ -656,7 +826,15 @@ export class CambiosPageComponent implements OnInit {
   error = signal<string | null>(null);
   mensajeExito = signal<string | null>(null);
 
+  replacements = signal<CartItem[]>([]);
+  private pendingAttempt?: { fingerprint: string; id: string };
   constructor(private exchangesApi: ExchangesApi) {}
+  selectReplacement(id: string) {
+    this.nuevoPrecioUnitario = Number(
+      this.replacements().find((i) => i.variant_id === id)?.unit_price || 0,
+    );
+    this.limpiarCalculo();
+  }
 
   ngOnInit(): void {
     this.cargarPolitica();
@@ -679,8 +857,11 @@ export class CambiosPageComponent implements OnInit {
     try {
       const data = await this.exchangesApi.lookupOrder(this.busquedaOrden);
       this.orden.set(data);
+      this.replacements.set(await this.exchangesApi.options(data.branch_id));
     } catch (err: any) {
-      this.error.set(err?.error?.message ?? err?.message ?? 'No se encontró el pedido o expiró el plazo.');
+      this.error.set(
+        err?.error?.message ?? err?.message ?? 'No se encontró el pedido o expiró el plazo.',
+      );
       this.orden.set(null);
     } finally {
       this.buscando.set(false);
@@ -722,7 +903,7 @@ export class CambiosPageComponent implements OnInit {
           new_unit_price: this.nuevoPrecioUnitario,
         },
       ];
-      const res = await this.exchangesApi.calculate(ord.branch_id, lines);
+      const res = await this.exchangesApi.calculate(ord.branch_id, lines,ord.order_id);
       this.calculo.set(res);
       this.efectivoRecibido = Math.max(0, res.difference_amount);
     } catch (err: any) {
@@ -750,15 +931,31 @@ export class CambiosPageComponent implements OnInit {
     this.ejecutando.set(true);
     this.error.set(null);
     try {
+      const fingerprint = JSON.stringify({
+        order: ord.order_id,
+        old: dev.variant_id,
+        next: this.nuevaVarianteId,
+        qty: this.cantidadDevolver,
+        qtyNew: this.cantidadEntregar,
+        method: this.metodoPago,
+        received: this.efectivoRecibido,
+        notes: this.notasCambio,
+      });
+      if (this.pendingAttempt?.fingerprint !== fingerprint)
+        this.pendingAttempt = { fingerprint, id: crypto.randomUUID() };
       const cambio = await this.exchangesApi.executeExchange({
+        client_request_id: this.pendingAttempt.id,
         original_order_id: ord.order_id,
         branch_id: ord.branch_id,
         payment_method: this.metodoPago,
-        cash_received: this.metodoPago === 'cash' ? this.efectivoRecibido : undefined,
+        cash_received:
+          this.metodoPago === 'cash' && calc.difference_amount > 0 ? this.efectivoRecibido : 0,
         cash_returned:
-          this.metodoPago === 'cash' && this.efectivoRecibido > calc.difference_amount
-            ? this.efectivoRecibido - calc.difference_amount
-            : undefined,
+          calc.difference_amount < 0
+            ? -calc.difference_amount
+            : this.metodoPago === 'cash'
+              ? this.efectivoRecibido - calc.difference_amount
+              : 0,
         notes: this.notasCambio,
         lines: [
           {
