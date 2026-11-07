@@ -35,6 +35,7 @@ import {
   GlobalUser,
   BranchSummary,
   PlatformAuditEvent,
+  PlatformIntelligence,
 } from '../domain/consola.models';
 
 @Injectable({ providedIn: 'root' })
@@ -431,6 +432,10 @@ export class PlataformaApi {
     return this.api
       .write<any[]>('POST', '/platform/ops/jobs/run', { reason })
       .pipe(map((r) => r.data));
+  }
+
+  platformIntelligence(): Observable<PlatformIntelligence> {
+    return this.api.get<PlatformIntelligence>('/platform/intelligence');
   }
 
   private subpath(id: string) {

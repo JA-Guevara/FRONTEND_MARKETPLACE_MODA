@@ -55,6 +55,15 @@ export interface DashboardKPIs {
   error_promedio_mae: number;
 }
 
+export interface RecomendacionIA {
+  tipo: 'INVENTARIO' | 'PRECIOS' | 'CLIENTES' | 'OPERATIVO';
+  prioridad: 'ALTA' | 'MEDIA' | 'BAJA';
+  titulo: string;
+  descripcion: string;
+  accion: string;
+  impacto_estimado: string;
+}
+
 export interface MLDashboard {
   tenant_id: string;
   modelo_activo?: MLModelSummary;
@@ -62,6 +71,7 @@ export interface MLDashboard {
   serie_demanda: DemandaPunto[];
   segmentos: SegmentoResumen[];
   anomalias_recientes: AnomaliaItem[];
+  recomendaciones_ia?: RecomendacionIA[];
 }
 
 export interface CustomerSegmentItem {

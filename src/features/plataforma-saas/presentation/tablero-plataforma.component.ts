@@ -2,7 +2,7 @@ import { Component, inject, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { PlataformaApi } from '../infrastructure/plataforma.api';
-import { PlatformDashboard, GlobalUser } from '../domain/consola.models';
+import { PlatformDashboard, GlobalUser, PlatformIntelligence } from '../domain/consola.models';
 import { Plan } from '../domain/plan.models';
 import { KpiCardComponent } from '../../../shared/ui/kpi-card.component';
 import { UsageMeterComponent } from '../../../shared/ui/usage-meter.component';
@@ -173,6 +173,87 @@ import { UsageMeterComponent } from '../../../shared/ui/usage-meter.component';
         </div>
       </div>
 
+      <!-- Sección de Inteligencia SaaS y Recomendaciones de Plataforma -->
+      @if (intelligence(); as intel) {
+        <div class="grid2" style="margin-top:14px;grid-template-columns:1.2fr 1fr">
+          <div class="card" style="border:1px solid #c7d2fe;background:linear-gradient(180deg,#faf5ff 0%,#ffffff 100%)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+              <div>
+                <h3 style="margin:0;color:#1e1b4b">Sugerencias de Crecimiento & Upsell SaaS</h3>
+                <small class="muted">Detección automática de clientes listos para escalar plan</small>
+              </div>
+              <span class="badge ok" style="font-size:11px">IA Plataforma</span>
+            </div>
+            @if (intel.upgrade_recommendations.length === 0) {
+              <p class="muted">Todas las empresas operan con holgura respecto a sus límites actuales.</p>
+            } @else {
+              <div style="display:grid;gap:10px">
+                @for (u of intel.upgrade_recommendations; track u.tenant_id + u.reason) {
+                  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px;box-shadow:0 1px 3px rgba(0,0,0,0.04)">
+                    <div style="display:flex;justify-content:space-between;align-items:center">
+                      <b>{{ u.trade_name }}</b>
+                      <span class="badge" [class.warn]="u.urgency === 'ALTA'" [class.info]="u.urgency === 'MEDIA'">
+                        {{ u.recommended_plan }}
+                      </span>
+                    </div>
+                    <p style="margin:4px 0 6px;font-size:12.5px;color:#475569">{{ u.reason }}</p>
+                    <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #f1f5f9;padding-top:6px">
+                      <small style="color:#047857;font-weight:600">{{ u.potential_impact }}</small>
+                      <a class="btn sm ghost" [routerLink]="['/admin/plataforma/empresas', u.tenant_id]">Ver empresa →</a>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+              <h3 style="margin:0">Mayor Consumo y Saturación</h3>
+              <small class="muted">Límites y cuotas de uso</small>
+            </div>
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>Empresa</th>
+                  <th>Consumo</th>
+                  <th>Saturación</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (c of intel.top_consumers; track c.tenant_id + c.consumption_type) {
+                  <tr>
+                    <td>
+                      <b>{{ c.trade_name }}</b>
+                      <span class="sub">{{ c.plan_name }}</span>
+                    </td>
+                    <td style="font-size:12px">{{ c.metric_value }}</td>
+                    <td>
+                      <span class="badge" [class.danger]="c.saturation_pct >= 85" [class.warn]="c.saturation_pct >= 60 && c.saturation_pct < 85" [class.ok]="c.saturation_pct < 60">
+                        {{ c.saturation_pct }}%
+                      </span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+
+            <h4 style="margin:16px 0 8px;font-size:13px">Hojas de Ruta Recomendadas por IA</h4>
+            <div style="display:grid;gap:6px">
+              @for (f of intel.feature_recommendations; track f.feature_code) {
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;font-size:12px">
+                  <div style="display:flex;justify-content:space-between">
+                    <b>{{ f.title }}</b>
+                    <span class="muted">{{ f.target_tenants_count }} empresas candidatas</span>
+                  </div>
+                  <span style="color:#64748b">{{ f.description }}</span>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      }
+
       <div class="grid2" style="margin-top:14px">
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -250,6 +331,7 @@ export class TableroPlataformaComponent implements OnInit {
   private api = inject(PlataformaApi);
 
   readonly dashboard = signal<PlatformDashboard | null>(null);
+  readonly intelligence = signal<PlatformIntelligence | null>(null);
   readonly plans = signal<Plan[]>([]);
   readonly admins = signal<GlobalUser[]>([]);
   readonly loading = signal(true);
@@ -277,6 +359,13 @@ export class TableroPlataformaComponent implements OnInit {
         this.loading.set(false);
       },
     });
+
+    if (this.api.platformIntelligence) {
+      this.api.platformIntelligence().subscribe({
+        next: (intel) => this.intelligence.set(intel),
+        error: () => {},
+      });
+    }
 
     if (this.api.plans) {
       this.api.plans(true).subscribe({

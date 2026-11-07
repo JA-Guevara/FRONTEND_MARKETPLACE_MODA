@@ -2,7 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MLApi } from '../infrastructure/ml.api';
-import { MLDashboard, AnomaliaItem } from '../domain/ml.models';
+import { MLDashboard, AnomaliaItem, RecomendacionIA } from '../domain/ml.models';
 
 @Component({
   selector: 'app-dashboard-analitico',
@@ -83,6 +83,36 @@ import { MLDashboard, AnomaliaItem } from '../domain/ml.models';
             <span class="kpi-sub">MAE: {{ (dashboard()?.kpis?.error_promedio_mae ?? 0) | number:'1.2-2' }} u.</span>
           </div>
         </div>
+
+        <!-- Sección IA: Recomendaciones Estratégicas y Decisiones de Negocio -->
+        <section class="section-card ai-recommendations-card" *ngIf="dashboard()?.recomendaciones_ia?.length">
+          <div class="ai-card-header">
+            <div>
+              <h2>Recomendaciones Estratégicas y Decisiones con IA</h2>
+              <p class="section-desc">Acciones sugeridas generadas a partir de la demanda proyectada, rotación de catálogo y clusters RFM.</p>
+            </div>
+            <span class="ai-spark-badge">Decisiones Inteligentes</span>
+          </div>
+
+          <div class="recom-grid">
+            <div *ngFor="let r of dashboard()?.recomendaciones_ia" class="recom-item" [attr.data-tipo]="r.tipo">
+              <div class="recom-top">
+                <span class="recom-tipo">{{ r.tipo }}</span>
+                <span class="recom-prio" [class.alta]="r.prioridad === 'ALTA'" [class.media]="r.prioridad === 'MEDIA'">
+                  Prioridad {{ r.prioridad }}
+                </span>
+              </div>
+              <h4 class="recom-title">{{ r.titulo }}</h4>
+              <p class="recom-desc">{{ r.descripcion }}</p>
+              <div class="recom-footer">
+                <span class="impact-pill">Impacto: {{ r.impacto_estimado }}</span>
+                <button type="button" class="btn btn-sm btn-outline-primary" (click)="ejecutarAccion(r)">
+                  {{ r.accion }} →
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
 
         <!-- Sección 1: Pronóstico de Demanda Semanal -->
         <section class="section-card">
@@ -449,47 +479,193 @@ import { MLDashboard, AnomaliaItem } from '../domain/ml.models';
     .btn-outline:hover {
       background: #f1f5f9;
     }
+    /* Tarjeta y Grilla de Recomendaciones IA */
+    .ai-recommendations-card {
+      border: 1px solid #c7d2fe;
+      background: linear-gradient(180deg, #f8faff 0%, #ffffff 100%);
+    }
+    .ai-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1.25rem;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .ai-spark-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #4338ca;
+      background: #e0e7ff;
+      border: 1px solid #c7d2fe;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      letter-spacing: 0.04em;
+    }
+    .recom-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+      gap: 1.25rem;
+    }
+    .recom-item {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .recom-item:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+      border-color: #cbd5e1;
+    }
+    .recom-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.6rem;
+    }
+    .recom-tipo {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #64748b;
+    }
+    .recom-prio {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      background: #f1f5f9;
+      color: #475569;
+    }
+    .recom-prio.alta {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    .recom-prio.media {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    .recom-title {
+      margin: 0 0 0.5rem;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #0f172a;
+      line-height: 1.35;
+    }
+    .recom-desc {
+      margin: 0 0 1rem;
+      font-size: 0.84rem;
+      color: #475569;
+      line-height: 1.5;
+      flex: 1;
+    }
+    .recom-footer {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: auto;
+      border-top: 1px solid #f1f5f9;
+      padding-top: 0.75rem;
+    }
+    .impact-pill {
+      font-size: 0.76rem;
+      color: #047857;
+      background: #ecfdf5;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+      display: inline-block;
+    }
+    .btn-outline-primary {
+      background: transparent;
+      border: 1px solid #3b82f6;
+      color: #2563eb;
+      font-weight: 600;
+      border-radius: 8px;
+      padding: 6px 12px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s ease;
+    }
+    .btn-outline-primary:hover {
+      background: #2563eb;
+      color: #ffffff;
+    }
+
+    /* Modal Flotante de Alta Gama */
     .modal-backdrop {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.5);
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(8px) saturate(140%);
+      -webkit-backdrop-filter: blur(8px) saturate(140%);
       display: flex;
       align-items: center;
       justify-content: center;
       z-index: 1000;
+      padding: 16px;
     }
     .modal-card {
-      background: white;
-      border-radius: 8px;
-      padding: 1.5rem;
+      background: #ffffff;
+      border-radius: 20px;
+      padding: 2rem;
       width: 100%;
-      max-width: 480px;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      max-width: 520px;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);
+      animation: modalScaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes modalScaleIn {
+      from { opacity: 0; transform: scale(0.95) translateY(8px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
     }
     .modal-card h3 {
-      margin-top: 0;
+      margin: 0 0 0.5rem;
+      font-size: 1.35rem;
+      color: #0f172a;
+      font-weight: 750;
     }
     .form-group {
-      margin: 1rem 0;
+      margin: 1.25rem 0;
     }
     .form-group label {
       display: block;
       margin-bottom: 0.5rem;
-      font-size: 0.85rem;
-      font-weight: 500;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #334155;
     }
     .form-control {
       width: 100%;
-      padding: 0.5rem;
-      border: 1px solid #d1d5db;
-      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
       font-family: inherit;
+      font-size: 0.92rem;
       box-sizing: border-box;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      background: #f8fafc;
+    }
+    .form-control:focus {
+      background: #ffffff;
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
     }
     .modal-actions {
       display: flex;
       justify-content: flex-end;
-      gap: 0.5rem;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
     }
     .empty-state {
       padding: 2rem;
@@ -554,6 +730,11 @@ export class DashboardAnaliticoComponent implements OnInit {
   cancelarResolucion(): void {
     this.anomaliaSeleccionada.set(null);
     this.notasResolucion = '';
+  }
+
+  ejecutarAccion(r: RecomendacionIA): void {
+    this.mensajeExito.set(`Acción programada: "${r.accion}" para el área de ${r.tipo.toLowerCase()}.`);
+    setTimeout(() => this.mensajeExito.set(null), 4500);
   }
 
   async confirmarResolucion(): Promise<void> {

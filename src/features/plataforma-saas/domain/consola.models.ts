@@ -133,3 +133,39 @@ export function quotaTone(q: QuotaItem): '' | 'near' | 'full' {
   if (ratio >= 0.8) return 'near';
   return '';
 }
+
+export interface TopConsumerItem {
+  tenant_id: string;
+  trade_name: string;
+  plan_name: string;
+  consumption_type: string;
+  metric_value: string;
+  saturation_pct: number;
+}
+
+export interface PlatformUpgradeRecommendation {
+  tenant_id: string;
+  trade_name: string;
+  current_plan: string;
+  recommended_plan: string;
+  reason: string;
+  urgency: string;
+  potential_impact: string;
+}
+
+export interface PlatformFeatureRecommendation {
+  feature_code: string;
+  title: string;
+  description: string;
+  target_tenants_count: number;
+  rationale: string;
+}
+
+export interface PlatformIntelligence {
+  top_consumers: TopConsumerItem[];
+  upgrade_recommendations: PlatformUpgradeRecommendation[];
+  feature_recommendations: PlatformFeatureRecommendation[];
+  total_ai_queries_30d: number;
+  total_revenue_volume_30d: number;
+  total_active_tenants: number;
+}
