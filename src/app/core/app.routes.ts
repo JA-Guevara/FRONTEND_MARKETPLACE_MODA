@@ -1,4 +1,4 @@
-﻿import { offlineGuard } from './offline/offline-session';
+import { offlineGuard } from './offline/offline-session';
 import { Routes } from '@angular/router';
 import { authGuard } from './auth.guard';
 import { administrativeGuard, platformScopeGuard, tenantScopeGuard } from './scope.guard';
@@ -81,7 +81,7 @@ export const routes: Routes = [
   },
   {
     path: '',
-    title: 'Tiendas | FashionStore',
+    title: 'FashionStore SaaS · Plataforma Omnicanal para Marcas de Moda',
     loadComponent: () =>
       import('../../features/operacion-offline/presentation/catalogo-adaptable.component')
         .then((m) => m.CatalogoAdaptableComponent),

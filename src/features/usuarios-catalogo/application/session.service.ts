@@ -112,7 +112,14 @@ export class SessionService {
 
   readonly isClient = computed(() => {
     const roles = this.user()?.roles ?? [];
-    return roles.length > 0 && roles.every((r) => r.code === 'client');
+    return (
+      roles.length > 0 &&
+      roles.every((r) => {
+        const code = (r.code || '').toLowerCase().trim();
+        const name = (r.name || '').toLowerCase().trim();
+        return code === 'client' || code === 'cliente' || name === 'cliente';
+      })
+    );
   });
 
   readonly administrative = computed(() => {

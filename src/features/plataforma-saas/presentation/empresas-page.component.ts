@@ -15,6 +15,7 @@ import { StatusBadgeComponent } from '../../../shared/ui/status-badge.component'
 import { KpiCardComponent } from '../../../shared/ui/kpi-card.component';
 import { UsageMeterComponent } from '../../../shared/ui/usage-meter.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state.component';
+import { ConfirmDialogComponent } from '../../../shared/ui/confirm-dialog.component';
 import { EmpresasStore } from '../application/empresas.store';
 import { Tenant, tenantTone } from '../domain/empresa.models';
 import { EmpresaFormComponent } from './empresa-form.component';
@@ -34,12 +35,13 @@ import { IniciarSoporteDialogComponent } from './iniciar-soporte-dialog.componen
     EmptyStateComponent,
     EmpresaFormComponent,
     IniciarSoporteDialogComponent,
+    ConfirmDialogComponent,
   ],
   template: `<div class="sp2-heading">
       <div>
         <p class="crumbs">Plataforma SaaS / Empresas</p>
         <h1>Empresas y suscripciones</h1>
-        <p>Gestioná cada empresa, su plan, vigencia y pagos desde su ficha.</p>
+        <p>Gestioná cada empresa, su ciclo de vida, edición de datos, sucursales y vigencia.</p>
       </div>
       @if (session.can('tenants.write')) {
         <button class="btn primary" (click)="openNew()">＋ Nueva empresa</button>
@@ -121,7 +123,7 @@ import { IniciarSoporteDialogComponent } from './iniciar-soporte-dialog.componen
                 <th>Estado</th>
                 <th>Sucursales activas</th>
                 <th>Administrador</th>
-                <th></th>
+                <th style="text-align:right">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -129,7 +131,7 @@ import { IniciarSoporteDialogComponent } from './iniciar-soporte-dialog.componen
                 <tr>
                   <td>
                     <strong>{{ t.trade_name }}</strong
-                    ><br /><small>NIT {{ t.tax_id }} · {{ t.slug }}</small>
+                    ><br /><small>NIT {{ t.tax_id }} · /{{ t.slug }}</small>
                   </td>
                   <td>
                     <span class="badge plan">{{ t.plan_name }}</span>
@@ -157,8 +159,21 @@ import { IniciarSoporteDialogComponent } from './iniciar-soporte-dialog.componen
                     }}</small>
                   </td>
                   <td style="text-align:right;white-space:nowrap">
+                    @if (session.can('tenants.write')) {
+                      <button class="btn sm" (click)="openEdit(t)" title="Editar datos comerciales de la empresa">✏ Editar</button>
+                    }
                     <a class="btn sm" [routerLink]="['/admin/plataforma/empresas', t.id]">Ver 360°</a>
                     <button class="btn sm" (click)="supportTenant.set(t)">⛑ Asistir</button>
+                    @if (session.can('tenants.write')) {
+                      <button
+                        class="btn sm"
+                        [class.danger]="t.status === 'ACTIVA'"
+                        (click)="openStatusDialog(t)"
+                        [title]="t.status === 'ACTIVA' ? 'Suspender operaciones de la empresa' : 'Reactivar empresa'"
+                      >
+                        {{ t.status === 'ACTIVA' ? '⏸ Suspender' : '▶ Reactivar' }}
+                      </button>
+                    }
                   </td>
                 </tr>
               }
@@ -178,10 +193,27 @@ import { IniciarSoporteDialogComponent } from './iniciar-soporte-dialog.componen
     @if (formOpen()) {
       <fs-empresa-form (saved)="afterCreated($event)" (closed)="formOpen.set(false)" />
     }
+    @if (selectedTenantForEdit(); as editT) {
+      <fs-empresa-form
+        [tenant]="editT"
+        (saved)="afterUpdated($event)"
+        (closed)="selectedTenantForEdit.set(null)"
+      />
+    }
     @if (supportTenant(); as st) {
       <fs-iniciar-soporte-dialog
         [tenant]="{ id: st.id, trade_name: st.trade_name }"
         (closed)="supportTenant.set(null)"
+      />
+    }
+    @if (statusDialogTenant(); as st) {
+      <fs-confirm-dialog
+        [title]="st.action === 'suspend' ? '¿Suspender empresa ' + st.tenant.trade_name + '?' : '¿Reactivar empresa ' + st.tenant.trade_name + '?'"
+        [message]="st.action === 'suspend' ? 'La empresa pasará a modo suspendido (solo lectura). No podrá emitir nuevas ventas ni operar en línea hasta que sea reactivada.' : 'La empresa volverá a estar activa y podrá operar normalmente con todos sus módulos contratados.'"
+        [confirmLabel]="st.action === 'suspend' ? 'Suspender operaciones' : 'Reactivar empresa'"
+        [tone]="st.action === 'suspend' ? 'danger' : 'primary'"
+        (confirmed)="confirmStatusChange()"
+        (cancelled)="statusDialogTenant.set(null)"
       />
     }`,
   styleUrl: './empresas-page.component.scss',
@@ -194,9 +226,12 @@ export class EmpresasPageComponent implements OnInit {
 
   plans = signal<Plan[]>([]);
   formOpen = signal(false);
+  selectedTenantForEdit = signal<Tenant | null>(null);
+  statusDialogTenant = signal<{ tenant: Tenant; action: 'suspend' | 'activate' } | null>(null);
   created = signal<Tenant | null>(null);
   notice = signal('');
   supportTenant = signal<Tenant | null>(null);
+  actionLoading = signal(false);
   tone = tenantTone;
   chips = [
     ['todas', 'Todas'],
@@ -227,10 +262,50 @@ export class EmpresasPageComponent implements OnInit {
     this.formOpen.set(true);
   }
 
+  openEdit(t: Tenant) {
+    this.selectedTenantForEdit.set(t);
+  }
+
+  openStatusDialog(t: Tenant) {
+    this.statusDialogTenant.set({
+      tenant: t,
+      action: t.status === 'ACTIVA' ? 'suspend' : 'activate',
+    });
+  }
+
   afterCreated(t: Tenant) {
     this.formOpen.set(false);
     this.created.set(t);
     void this.store.load();
+  }
+
+  afterUpdated(t: Tenant) {
+    this.selectedTenantForEdit.set(null);
+    this.notice.set(`Empresa ${t.trade_name} actualizada exitosamente.`);
+    void this.store.load();
+  }
+
+  async confirmStatusChange() {
+    const st = this.statusDialogTenant();
+    if (!st) return;
+    this.actionLoading.set(true);
+    try {
+      if (st.action === 'suspend') {
+        await firstValueFrom(
+          this.api.deactivateTenant(st.tenant.id, 'Suspensión manual desde consola de plataforma')
+        );
+        this.notice.set(`Empresa ${st.tenant.trade_name} suspendida.`);
+      } else {
+        await firstValueFrom(this.api.activateTenant(st.tenant.id));
+        this.notice.set(`Empresa ${st.tenant.trade_name} reactivada exitosamente.`);
+      }
+      void this.store.load();
+    } catch (err: any) {
+      this.notice.set(err?.error?.message ?? 'Error al modificar el estado de la empresa.');
+    } finally {
+      this.actionLoading.set(false);
+      this.statusDialogTenant.set(null);
+    }
   }
 
   async resend(t: Tenant) {

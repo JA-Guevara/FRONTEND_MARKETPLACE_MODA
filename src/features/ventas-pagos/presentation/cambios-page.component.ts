@@ -9,8 +9,10 @@ import {
   ExchangeOrderLookup,
   ExchangePolicy,
   ExchangeSummaryItem,
+  BranchStockAvailability,
 } from '../domain/cambios.models';
 
+function susalId(id: string): string { return id; }
 @Component({
   selector: 'app-cambios-page',
   standalone: true,
@@ -211,6 +213,15 @@ import {
                     }
                   }
                 </select>
+                <button
+                  type="button"
+                  class="btn btn-outline sm"
+                  style="margin-top:6px;font-size:12px;display:inline-flex;align-items:center;gap:4px"
+                  (click)="consultarStockMultisucursal()"
+                  [disabled]="!nuevaVarianteId || consultandoStock()"
+                >
+                  📍 {{ consultandoStock() ? 'Consultando sucursales...' : 'Ver stock en otras sucursales / Trasladar' }}
+                </button>
               </div>
               <div class="form-group">
                 <label>Cantidad a Entregar:</label>
@@ -418,6 +429,63 @@ import {
             </button>
           </div>
         </section>
+      </div>
+
+      
+      <!-- Modal: Disponibilidad en Otras Sucursales y Traslado Intersucursal -->
+      <div *ngIf="modalDisponibilidad() as sucursales" class="pos-modal-backdrop" role="dialog" aria-modal="true">
+        <div class="pos-modal-card" style="max-width: 620px;">
+          <div class="pos-recibo-header">
+            <div class="pos-badge-success" style="background:#eff6ff;color:#1e40af">📍</div>
+            <h2>Disponibilidad en Otras Sucursales</h2>
+            <p class="receipt-code">Catálogo global de la empresa · Existencias en tiempo real</p>
+          </div>
+
+          <div class="table-responsive mt-2" style="max-height:280px;overflow-y:auto">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Sucursal</th>
+                  <th>Ciudad</th>
+                  <th>Stock</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let s of sucursales">
+                  <td>
+                    <strong>{{ s.branch_name }}</strong>
+                    <div class="text-muted" style="font-size:11.5px">{{ s.address }}</div>
+                  </td>
+                  <td>{{ s.city }}</td>
+                  <td>
+                    <strong [class.text-success]="s.available_quantity > 0" [class.text-danger]="s.available_quantity === 0">
+                      {{ s.available_quantity }} uds
+                    </strong>
+                  </td>
+                  <td>
+                    <button
+                      *ngIf="s.can_transfer && s.branch_id !== orden()?.branch_id"
+                      type="button"
+                      class="btn btn-primary sm"
+                      (click)="trasladarPrenda(s)"
+                      [disabled]="trasladando()"
+                      style="font-size:12px;padding:4px 8px"
+                    >
+                      {{ trasladando() ? 'Trasladando...' : '🚚 Trasladar 1 ud' }}
+                    </button>
+                    <span *ngIf="s.branch_id === orden()?.branch_id" class="pill">Sucursal actual</span>
+                    <span *ngIf="!s.can_transfer && s.branch_id !== orden()?.branch_id" class="text-muted" style="font-size:12px">Agotado</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="pos-actions" style="margin-top:14px;justify-content:flex-end">
+            <button type="button" class="btn btn-outline" (click)="cerrarModalDisponibilidad()">Cerrar</button>
+          </div>
+        </div>
       </div>
 
       <!-- ================= PESTAÑA: HISTORIAL ================= -->
@@ -790,6 +858,62 @@ import {
           transform: rotate(360deg);
         }
       }
+      .pos-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.65);
+        backdrop-filter: blur(5px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        z-index: 1000;
+      }
+      .pos-modal-card {
+        width: 100%;
+        background: var(--surface, #ffffff);
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+        border: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .pos-recibo-header {
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+      }
+      .pos-badge-success {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: #ecfdf5;
+        color: #059669;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        margin-bottom: 4px;
+      }
+      .pos-recibo-header h2 {
+        font-size: 19px;
+        font-weight: 700;
+        margin: 0;
+        color: #0f172a;
+      }
+      .receipt-code {
+        font-size: 13px;
+        color: #64748b;
+        margin: 0;
+      }
+      .pos-actions {
+        display: flex;
+        gap: 10px;
+      }
     `,
   ],
 })
@@ -828,6 +952,53 @@ export class CambiosPageComponent implements OnInit {
 
   replacements = signal<CartItem[]>([]);
   private pendingAttempt?: { fingerprint: string; id: string };
+  
+  modalDisponibilidad = signal<BranchStockAvailability[] | null>(null);
+  consultandoStock = signal<boolean>(false);
+  trasladando = signal<boolean>(false);
+
+  async consultarStockMultisucursal(): Promise<void> {
+    if (!this.nuevaVarianteId) return;
+    this.consultandoStock.set(true);
+    this.error.set(null);
+    try {
+      const data = await this.exchangesApi.getAvailability(this.nuevaVarianteId);
+      this.modalDisponibilidad.set(data);
+    } catch (e: any) {
+      this.error.set(e?.error?.message ?? 'No se pudo consultar el stock en otras sucursales.');
+    } finally {
+      this.consultandoStock.set(false);
+    }
+  }
+
+  cerrarModalDisponibilidad(): void {
+    this.modalDisponibilidad.set(null);
+  }
+
+  async trasladarPrenda(sucursal: BranchStockAvailability): Promise<void> {
+    const ord = this.orden();
+    if (!ord || !this.nuevaVarianteId) return;
+    this.trasladando.set(true);
+    this.error.set(null);
+    try {
+      const res = await this.exchangesApi.transferStock({
+        variant_id: this.nuevaVarianteId,
+        from_branch_id: susalId(sucursal.branch_id),
+        to_branch_id: ord.branch_id,
+        quantity: 1,
+        notes: `Traslado para cambio en pedido #${ord.order_number}`,
+      });
+      this.mensajeExito.set(res.message);
+      this.modalDisponibilidad.set(null);
+      this.replacements.set(await this.exchangesApi.options(ord.branch_id));
+      this.selectReplacement(this.nuevaVarianteId);
+    } catch (e: any) {
+      this.error.set(e?.error?.message ?? 'Error al trasladar la prenda entre sucursales.');
+    } finally {
+      this.trasladando.set(false);
+    }
+  }
+
   constructor(private exchangesApi: ExchangesApi) {}
   selectReplacement(id: string) {
     this.nuevoPrecioUnitario = Number(

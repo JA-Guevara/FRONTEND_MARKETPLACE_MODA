@@ -182,23 +182,87 @@
 }
 
 /* --- Resultado de la operación ------------------------------------------ */
-.pos-recibo {
-  display: grid;
-  gap: 10px;
-  padding: 18px;
-  border: 1px solid var(--line);
-  border-left: 4px solid var(--accent);
-  border-radius: 12px;
-  background: var(--surface);
+.pos-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
 }
-.pos-recibo h2 {
+.pos-modal-card.pos-recibo {
+  width: 100%;
+  max-width: 460px;
+  background: var(--surface, #ffffff);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.pos-recibo-header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.pos-badge-success {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #ecfdf5;
+  color: #059669;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+.pos-recibo-header h2 {
+  font-size: 19px;
+  font-weight: 700;
   margin: 0;
-  font-size: 18px;
+  color: var(--text, #0f172a);
+}
+.receipt-code {
+  font-size: 13px;
+  color: var(--muted, #64748b);
+  margin: 0;
+}
+.pos-hero-amount {
+  background: var(--surface-hover, #f8fafc);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pos-hero-amount .label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted, #64748b);
+  font-weight: 600;
+}
+.pos-hero-amount .val {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--primary, #0f172a);
 }
 .pos-recibo dl {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 4px 14px;
+  gap: 6px 14px;
   margin: 0;
   font-size: 13px;
 }
@@ -208,6 +272,18 @@
 .pos-recibo dd {
   margin: 0;
   text-align: right;
+}
+.highlight-change {
+  color: #059669;
+  font-weight: 700;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @media (max-width: 900px) {

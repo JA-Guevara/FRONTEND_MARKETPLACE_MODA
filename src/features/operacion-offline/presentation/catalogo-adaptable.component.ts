@@ -3,12 +3,12 @@ import { ActivatedRoute } from '@angular/router';
 import { ConnectivityService } from '../../../app/core/offline/connectivity.service';
 import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { CatalogPageComponent } from '../../usuarios-catalogo/presentation/catalog-page.component';
-import { DirectorioTiendasComponent } from '../../publico/presentation/directorio-tiendas.component';
+import { LandingPageComponent } from '../../publico/presentation/landing-page.component';
 import { CatalogoOfflineComponent } from './catalogo-offline.component';
 
 @Component({
   selector: 'fs-catalogo-adaptable',
-  imports: [CatalogPageComponent, DirectorioTiendasComponent, CatalogoOfflineComponent],
+  imports: [CatalogPageComponent, LandingPageComponent, CatalogoOfflineComponent],
   template: `
     @if (!conexion.online()) {
       @if (!slug || slug === session.tenant()?.slug) {
@@ -19,7 +19,7 @@ import { CatalogoOfflineComponent } from './catalogo-offline.component';
         </section>
       }
     } @else if (directorio) {
-      <fs-directorio-tiendas />
+      <fs-landing-page />
     } @else {
       <fs-catalog-page />
     }

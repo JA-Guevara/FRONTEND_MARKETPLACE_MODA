@@ -25,6 +25,7 @@ import {
 } from '../domain/gobierno.models';
 import { HabilitarModuloDialogComponent } from './habilitar-modulo-dialog.component';
 import { ConfirmDialogComponent } from '../../../shared/ui/confirm-dialog.component';
+import { EmpresaFormComponent } from './empresa-form.component';
 import { errorMessage } from '../../../shared/errors';
 
 @Component({
@@ -35,6 +36,7 @@ import { errorMessage } from '../../../shared/errors';
     FormsModule,
     HabilitarModuloDialogComponent,
     ConfirmDialogComponent,
+    EmpresaFormComponent,
     RouterLink,
     KpiCardComponent,
     UsageMeterComponent,
@@ -93,6 +95,11 @@ import { errorMessage } from '../../../shared/errors';
             }}
           </span>
           <span class="badge plan">{{ t.plan_name || 'Básico' }}</span>
+          @if (session.can('tenants.write')) {
+            <button class="btn" (click)="editOpen.set(true)" title="Editar datos comerciales de la empresa">
+              ✏ Editar datos
+            </button>
+          }
           <button class="btn" (click)="resendInvitation()" [disabled]="actionLoading()">
             ✉ Reenviar invitación
           </button>
@@ -587,6 +594,13 @@ import { errorMessage } from '../../../shared/errors';
           (closed)="supportOpen.set(false); loadSupportSessions()"
         />
       }
+      @if (editOpen()) {
+        <fs-empresa-form
+          [tenant]="t"
+          (saved)="onTenantUpdated($event)"
+          (closed)="editOpen.set(false)"
+        />
+      }
     }
   `,
   styleUrl: './empresa-360.component.scss',
@@ -619,6 +633,7 @@ export class Empresa360Component implements OnInit {
 
   readonly loading = signal(true);
   readonly actionLoading = signal(false);
+  readonly editOpen = signal(false);
   readonly error = signal<string | null>(null);
   readonly actionNotice = signal<string | null>(null);
   readonly supportOpen = signal(false);
@@ -1022,5 +1037,12 @@ export class Empresa360Component implements OnInit {
     if (!roles) return 'Personal registrado';
     const parts = Object.entries(roles).map(([rol, cnt]) => `${cnt} ${rol}`);
     return parts.slice(0, 2).join(' · ') || 'Sin usuarios';
+  }
+
+  onTenantUpdated(updated: Tenant) {
+    this.editOpen.set(false);
+    this.tenant.set(updated);
+    this.actionNotice.set(`Datos comerciales de ${updated.trade_name} actualizados exitosamente.`);
+    this.cargarBase();
   }
 }

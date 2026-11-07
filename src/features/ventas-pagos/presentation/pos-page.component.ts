@@ -88,24 +88,39 @@ interface Linea {
     @if (vista() === 'devolucion') {
       <fs-pos-returns [sucursal]="branch" />
     } @else if (cobrada(); as venta) {
-      <!-- Venta cerrada: lo único que importa ahora es el vuelto y el comprobante. -->
-      <div class="pos-recibo">
-        <h2><fs-icon name="check" /> Venta {{ venta.number }} registrada</h2>
-        <dl>
-          <dt>Total cobrado</dt>
-          <dd><strong>{{ venta.currency | uppercase }} {{ venta.total | number: '1.2-2' }}</strong></dd>
-          @if (vueltoCobrado() !== null) {
-            <dt>Vuelto</dt>
-            <dd><strong>{{ vueltoCobrado() | number: '1.2-2' }}</strong></dd>
-          }
-          <dt>Comprobante por correo</dt>
-          <dd>{{ venta.customer_email ? 'Enviado a ' + venta.customer_email : 'Sin correo del cliente' }}</dd>
-        </dl>
-        <div class="pos-actions">
-          <button type="button" class="primary" (click)="imprimir(venta)" [disabled]="busy()">
-            <fs-icon name="download" /> Comprobante PDF
-          </button>
-          <button type="button" (click)="nuevaVenta()"><fs-icon name="plus" /> Nueva venta</button>
+      <!-- Modal Emergente Notable de Comprobante de Pago -->
+      <div class="pos-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-pago-title">
+        <div class="pos-modal-card pos-recibo">
+          <div class="pos-recibo-header">
+            <div class="pos-badge-success">
+              <fs-icon name="check" />
+            </div>
+            <h2 id="modal-pago-title">¡Venta Registrada con Éxito!</h2>
+            <p class="receipt-code">Comprobante Oficial: <strong>#{{ venta.number }}</strong></p>
+          </div>
+
+          <div class="pos-hero-amount">
+            <span class="label">Total Cobrado</span>
+            <strong class="val">{{ venta.currency | uppercase }} {{ venta.total | number: '1.2-2' }}</strong>
+          </div>
+
+          <dl>
+            <dt>Método de pago</dt>
+            <dd><strong>{{ medio().titulo }}</strong></dd>
+            @if (vueltoCobrado() !== null) {
+              <dt>Vuelto entregado</dt>
+              <dd class="highlight-change"><strong>{{ venta.currency | uppercase }} {{ vueltoCobrado() | number: '1.2-2' }}</strong></dd>
+            }
+            <dt>Respaldo por correo</dt>
+            <dd>{{ venta.customer_email ? 'Enviado a ' + venta.customer_email : 'Sin correo registrado' }}</dd>
+          </dl>
+
+          <div class="pos-actions">
+            <button type="button" class="primary" (click)="imprimir(venta)" [disabled]="busy()">
+              <fs-icon name="download" /> Comprobante PDF
+            </button>
+            <button type="button" (click)="nuevaVenta()"><fs-icon name="plus" /> Nueva venta</button>
+          </div>
         </div>
       </div>
     } @else {
@@ -337,7 +352,7 @@ export class PosPageComponent {
     if (valor !== 'cash') this.recibido.set(null);
     this.reference = '';
   }
-  private medio() {
+  medio() {
     return MEDIOS_DE_PAGO.find((m) => m.valor === this.paymentMethod) || MEDIOS_DE_PAGO[0];
   }
   etiquetaReferencia() {

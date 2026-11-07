@@ -119,3 +119,35 @@ export interface ExchangeListResponse {
   page: number;
   page_size: number;
 }
+
+export interface BranchStockAvailability {
+  branch_id: string;
+  branch_name: string;
+  city: string;
+  address: string;
+  phone: string;
+  available_quantity: number;
+  can_transfer: boolean;
+}
+
+export interface InterbranchTransferPayload {
+  variant_id: string;
+  from_branch_id: string;
+  to_branch_id: string;
+  quantity: number;
+  notes?: string;
+}
+
+export interface InterbranchTransferResult {
+  variant_id: string;
+  product_name: string;
+  size: string;
+  color: string;
+  from_branch_id: string;
+  from_branch_name: string;
+  to_branch_id: string;
+  to_branch_name: string;
+  transferred_quantity: number;
+  destination_available_stock: number;
+  message: string;
+}

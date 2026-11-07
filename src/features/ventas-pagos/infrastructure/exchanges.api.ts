@@ -8,6 +8,9 @@ import {
   ExchangeOrderLookup,
   ExchangePolicy,
   ExecuteExchangePayload,
+  BranchStockAvailability,
+  InterbranchTransferPayload,
+  InterbranchTransferResult,
 } from '../domain/cambios.models';
 
 const moneyFields=new Set(['unit_price','subtotal','original_unit_price','new_unit_price','returned_total','delivered_total','price_difference','difference','returned_value','delivered_value','difference_amount','total_returned_value','total_delivered_value','cash_received','cash_returned']);
@@ -85,5 +88,17 @@ export class ExchangesApi {
       this.api.get<ExchangeDetail>(`/commerce/admin/exchanges/${id}`),
     );
     return exchangeNumbers(res);
+  }
+
+  async getAvailability(variantId: string): Promise<BranchStockAvailability[]> {
+    return await firstValueFrom(
+      this.api.get<BranchStockAvailability[]>(`/commerce/admin/exchanges/availability/${variantId}`),
+    );
+  }
+
+  async transferStock(payload: InterbranchTransferPayload): Promise<InterbranchTransferResult> {
+    return await firstValueFrom(
+      this.api.post<InterbranchTransferResult>('/commerce/admin/exchanges/transfer', payload),
+    );
   }
 }

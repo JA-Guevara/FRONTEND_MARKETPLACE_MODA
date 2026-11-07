@@ -157,13 +157,19 @@ import { IconComponent } from './icon.component';
                 }
                 @if (config.states) {
                   <td>
-                    <span
-                      class="badge"
-                      [class.inactive]="!item['is_active'] || item['deleted_at']"
-                      >{{
-                        item['deleted_at'] ? 'Eliminado' : item['is_active'] ? 'Activo' : 'Inactivo'
-                      }}</span
-                    >
+                    @if (config.key === 'users' && item['locked_until']) {
+                      <span class="badge danger" title="Bloqueado por intentos fallidos">Bloqueado</span>
+                    } @else if (config.key === 'users' && !item['is_verified']) {
+                      <span class="badge warn" title="Invitación pendiente de activación">Pendiente</span>
+                    } @else {
+                      <span
+                        class="badge"
+                        [class.inactive]="!item['is_active'] || item['deleted_at']"
+                        >{{
+                          item['deleted_at'] ? 'Eliminado' : item['is_active'] ? 'Activo' : 'Inactivo'
+                        }}</span
+                      >
+                    }
                   </td>
                 }
                 <td>
@@ -210,13 +216,22 @@ import { IconComponent } from './icon.component';
                         </button>
                       }
                       @if (config.key === 'users' && !item['deleted_at']) {
-                        <button (click)="assign(item, 'roles')">
-                          <fs-icon name="users" />Roles</button
-                        ><button [disabled]="busy()" (click)="assignBranches(item)">
-                          <fs-icon name="box" />Sucursales</button
-                        ><button (click)="confirmAction(item, 'unlock')">
-                          <fs-icon name="unlock" />Desbloquear
+                        <button (click)="assign(item, 'roles')" title="Gestionar roles y permisos">
+                          <fs-icon name="users" />Roles
                         </button>
+                        <button [disabled]="busy()" (click)="assignBranches(item)" title="Asignar sucursales">
+                          <fs-icon name="box" />Sucursales
+                        </button>
+                        @if (!item['is_verified']) {
+                          <button (click)="resendUserInvite(item)" title="Reenviar invitación de acceso">
+                            <fs-icon name="mail" />Invitar
+                          </button>
+                        }
+                        @if (item['locked_until']) {
+                          <button class="primary-text" (click)="confirmAction(item, 'unlock')" title="Desbloquear intentos fallidos">
+                            <fs-icon name="unlock" />Desbloquear
+                          </button>
+                        }
                       }
                       @if (config.key === 'roles') {
                         <button (click)="assign(item, 'permissions')">
@@ -608,6 +623,22 @@ export class ResourcePageComponent implements OnInit {
       this.editing.set(true);
     } catch (e) {
       this.error.set(errorMessage(e));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  async resendUserInvite(item: Entity) {
+    if (this.busy() || !this.canWrite()) return;
+    this.busy.set(true);
+    this.error.set('');
+    try {
+      await firstValueFrom(
+        this.api.write('POST', '/auth/resend-verification', { email: item['email'] })
+      );
+      this.message.set(`Enlace de activación reenviado a ${item['email']}.`);
+    } catch {
+      this.error.set(`No se pudo reenviar la activación a ${item['email']}.`);
     } finally {
       this.busy.set(false);
     }
