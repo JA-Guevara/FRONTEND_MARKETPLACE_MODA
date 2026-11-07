@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { CobrosTarjetaComponent } from './cobros-tarjeta.component';
 import { StripePaymentAccount, StripeSaasApi } from '../../plataforma-saas/infrastructure/stripe-saas.api';
@@ -7,10 +7,11 @@ import { SessionService } from '../../usuarios-catalogo/application/session.serv
 import { cuentaCobroActiva, cuentaCobroNoConectada, cuentaCobroPendiente, onboardingRespuesta } from '../../plataforma-saas/presentation/stripe-saas.fixtures';
 
 describe('Cobros de la empresa con Stripe Connect', () => {
-  async function create(account: StripePaymentAccount = cuentaCobroNoConectada.data, overrides: object = {}, can = true) {
+  async function create(account: StripePaymentAccount = cuentaCobroNoConectada.data, overrides: object = {}, can = true, query: Record<string,string> = {}) {
     const api = { account: vi.fn(() => of(account)), onboarding: vi.fn(() => of(onboardingRespuesta.data)), redirect: vi.fn(() => true), ...overrides };
     await TestBed.configureTestingModule({ imports: [CobrosTarjetaComponent], providers: [provideRouter([]),
       { provide: StripeSaasApi, useValue: api }, { provide: SessionService, useValue: { can: () => can } },
+      { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(query) } } },
     ] }).compileComponents();
     const fixture = TestBed.createComponent(CobrosTarjetaComponent); fixture.detectChanges();
     return { fixture, component: fixture.componentInstance, api };
@@ -41,5 +42,22 @@ describe('Cobros de la empresa con Stripe Connect', () => {
     TestBed.resetTestingModule();
     const result = await create(cuentaCobroNoConectada.data, { account: () => throwError(() => ({ status: 503, error: { error: { code: 'billing_not_configured' } } })) });
     expect(result.fixture.nativeElement.textContent).toContain('Los cobros con tarjeta no están disponibles en este momento.');
+  });
+  it('enlace vencido solicita otro enlace y el error sigue visible sin cuenta cargada', async () => {
+    const {fixture,component,api} = await create(cuentaCobroNoConectada.data, {
+      onboarding: vi.fn(() => throwError(() => ({error:{error:{message:'Completá la configuración de Connect en el entorno de prueba.'}}}))),
+    },true,{stripe:'reintentar'});
+    fixture.detectChanges();
+    expect(api.onboarding).toHaveBeenCalledOnce();
+    expect(component.account()).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Completá la configuración de Connect en el entorno de prueba.');
+    expect(fixture.nativeElement.textContent).toContain('Reintentar conexión con Stripe');
+    expect(fixture.nativeElement.textContent).toContain('Stripe está en modo prueba');
+  });
+  it('volver del alta consulta el estado real sin habilitar cargos desde la URL', async () => {
+    const {component,api} = await create(cuentaCobroPendiente.data,{},true,{stripe:'volver'});
+    expect(api.account).toHaveBeenCalledOnce();
+    expect(api.onboarding).not.toHaveBeenCalled();
+    expect(component.account()?.charges_enabled).toBe(false);
   });
 });

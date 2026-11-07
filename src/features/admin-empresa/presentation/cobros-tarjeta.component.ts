@@ -1,6 +1,6 @@
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { SessionService } from '../../usuarios-catalogo/application/session.service';
@@ -28,6 +28,7 @@ import { MetodosCobroComponent } from './metodos-cobro.component';
         </button>
       }
     </header>
+    <p class="alert" role="status">Stripe está en modo prueba. Usá datos de prueba en el formulario; no se realizarán cargos reales.</p>
     <p>
       Esta cuenta recibe las ventas de tu empresa. El plan de FashionStore se paga por separado en
       <a routerLink="/admin/empresa/suscripcion">Plan y facturación</a>.
@@ -46,6 +47,12 @@ import { MetodosCobroComponent } from './metodos-cobro.component';
     @if (error()) {
       <p class="alert danger" role="alert">{{ error() }}</p>
       <button class="btn" (click)="load()">Reintentar</button>
+    }
+    @if (actionError()) {
+      <p class="alert danger" role="alert">{{ actionError() }}</p>
+      @if (!account() && allowed()) {
+        <button class="btn" [disabled]="connecting()" (click)="connect()">Reintentar conexión con Stripe</button>
+      }
     }
     @if (account(); as a) {
       <div class="payments-grid">
@@ -100,14 +107,12 @@ import { MetodosCobroComponent } from './metodos-cobro.component';
               }}
             </button>
           }
-          @if (actionError()) {
-            <p class="alert danger" role="alert">{{ actionError() }}</p>
-          }
           <p class="help">
             Completá el registro de tu empresa en Stripe Connect. Stripe solicita y verifica
             los datos de la empresa y de su cuenta de cobro; FashionStore no guarda tus claves secretas.
             La tarjeta aparece en tu tienda cuando Stripe habilita los cargos.
           </p>
+          <p class="help">Cada empresa dispone de su propio panel de Stripe para consultar sus cobros y completar los datos pendientes.</p>
           <p class="help">Los avisos de pago se muestran cuando el servidor confirma el cobro. Volver de Stripe o crear un pedido no acredita dinero.</p>
         </article>
         <article class="card">
@@ -144,7 +149,8 @@ export class CobrosTarjetaComponent {
       })[this.account()?.status ?? 'not_connected'],
   );
   constructor() {
-    this.load();
+    if (inject(ActivatedRoute).snapshot.queryParamMap.get('stripe') === 'reintentar') this.connect();
+    else this.load();
   }
   load() {
     if (!this.allowed() || this.loading() || this.connecting()) return;
@@ -163,7 +169,7 @@ export class CobrosTarjetaComponent {
           this.error.set(
             error?.error?.error?.code === 'billing_not_configured'
               ? 'Los cobros con tarjeta no están disponibles en este momento.'
-              : 'No se pudo cargar la información.',
+              : error?.error?.error?.message || 'No se pudo cargar la información. Revisá la conexión y reintentá.',
           ),
       });
   }
@@ -190,7 +196,7 @@ export class CobrosTarjetaComponent {
           this.actionError.set(
             error?.error?.error?.code === 'billing_not_configured'
               ? 'Los cobros con tarjeta no están disponibles en este momento.'
-              : 'No se pudo abrir la conexión segura con Stripe. Reintenta.',
+              : error?.error?.error?.message || 'No se pudo abrir la conexión segura con Stripe. Reintenta.',
           ),
       });
   }

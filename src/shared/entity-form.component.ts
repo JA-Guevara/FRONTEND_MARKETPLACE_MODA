@@ -333,7 +333,7 @@ export class EntityFormComponent implements OnChanges {
     if (generation !== this.generation) return;
     results.forEach((result, i) => {
       const f = lookups[i];
-      if (result.status === 'fulfilled')
+      if (result.status === 'fulfilled') {
         this.options[f.key] = result.value
           .filter((v) => v.id !== (f.key === 'parent_id' ? this.value?.['id'] : ''))
           .map((v) => ({
@@ -342,7 +342,15 @@ export class EntityFormComponent implements OnChanges {
               String(v[f.lookupLabel || 'name'] || v['code'] || v.id) +
               (v['is_active'] === false ? ' (inactivo)' : ''),
           }));
-      else
+        if (f.type === 'multi' && this.form.get(f.key)) {
+          const allowed = new Set(this.options[f.key].map((o) => o.value));
+          const currentVals = (this.form.get(f.key)?.value as string[]) || [];
+          const filtered = currentVals.filter((v) => allowed.has(v));
+          if (filtered.length !== currentVals.length) {
+            this.form.get(f.key)?.setValue(filtered);
+          }
+        }
+      } else
         this.lookupError.set(
           `No se pudieron cargar las opciones de ${f.label}. ${errorMessage(result.reason)}`,
         );
