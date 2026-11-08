@@ -168,4 +168,15 @@ describe('Contratos de las pantallas administrativas', () => {
     await acting;
     expect(invalidar).toHaveBeenCalledWith('colors');
   });
+
+  it('resetUserPassword solicita restablecimiento y muestra mensaje de éxito', async () => {
+    await setup(resources.find((r) => r.key === 'users')!);
+    const component = fixture.componentInstance;
+    const resetting = component.resetUserPassword({ id: 'u1', email: 'empleado@empresa.com' });
+    backend
+      .expectOne((r) => r.method === 'POST' && r.url === '/api/v1/users/u1/reset-password')
+      .flush({ success: true, message: 'Enlace de restablecimiento enviado.', data: null });
+    await resetting;
+    expect(component.message()).toContain('empleado@empresa.com');
+  });
 });
