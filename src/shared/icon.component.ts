@@ -51,6 +51,8 @@ export const ICON_PATHS: Record<string, string> = {
   building: 'M3 21h18 M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16 M9 8h2 M13 8h2 M9 12h2 M13 12h2 M9 16h2 M13 16h2',
   receipt: 'M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1z M8 7h8 M8 11h8 M8 15h5',
   truck: 'M1 3h15v13H1z M16 8h4l3 3v5h-7V8z M5.5 18.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z M18.5 18.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
+  mail: 'M3 5h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z M3 7l9 6 9-6',
+  key: 'M21 2l-2 2m-1.5 1.5L14 9a5 5 0 1 0 3 3l6-6v-4h-4z M7 14a2 2 0 1 1 0-4 2 2 0 0 1 0 4z',
 };
 
 @Component({

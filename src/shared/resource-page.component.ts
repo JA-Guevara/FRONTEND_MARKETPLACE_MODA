@@ -173,79 +173,75 @@ import { IconComponent } from './icon.component';
                   </td>
                 }
                 <td>
-                  <div class="row-actions">
-                    @if (!productSection) {
-                      <button (click)="detail(item)"><fs-icon name="eye" />Ver</button>
+                  <div class="row-actions row-actions-dynamic">
+                    <div class="action-group">
+                      @if (!productSection) {
+                        <button type="button" class="btn-action" (click)="detail(item)" title="Ver detalle"><fs-icon name="eye" /><span>Ver</span></button>
+                      }
+                      @if (canWrite() && !item['deleted_at']) {
+                        <button type="button" class="btn-action" (click)="open(item)" title="Editar"><fs-icon name="edit" /><span>Editar</span></button>
+                      }
+                    </div>
+                    @if (config.key === 'users' && canWrite() && !item['deleted_at']) {
+                      <div class="action-group action-group-access">
+                        <button type="button" class="btn-action" (click)="assign(item, 'roles')" title="Gestionar roles y permisos"><fs-icon name="users" /><span>Roles</span></button>
+                        <button type="button" class="btn-action" [disabled]="busy()" (click)="assignBranches(item)" title="Sucursales autorizadas"><fs-icon name="box" /><span>Sucursales</span></button>
+                        <button type="button" class="btn-action" [disabled]="busy()" (click)="resetUserPassword(item)" title="Enviar correo de restablecimiento de contraseña"><fs-icon name="key" /><span>Clave</span></button>
+                        @if (item['locked_until']) {
+                          <button type="button" class="btn-action btn-action-unlock" (click)="confirmAction(item, 'unlock')" title="Desbloquear cuenta bloqueada"><fs-icon name="unlock" /><span>Desbloquear</span></button>
+                        }
+                        @if (!item['is_verified']) {
+                          <button type="button" class="btn-action btn-action-invite" [disabled]="busy()" (click)="resendUserInvite(item)" title="Reenviar invitación de acceso"><fs-icon name="mail" /><span>Invitar</span></button>
+                        }
+                      </div>
+                    }
+                    @if (config.key === 'roles' && canWrite()) {
+                      <button type="button" class="btn-action" (click)="assign(item, 'permissions')" title="Gestionar permisos del rol"><fs-icon name="lock" /><span>Permisos</span></button>
                     }
                     @if (canWrite()) {
-                      @if (!item['deleted_at']) {
-                        <button (click)="open(item)"><fs-icon name="edit" />Editar</button>
-                      }
-                      @if (config.states) {
-                        <button
-                          (click)="
-                            confirmAction(
-                              item,
-                              item['deleted_at']
-                                ? config.key === 'users'
-                                  ? 'restore'
-                                  : 'activate'
-                                : item['is_active']
-                                  ? 'deactivate'
-                                  : 'activate'
-                            )
-                          "
-                          [disabled]="busy()"
-                        >
-                          <fs-icon
-                            [name]="
-                              item['deleted_at'] ? 'refresh' : item['is_active'] ? 'close' : 'check'
+                      <div class="action-group action-group-danger">
+                        @if (config.states) {
+                          <button
+                            type="button"
+                            class="btn-action"
+                            (click)="
+                              confirmAction(
+                                item,
+                                item['deleted_at']
+                                  ? config.key === 'users'
+                                    ? 'restore'
+                                    : 'activate'
+                                  : item['is_active']
+                                    ? 'deactivate'
+                                    : 'activate'
+                              )
                             "
-                          />{{
-                            item['deleted_at']
-                              ? 'Restaurar'
-                              : item['is_active']
-                                ? 'Desactivar'
-                                : 'Activar'
-                          }}
-                        </button>
-                      }
-                      @if (!item['deleted_at']) {
-                        <button class="danger-text" (click)="confirmAction(item, 'delete')">
-                          <fs-icon name="trash" />Eliminar
-                        </button>
-                      }
-                      @if (config.key === 'users' && !item['deleted_at']) {
-                        <button (click)="assign(item, 'roles')" title="Gestionar roles y permisos">
-                          <fs-icon name="users" />Roles
-                        </button>
-                        <button [disabled]="busy()" (click)="assignBranches(item)" title="Asignar sucursales">
-                          <fs-icon name="box" />Sucursales
-                        </button>
-                        @if (!item['is_verified']) {
-                          <button (click)="resendUserInvite(item)" title="Reenviar invitación de acceso">
-                            <fs-icon name="mail" />Invitar
+                            [disabled]="busy()"
+                            [title]="item['deleted_at'] ? 'Restaurar' : item['is_active'] ? 'Desactivar' : 'Activar'"
+                          >
+                            <fs-icon
+                              [name]="
+                                item['deleted_at'] ? 'refresh' : item['is_active'] ? 'close' : 'check'
+                              "
+                            /><span>{{
+                              item['deleted_at']
+                                ? 'Restaurar'
+                                : item['is_active']
+                                  ? 'Desactivar'
+                                  : 'Activar'
+                            }}</span>
                           </button>
                         }
-                        @if (item['locked_until']) {
-                          <button class="primary-text" (click)="confirmAction(item, 'unlock')" title="Desbloquear intentos fallidos">
-                            <fs-icon name="unlock" />Desbloquear
-                          </button>
+                        @if (!item['deleted_at']) {
+                          <button type="button" class="btn-action danger-text" (click)="confirmAction(item, 'delete')" title="Eliminar registro"><fs-icon name="trash" /><span>Eliminar</span></button>
                         }
-                      }
-                      @if (config.key === 'roles') {
-                        <button (click)="assign(item, 'permissions')">
-                          <fs-icon name="lock" />Permisos
-                        </button>
-                      }
+                      </div>
                     }
                     @if (canDeactivateBranch(item)) {
-                      <button [disabled]="busy()" (click)="confirmAction(item, 'deactivate')">
-                        <fs-icon name="close" />Desactivar
-                      </button>
+                      <button type="button" class="btn-action" [disabled]="busy()" (click)="confirmAction(item, 'deactivate')"><fs-icon name="close" /><span>Desactivar</span></button>
                     }
                     @if (config.key === 'products') {
-                      <a class="button" [routerLink]="['/admin/products', item.id]"
+                      <a class="button btn-action" [routerLink]="['/admin/products', item.id]"
                          [queryParams]="productSection ? { seccion: productSection } : null">
                         <fs-icon name="box" />{{ productSection === 'abastecimiento' ? 'Gestionar proveedores' : productSection ? 'Gestionar recursos 3D / AR' : 'Variantes y recursos' }}
                       </a>
@@ -646,6 +642,29 @@ export class ResourcePageComponent implements OnInit {
       this.message.set(`Enlace de activación reenviado a ${item['email']}.`);
     } catch {
       this.error.set(`No se pudo reenviar la activación a ${item['email']}.`);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  async resetUserPassword(item: Entity) {
+    if (this.busy() || !this.canWrite()) return;
+    this.busy.set(true);
+    this.error.set('');
+    try {
+      await firstValueFrom(
+        this.api.write('POST', `${this.config.path}/${item.id}/reset-password`, {})
+      );
+      this.message.set(`Enlace de restablecimiento enviado a ${item['email']}.`);
+    } catch {
+      try {
+        await firstValueFrom(
+          this.api.write('POST', '/auth/forgot-password', { email: item['email'] })
+        );
+        this.message.set(`Enlace de restablecimiento enviado a ${item['email']}.`);
+      } catch (e) {
+        this.error.set(`No se pudo enviar el correo de recuperación a ${item['email']}. ${errorMessage(e)}`);
+      }
     } finally {
       this.busy.set(false);
     }

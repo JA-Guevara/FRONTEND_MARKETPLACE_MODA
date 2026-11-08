@@ -388,6 +388,10 @@ export class EntityFormComponent implements OnChanges {
       // El mapa no aporta un campo: ya escribió latitud y longitud.
       if (f.type === 'map') continue;
       let value = raw[f.key];
+      if (f.type === 'multi' && this.options[f.key]) {
+        const allowed = new Set(this.options[f.key].map((o) => o.value));
+        value = (Array.isArray(value) ? value : []).filter((v: unknown) => allowed.has(String(v)));
+      }
       if (typeof value === 'string' && f.type !== 'password') value = value.trim();
       if (f.type === 'hours') {
         const hours: Record<string, unknown> = {};
