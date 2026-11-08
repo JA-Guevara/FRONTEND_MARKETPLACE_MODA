@@ -1,6 +1,22 @@
 :host {
   display: block;
-  padding-bottom: 24px;
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 0 16px 24px;
+}
+
+.alert.alert-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: color-mix(in oklab, var(--primary, #5a1e38) 6%, #ffffff);
+  border: 1px solid color-mix(in oklab, var(--primary, #5a1e38) 20%, transparent);
+  border-left: 4px solid var(--primary, #5a1e38);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 22px;
+  font-size: 13.5px;
+  color: var(--ink);
 }
 
 .planes-header {
@@ -81,8 +97,8 @@
 
 .plans-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(310px, 380px));
+  gap: 22px;
   margin-bottom: 28px;
 }
 

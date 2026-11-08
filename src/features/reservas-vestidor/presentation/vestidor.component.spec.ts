@@ -177,7 +177,7 @@ describe('Probador virtual: ubicación automática', () => {
     await fixture.whenStable();
     // La precarga de la imagen resuelve en un tick posterior: sin esta espera
     // el componente seguiría mostrando "cargando".
-    await new Promise((r) => setTimeout(r, 5));
+    await new Promise((r) => setTimeout(r, 25));
     fixture.detectChanges();
     return { fixture, component: fixture.componentInstance, api, pose, route, query, catalog };
   }
