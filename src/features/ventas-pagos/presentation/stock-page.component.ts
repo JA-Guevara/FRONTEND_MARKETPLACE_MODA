@@ -53,6 +53,56 @@ interface StockMovement { id: string; variant_id: string; delta: number; quantit
     @if (busy()) {
       <p role="status">Actualizando existencias…</p>
     }
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
+      <span class="muted" style="font-size:13px;">Vista:</span>
+      <button type="button" [class.primary]="viewMode() === 'list'" (click)="viewMode.set('list')" style="padding:4px 12px;font-size:12px;border-radius:6px;">Lista</button>
+      <button type="button" [class.primary]="viewMode() === 'matrix'" (click)="viewMode.set('matrix')" style="padding:4px 12px;font-size:12px;border-radius:6px;">Matriz Talla × Color</button>
+    </div>
+    @if (viewMode() === 'matrix') {
+      <div class="stock-scroll">
+        @for (mat of matrices(); track mat.name) {
+          <div style="margin-bottom:16px;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <strong style="font-size:14px;">{{ mat.name }}</strong>
+              <span class="muted" style="font-size:12px;">Total disponible: {{ mat.totalAvailable }}</span>
+            </div>
+            <table class="commerce-table" style="margin:0;">
+              <thead>
+                <tr>
+                  <th style="width:130px;">Color \ Talla</th>
+                  @for (sz of mat.sizes; track sz) {
+                    <th style="text-align:center;">{{ sz }}</th>
+                  }
+                </tr>
+              </thead>
+              <tbody>
+                @for (col of mat.colors; track col) {
+                  <tr>
+                    <td><strong>{{ col }}</strong></td>
+                    @for (sz of mat.sizes; track sz) {
+                      @if (mat.cells[col]?.[sz]; as item) {
+                        <td style="text-align:center;">
+                          <span [style.color]="item.available === 0 ? 'var(--danger,#e11d48)' : (item.available <= 3 ? 'var(--warning,#f59e0b)' : 'inherit')" style="font-weight:bold;">
+                            {{ item.available }}
+                          </span>
+                          @if (session.can('stock.write') && !session.readOnly()) {
+                            <button type="button" (click)="openMovement(item)" style="padding:2px 6px;font-size:11px;margin-left:6px;" title="Registrar movimiento">±</button>
+                          }
+                        </td>
+                      } @else {
+                        <td style="text-align:center;" class="muted">-</td>
+                      }
+                    }
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @empty {
+          <p class="muted">{{ branch ? 'Sin prendas para mostrar.' : 'Elegí una sucursal para consultar.' }}</p>
+        }
+      </div>
+    } @else {
     <div class="stock-scroll">
       <table class="commerce-table">
         <thead>
@@ -103,6 +153,7 @@ interface StockMovement { id: string; variant_id: string; delta: number; quantit
         </tbody>
       </table>
     </div>
+    }
     @if (branch) {
       <section class="order-card">
         <h2>Historial reciente</h2>
@@ -153,6 +204,7 @@ export class StockPageComponent {
   reason = 'Ajuste de inventario';
   drafts: Record<string, number> = {};
   readonly kinds = MOVEMENT_KINDS;
+  readonly viewMode = signal<'list' | 'matrix'>('list');
   movementItem = signal<CartItem | null>(null);
   movementError = signal('');
   movement: { kind: MovementKind; quantity: number | null; reason: string; reference: string } = {
@@ -173,6 +225,27 @@ export class StockPageComponent {
     return this.items().filter((i) =>
       [i.name, i.sku, i.size, i.color].join(' ').toLowerCase().includes(q),
     );
+  }
+  matrices() {
+    const list = this.filtered();
+    const map = new Map<string, CartItem[]>();
+    for (const item of list) {
+      const group = map.get(item.name) || [];
+      group.push(item);
+      map.set(item.name, group);
+    }
+    return Array.from(map.entries()).map(([name, variants]) => {
+      const sizes = Array.from(new Set(variants.map((v) => v.size)));
+      const colors = Array.from(new Set(variants.map((v) => v.color)));
+      const cells: Record<string, Record<string, CartItem>> = {};
+      let total = 0;
+      for (const v of variants) {
+        if (!cells[v.color]) cells[v.color] = {};
+        cells[v.color][v.size] = v;
+        total += v.available || 0;
+      }
+      return { name, sizes, colors, cells, totalAvailable: total };
+    });
   }
   async load() {
     this.items.set([]); this.movements.set([]);

@@ -269,6 +269,28 @@ interface Linea {
               }
             }
 
+            @if (paymentMethod === 'qr') {
+              <div style="margin:8px 0 12px;padding:12px;border:1px dashed var(--line);border-radius:10px;background:var(--surface);display:flex;align-items:center;gap:12px;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="flex-shrink:0;">
+                  <rect x="3" y="3" width="7" height="7"></rect>
+                  <rect x="14" y="3" width="7" height="7"></rect>
+                  <rect x="3" y="14" width="7" height="7"></rect>
+                  <rect x="14" y="14" width="7" height="7"></rect>
+                  <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                  <line x1="17" y1="7" x2="17.01" y2="7"></line>
+                  <line x1="7" y1="17" x2="7.01" y2="17"></line>
+                  <line x1="17" y1="17" x2="17.01" y2="17"></line>
+                </svg>
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:12px;color:var(--muted);">Cobro QR Dinámico</div>
+                  <div style="font-weight:bold;font-size:14px;">{{ total() | number: '1.2-2' }} {{ moneda }}</div>
+                  <button type="button" (click)="generarReferenciaQr()" style="margin-top:4px;padding:3px 8px;font-size:11px;border-radius:4px;cursor:pointer;">
+                    Generar ID de cobro
+                  </button>
+                </div>
+              </div>
+            }
+
             <label>
               {{ etiquetaReferencia() }}
               <input
@@ -366,6 +388,11 @@ export class PosPageComponent {
     this.paymentMethod = valor;
     if (valor !== 'cash') this.recibido.set(null);
     this.reference = '';
+  }
+  generarReferenciaQr() {
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const aleatorio = Math.floor(1000 + Math.random() * 9000);
+    this.reference = `QR-${timestamp}-${aleatorio}`;
   }
   medio() {
     return MEDIOS_DE_PAGO.find((m) => m.valor === this.paymentMethod) || MEDIOS_DE_PAGO[0];

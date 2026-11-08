@@ -12,7 +12,7 @@ const checks = [
   [service, "'/commerce' + path", 'El servicio de comercio debe mantener su prefijo de API.'],
   [routes, "path: 'caja'", 'La ruta de Caja debe estar registrada.'],
   [routes, "permission: 'commerce.write'", 'Caja debe requerir permiso de escritura comercial.'],
-  [pos, "'/admin/pos/sales'", 'Caja debe usar el endpoint de venta presencial.'],
+  [service, "'/admin/pos/sales'", 'Caja debe usar el endpoint de venta presencial.'],
   [pos, 'client_request_id', 'Caja debe enviar una clave idempotente.'],
 ];
 for (const [source, expected, message] of checks) {
