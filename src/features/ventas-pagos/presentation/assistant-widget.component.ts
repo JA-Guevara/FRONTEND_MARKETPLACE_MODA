@@ -14,7 +14,7 @@ import { AssistantContextService } from '../../../shared/assistant-context.servi
 import { errorMessage } from '../../../shared/errors';
 import { ApiService } from '../../../app/core/shared/api.service';
 import { assistantIntent, clearsFilter, commandText, queryForCommand, requestedReports } from '../application/assistant-intent';
-import { AssistantAction, ParsedAction, resolveAction } from '../application/assistant-actions';
+import { AssistantAction, ParsedAction, resolveAction, ASSISTANT_ACTIONS } from '../application/assistant-actions';
 import { Page } from '../../../shared/models';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { asksToNavigate, platformAssistantTopic } from '../application/assistant-platform';
@@ -2398,7 +2398,7 @@ async retry() {
     this.busy.set(true);
     this.setBot('processing');
     try {
-      const data = await this.commerce.write<{ available: boolean; reply: string }>(
+      const data = await this.commerce.write<{ available: boolean; reply: string; action?: { id: string; data?: Record<string, unknown> } }>(
         'POST',
         '/assistant',
         { message: this.lastUserText, context: this.currentModule() || undefined },
@@ -2406,6 +2406,23 @@ async retry() {
       if (version !== this.conversationVersion) return;
       this.history.update((h) => [...h, { from: 'assistant', text: data.reply }]);
       this.setBot('success');
+
+      if (data.action?.id) {
+        if (data.action.id === 'product.create') {
+          await this.requestProductDraft(this.lastUserText);
+        } else if (data.action.id === 'user.create') {
+          await this.requestUserDraft(this.lastUserText);
+        } else if (data.action.id === 'report.export') {
+          await this.requestExport(this.lastUserText);
+        } else if (data.action.id === 'report.apply') {
+          await this.requestApply(this.lastUserText);
+        } else {
+          const registered = ASSISTANT_ACTIONS.find((a) => a.id === data.action!.id);
+          if (registered && (!registered.permission || this.session.can(registered.permission))) {
+            await this.handleAction(registered, { id: data.action.id, data: data.action.data || {} }, this.lastUserText);
+          }
+        }
+      }
     } catch (e) {
       if (version !== this.conversationVersion) return;
       this.setBot('error');
