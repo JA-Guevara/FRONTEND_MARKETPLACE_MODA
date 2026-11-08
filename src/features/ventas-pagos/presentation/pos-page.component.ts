@@ -2,6 +2,7 @@ import { DecimalPipe, UpperCasePipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { IconComponent } from '../../../shared/icon.component';
 import { CommerceService } from '../infrastructure/commerce.service';
@@ -46,7 +47,7 @@ interface Linea {
  */
 @Component({
   selector: 'fs-pos-page',
-  imports: [FormsModule, DecimalPipe, UpperCasePipe, IconComponent, PosReturnsComponent],
+  imports: [FormsModule, DecimalPipe, UpperCasePipe, RouterLink, IconComponent, PosReturnsComponent],
   styleUrls: ['./commerce.scss', './pos.scss'],
   template: `<section class="commerce-page">
     <p class="eyebrow">PUNTO DE VENTA</p>
@@ -83,6 +84,15 @@ interface Linea {
 
     @if (error()) {
       <p class="alert error" role="alert">{{ error() }}</p>
+      @if (esErrorDeConexion()) {
+        <div class="alert warn pos-offline-callout">
+          <div>
+            <strong>¿Se interrumpió la conexión?</strong>
+            <p style="margin: 0.25rem 0 0">Podés continuar cobrando en efectivo con el catálogo local.</p>
+          </div>
+          <a routerLink="/sin-conexion/venta" class="btn">Abrir caja sin conexión</a>
+        </div>
+      }
     }
 
     @if (vista() === 'devolucion') {
@@ -307,6 +317,11 @@ export class PosPageComponent {
   vueltoCobrado = signal<number | null>(null);
   busy = signal(false);
   error = signal('');
+  esErrorDeConexion = computed(() => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return true;
+    const err = (this.error() || '').toLowerCase();
+    return err.includes('conexión') || err.includes('conexion') || err.includes('servidor') || err.includes('red') || err.includes('network') || err.includes('timeout');
+  });
 
   branch = '';
   cashPoint = '';

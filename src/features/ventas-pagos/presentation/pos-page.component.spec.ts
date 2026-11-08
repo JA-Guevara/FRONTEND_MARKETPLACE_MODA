@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpClient } from '@angular/common/http';
+import { provideRouter } from '@angular/router';
 import { PosPageComponent } from './pos-page.component';
 import { CommerceService } from '../infrastructure/commerce.service';
 import { Branch, CartItem, CashPoint } from '../domain/commerce.models';
@@ -30,6 +31,7 @@ async function setup(stock: CartItem[] = [polera, camisa]) {
   TestBed.configureTestingModule({
     imports: [PosPageComponent],
     providers: [
+      provideRouter([]),
       { provide: CommerceService, useValue: api },
       { provide: HttpClient, useValue: { get: vi.fn() } },
     ],
@@ -353,5 +355,13 @@ describe('Caja: listado manejable', () => {
     pos.search.set('SKU-119');
     pos.agregarPorCodigo();
     expect(pos.lineas()[0].item.sku).toBe('SKU-119');
+  });
+
+  it('ofrece derivar a caja sin conexión si ocurre error de red o conexión', async () => {
+    const { fixture, pos } = await setup();
+    pos.error.set('Error de conexión con el servidor central');
+    fixture.detectChanges();
+    expect(pos.esErrorDeConexion()).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Abrir caja sin conexión');
   });
 });
