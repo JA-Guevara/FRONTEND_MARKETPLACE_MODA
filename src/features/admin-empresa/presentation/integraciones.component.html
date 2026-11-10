@@ -284,7 +284,7 @@
                 @for (d of deliveries(); track d.id) {
                   <tr>
                     <td class="mono">{{ formatDate(d.created_at) }}</td>
-                    <td class="mono">{{ d.event_id.slice(0, 8) }}</td>
+                    <td class="mono">{{ (d.event_id || '').slice(0, 8) }}</td>
                     <td>
                       <span
                         class="badge"
