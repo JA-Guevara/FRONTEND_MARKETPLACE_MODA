@@ -135,4 +135,60 @@ describe('IntegracionesComponent', () => {
       {}
     );
   });
+
+  it('genera snippets de integración en el playground y ejecuta simulación de webhooks', async () => {
+    const mockSimResult = {
+      event_id: 'ev-test-123',
+      event_type: 'sale.confirmed',
+      timestamp: '1700000000',
+      payload: { id: 'ev-test-123', type: 'sale.confirmed', data: { order_id: 'ORD-100' } },
+      signature_preview: 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+      dispatched: false,
+      status_code: null,
+      headers_example: { 'X-FS-Signature': 'abcdef...' },
+    };
+
+    const mockHttp = {
+      get: vi.fn().mockReturnValue(of({ message: 'ok', data: mockKeys })),
+      post: vi.fn((url: string) => {
+        if (url.includes('/simulate')) return of({ message: 'ok', data: mockSimResult });
+        return of({ message: 'ok', data: {} });
+      }),
+      delete: vi.fn().mockReturnValue(of({ message: 'ok', data: null })),
+    };
+
+    await TestBed.configureTestingModule({
+      imports: [IntegracionesComponent],
+      providers: [{ provide: HttpClient, useValue: mockHttp }],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(IntegracionesComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const comp = fixture.componentInstance;
+    comp.activeTab.set('playground');
+    comp.playgroundEndpoint.set('catalog');
+    comp.playgroundLang.set('curl');
+
+    const curlCode = comp.getCodeSnippet();
+    expect(curlCode).toContain('/api/v1/integrations/v1/catalog');
+    expect(curlCode).toContain('X-API-Key: fs_live_abcd...');
+
+    comp.playgroundLang.set('python');
+    const pythonCode = comp.getCodeSnippet();
+    expect(pythonCode).toContain('import requests');
+    expect(pythonCode).toContain('/api/v1/integrations/v1/catalog');
+
+    // Cambiar a tab simulador
+    comp.activeTab.set('simulador');
+    comp.simulateEventType.set('sale.confirmed');
+    comp.runSimulation();
+
+    expect(mockHttp.post).toHaveBeenCalledWith(
+      expect.stringContaining('/tenant/integrations/webhooks/simulate'),
+      { event_type: 'sale.confirmed', endpoint_id: null }
+    );
+    expect(comp.simulateResult()).toEqual(mockSimResult);
+  });
 });

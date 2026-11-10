@@ -65,6 +65,15 @@ interface BackupStatus {
     @if (message()) {
       <p class="alert" role="status">{{ message() }}</p>
     }
+    <div class="banner-aporte">
+      <div class="banner-icon">⭐</div>
+      <div class="banner-body">
+        <strong>Aporte Propio: Programación Periódica Automatizada de Respaldos</strong>
+        <p>
+          Configurá copias de seguridad automáticas (diarias o semanales) para tu empresa en tu zona horaria local. Las copias se resguardan de forma independiente con cifrado de custodia y verificación de integridad aislada.
+        </p>
+      </div>
+    </div>
     @if (data(); as status) {
       @if (!status.configured) {
         <p class="alert warning">
@@ -108,7 +117,7 @@ interface BackupStatus {
         <p class="muted">{{ status.storage_note }}</p>
       </article>
       <form class="card" (ngSubmit)="savePolicy()">
-        <h2>Programar y conservar</h2>
+        <h2>⭐ Programación y conservación automatizada (Aporte Propio)</h2>
         <label class="toggle"
           ><input
             type="checkbox"
@@ -248,6 +257,32 @@ interface BackupStatus {
     `
       :host {
         display: block;
+      }
+      .banner-aporte {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        padding: 16px 20px;
+        background: linear-gradient(135deg, #f0f7ff 0%, #e6f0fa 100%);
+        border: 1px solid #b6d4fe;
+        border-radius: 12px;
+        margin-bottom: 22px;
+      }
+      .banner-icon {
+        font-size: 26px;
+        line-height: 1;
+      }
+      .banner-body strong {
+        display: block;
+        font-size: 14px;
+        color: #0b4a72;
+        margin-bottom: 4px;
+      }
+      .banner-body p {
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.5;
+        color: #1e567a;
       }
       .data-page {
         max-width: 1250px;

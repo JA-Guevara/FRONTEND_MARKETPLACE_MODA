@@ -1,26 +1,56 @@
 <div class="integraciones-shell">
-  <div class="crumbs">Mi empresa</div>
+  <div class="crumbs">Mi empresa &gt; Centro de Integraciones</div>
   <div class="page-h">
     <div>
-      <h1>Integraciones</h1>
+      <h1>Integraciones & API B2B</h1>
       <p>Conecta tu ERP, facturador o contabilidad. Disponible en el plan Profesional.</p>
     </div>
     <div class="acts">
-      <button
-        type="button"
-        class="btn"
-        (click)="showWebhookForm.set(!showWebhookForm())"
-      >
-        ＋ Webhook
-      </button>
-      <button
-        type="button"
-        class="btn primary"
-        (click)="showKeyForm.set(!showKeyForm())"
-      >
-        ＋ Clave de API
-      </button>
+      @if (activeTab() === 'gestion') {
+        <button
+          type="button"
+          class="btn"
+          (click)="showWebhookForm.set(!showWebhookForm())"
+        >
+          ＋ Webhook
+        </button>
+        <button
+          type="button"
+          class="btn primary"
+          (click)="showKeyForm.set(!showKeyForm())"
+        >
+          ＋ Clave de API
+        </button>
+      }
     </div>
+  </div>
+
+  <!-- Barra de Pestañas / Tabs -->
+  <div class="tab-bar">
+    <button
+      type="button"
+      class="tab-btn"
+      [class.active]="activeTab() === 'gestion'"
+      (click)="activeTab.set('gestion')"
+    >
+      🔑 Credenciales & Webhooks
+    </button>
+    <button
+      type="button"
+      class="tab-btn"
+      [class.active]="activeTab() === 'playground'"
+      (click)="activeTab.set('playground')"
+    >
+      ⚡ Playground & SDK Rápido
+    </button>
+    <button
+      type="button"
+      class="tab-btn"
+      [class.active]="activeTab() === 'simulador'"
+      (click)="activeTab.set('simulador')"
+    >
+      🛡️ Simulador de Webhooks & HMAC
+    </button>
   </div>
 
   @if (successMessage()) {
@@ -55,237 +85,412 @@
     </div>
   }
 
-  @if (showKeyForm()) {
-    <div class="form-panel">
-      <b>Nueva Clave de API</b>
-      <div class="row">
-        <input
-          type="text"
-          placeholder="Nombre descriptivo (ej. ERP Central, Facturador)"
-          [(ngModel)]="keyName"
-        />
-        <input
-          type="text"
-          placeholder="Scopes separados por coma (ej. sales.read, stock.read)"
-          [(ngModel)]="keyScopes"
-        />
-        <button
-          type="button"
-          class="btn primary sm"
-          (click)="createApiKey()"
-          [disabled]="busy() || !keyName.trim()"
-        >
-          Crear
-        </button>
-        <button
-          type="button"
-          class="btn sm"
-          (click)="showKeyForm.set(false)"
-        >
-          Cancelar
-        </button>
-      </div>
-    </div>
-  }
-
-  @if (showWebhookForm()) {
-    <div class="form-panel">
-      <b>Nuevo Webhook Saliente</b>
-      <div class="row">
-        <input
-          type="url"
-          placeholder="URL de destino HTTPS (ej. https://api.empresa.com/hooks/fs)"
-          [(ngModel)]="webhookUrl"
-        />
-        <input
-          type="text"
-          placeholder="Eventos separados por coma (ej. sale.confirmed, order.paid)"
-          [(ngModel)]="webhookEvents"
-        />
-        <button
-          type="button"
-          class="btn primary sm"
-          (click)="createWebhook()"
-          [disabled]="busy() || !webhookUrl.trim()"
-        >
-          Guardar
-        </button>
-        <button
-          type="button"
-          class="btn sm"
-          (click)="showWebhookForm.set(false)"
-        >
-          Cancelar
-        </button>
-      </div>
-    </div>
-  }
-
-  <div class="grid2">
-    <!-- Columna 1: Claves de API -->
-    <div class="card">
-      <h3>Claves de API</h3>
-      <p class="muted" style="margin: 2px 0 10px; font-size: 12px">
-        Acceso programático seguro mediante tokens Bearer con scopes estrictos.
-      </p>
-
-      @if (apiKeys().length === 0) {
-        <div class="empty-state">No hay claves de API creadas.</div>
-      } @else {
-        <div class="key-list">
-          @for (k of apiKeys(); track k.id) {
-            <div class="key-item" [class.revoked]="k.revoked_at">
-              <span class="key">{{ k.prefix }}…</span>
-              <div class="key-meta">
-                <b>{{ k.name }}</b>
-                <span class="muted">
-                  {{ k.scopes.join(', ') }} ·
-                  {{ k.revoked_at ? 'Revocada' : (k.last_used_at ? 'Usada recientemente' : 'Sin uso aún') }}
-                </span>
-              </div>
-              @if (!k.revoked_at) {
-                <button
-                  type="button"
-                  class="btn sm"
-                  (click)="revokeApiKey(k.id)"
-                  [disabled]="busy()"
-                >
-                  Revocar
-                </button>
-              } @else {
-                <span class="badge danger">Revocada</span>
-              }
-            </div>
-          }
-        </div>
-      }
-
-      <div class="alert info" style="margin-top: 14px">
-        <div>
-          <b>La clave completa se muestra una sola vez</b>
-          Guardamos solo su huella criptográfica SHA256. Cada clave tiene permisos fijos.
+  <!-- PESTAÑA 1: GESTIÓN DE CLAVES Y WEBHOOKS -->
+  @if (activeTab() === 'gestion') {
+    @if (showKeyForm()) {
+      <div class="form-panel">
+        <b>Nueva Clave de API</b>
+        <div class="row">
+          <input
+            type="text"
+            placeholder="Nombre descriptivo (ej. ERP Central, Facturador)"
+            [(ngModel)]="keyName"
+          />
+          <input
+            type="text"
+            placeholder="Scopes separados por coma (ej. sales.read, stock.read, stock.write, catalog.read)"
+            [(ngModel)]="keyScopes"
+          />
+          <button
+            type="button"
+            class="btn primary sm"
+            (click)="createApiKey()"
+            [disabled]="busy() || !keyName.trim()"
+          >
+            Crear
+          </button>
+          <button
+            type="button"
+            class="btn sm"
+            (click)="showKeyForm.set(false)"
+          >
+            Cancelar
+          </button>
         </div>
       </div>
-    </div>
+    }
 
-    <!-- Columna 2: Webhooks y Entregas -->
-    <div class="card no-pad">
-      <div class="card-title-bar">
-        <h3>Webhooks</h3>
-        <p class="muted" style="margin: 2px 0 0; font-size: 12px">
-          Cada envío va firmado: cabecera X-FS-Signature = HMAC-SHA256 del cuerpo con tu secreto.
+    @if (showWebhookForm()) {
+      <div class="form-panel">
+        <b>Nuevo Webhook Saliente</b>
+        <div class="row">
+          <input
+            type="url"
+            placeholder="URL de destino HTTPS (ej. https://api.empresa.com/hooks/fs)"
+            [(ngModel)]="webhookUrl"
+          />
+          <input
+            type="text"
+            placeholder="Eventos separados por coma (ej. sale.confirmed, order.paid, stock.low)"
+            [(ngModel)]="webhookEvents"
+          />
+          <button
+            type="button"
+            class="btn primary sm"
+            (click)="createWebhook()"
+            [disabled]="busy() || !webhookUrl.trim()"
+          >
+            Guardar
+          </button>
+          <button
+            type="button"
+            class="btn sm"
+            (click)="showWebhookForm.set(false)"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    }
+
+    <div class="grid2">
+      <!-- Columna 1: Claves de API -->
+      <div class="card">
+        <h3>Claves de API</h3>
+        <p class="muted" style="margin: 2px 0 10px; font-size: 12px">
+          Acceso programático seguro mediante tokens Bearer con scopes estrictos.
         </p>
-      </div>
 
-      <div class="table-wrap">
-        <table class="tbl">
-          <thead>
-            <tr>
-              <th>URL</th>
-              <th>Eventos</th>
-              <th>Estado</th>
-              <th style="text-align: right">Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            @if (webhooks().length === 0) {
-              <tr>
-                <td colspan="4" class="empty-state">No hay webhooks configurados.</td>
-              </tr>
-            } @else {
-              @for (w of webhooks(); track w.id) {
-                <tr>
-                  <td class="mono" style="font-size: 12px">{{ w.url }}</td>
-                  <td class="muted">{{ w.events.join(', ') }}</td>
-                  <td>
-                    <span class="badge" [class.ok]="w.is_active" [class.danger]="!w.is_active">
-                      {{ w.is_active ? 'Activo' : 'Inactivo' }}
-                    </span>
-                  </td>
-                  <td style="text-align: right">
-                    <button
-                      type="button"
-                      class="btn sm"
-                      (click)="testWebhook(w.id)"
-                      [disabled]="busy()"
-                      style="margin-right: 4px"
-                    >
-                      Probar
-                    </button>
-                    <button
-                      type="button"
-                      class="btn sm"
-                      (click)="deleteWebhook(w.id)"
-                      [disabled]="busy()"
-                    >
-                      Eliminar
-                    </button>
-                  </td>
-                </tr>
-              }
+        @if (apiKeys().length === 0) {
+          <div class="empty-state">No hay claves de API creadas.</div>
+        } @else {
+          <div class="key-list">
+            @for (k of apiKeys(); track k.id) {
+              <div class="key-item" [class.revoked]="k.revoked_at">
+                <span class="key">{{ k.prefix }}…</span>
+                <div class="key-meta">
+                  <b>{{ k.name }}</b>
+                  <span class="muted">
+                    {{ (k.scopes || []).join(', ') }} ·
+                    {{ k.revoked_at ? 'Revocada' : (k.last_used_at ? 'Usada recientemente' : 'Sin uso aún') }}
+                  </span>
+                </div>
+                @if (!k.revoked_at) {
+                  <button
+                    type="button"
+                    class="btn sm"
+                    (click)="revokeApiKey(k.id)"
+                    [disabled]="busy()"
+                  >
+                    Revocar
+                  </button>
+                } @else {
+                  <span class="badge danger">Revocada</span>
+                }
+              </div>
             }
-          </tbody>
-        </table>
+          </div>
+        }
+
+        <div class="alert info" style="margin-top: 14px">
+          <div>
+            <b>La clave completa se muestra una sola vez</b>
+            Guardamos solo su huella criptográfica SHA256. Cada clave tiene permisos fijos.
+          </div>
+        </div>
       </div>
 
-      <div style="padding: 12px 14px 4px; border-top: 1px solid var(--line, #e5e7eb)">
-        <h3 style="font-size: 13.5px">Entregas recientes</h3>
-      </div>
+      <!-- Columna 2: Webhooks y Entregas -->
+      <div class="card no-pad">
+        <div class="card-title-bar">
+          <h3>Webhooks</h3>
+          <p class="muted" style="margin: 2px 0 0; font-size: 12px">
+            Cada envío va firmado: cabecera X-FS-Signature = HMAC-SHA256 del cuerpo con tu secreto.
+          </p>
+        </div>
 
-      <div class="table-wrap">
-        <table class="tbl">
-          <thead>
-            <tr>
-              <th>Hora</th>
-              <th>Evento</th>
-              <th>HTTP</th>
-              <th>Detalle</th>
-              <th style="text-align: right">Reintento</th>
-            </tr>
-          </thead>
-          <tbody>
-            @if (deliveries().length === 0) {
+        <div class="table-wrap">
+          <table class="tbl">
+            <thead>
               <tr>
-                <td colspan="5" class="empty-state">No hay entregas registradas aún.</td>
+                <th>URL</th>
+                <th>Eventos</th>
+                <th>Estado</th>
+                <th style="text-align: right">Acción</th>
               </tr>
-            } @else {
-              @for (d of deliveries(); track d.id) {
+            </thead>
+            <tbody>
+              @if (webhooks().length === 0) {
                 <tr>
-                  <td class="mono">{{ formatDate(d.created_at) }}</td>
-                  <td class="mono">{{ d.event_id.slice(0, 8) }}</td>
-                  <td>
-                    <span
-                      class="badge"
-                      [class.ok]="d.status === 'delivered'"
-                      [class.warn]="d.status === 'retrying'"
-                      [class.danger]="d.status === 'failed'"
-                    >
-                      {{ d.status_code || d.status }}
-                    </span>
-                  </td>
-                  <td class="muted">
-                    Intento {{ d.attempt }} {{ d.error ? '· ' + d.error : '' }}
-                  </td>
-                  <td style="text-align: right">
-                    @if (d.status !== 'delivered') {
+                  <td colspan="4" class="empty-state">No hay webhooks configurados.</td>
+                </tr>
+              } @else {
+                @for (w of webhooks(); track w.id) {
+                  <tr>
+                    <td class="mono" style="font-size: 12px">{{ w.url }}</td>
+                    <td class="muted">{{ (w.events || []).join(', ') }}</td>
+                    <td>
+                      <span class="badge" [class.ok]="w.is_active" [class.danger]="!w.is_active">
+                        {{ w.is_active ? 'Activo' : 'Inactivo' }}
+                      </span>
+                    </td>
+                    <td style="text-align: right">
                       <button
                         type="button"
                         class="btn sm"
-                        (click)="redeliver(d.id)"
+                        (click)="testWebhook(w.id)"
+                        [disabled]="busy()"
+                        style="margin-right: 4px"
+                      >
+                        Probar
+                      </button>
+                      <button
+                        type="button"
+                        class="btn sm"
+                        (click)="deleteWebhook(w.id)"
                         [disabled]="busy()"
                       >
-                        Reenviar
+                        Eliminar
                       </button>
-                    } @else {
-                      <span class="muted" style="font-size: 11px">Entregado</span>
-                    }
-                  </td>
-                </tr>
+                    </td>
+                  </tr>
+                }
               }
-            }
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
+
+        <div style="padding: 12px 14px 4px; border-top: 1px solid var(--line, #e5e7eb)">
+          <h3 style="font-size: 13.5px">Entregas recientes</h3>
+        </div>
+
+        <div class="table-wrap">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Hora</th>
+                <th>Evento</th>
+                <th>HTTP</th>
+                <th>Detalle</th>
+                <th style="text-align: right">Reintento</th>
+              </tr>
+            </thead>
+            <tbody>
+              @if (deliveries().length === 0) {
+                <tr>
+                  <td colspan="5" class="empty-state">No hay entregas registradas aún.</td>
+                </tr>
+              } @else {
+                @for (d of deliveries(); track d.id) {
+                  <tr>
+                    <td class="mono">{{ formatDate(d.created_at) }}</td>
+                    <td class="mono">{{ d.event_id.slice(0, 8) }}</td>
+                    <td>
+                      <span
+                        class="badge"
+                        [class.ok]="d.status === 'delivered'"
+                        [class.warn]="d.status === 'retrying'"
+                        [class.danger]="d.status === 'failed'"
+                      >
+                        {{ d.status_code || d.status }}
+                      </span>
+                    </td>
+                    <td class="muted">
+                      Intento {{ d.attempt }} {{ d.error ? '· ' + d.error : '' }}
+                    </td>
+                    <td style="text-align: right">
+                      @if (d.status !== 'delivered') {
+                        <button
+                          type="button"
+                          class="btn sm"
+                          (click)="redeliver(d.id)"
+                          [disabled]="busy()"
+                        >
+                          Reenviar
+                        </button>
+                      } @else {
+                        <span class="muted" style="font-size: 11px">Entregado</span>
+                      }
+                    </td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
-  </div>
+  }
+
+  <!-- PESTAÑA 2: PLAYGROUND Y EJEMPLOS LISTOS PARA USAR -->
+  @if (activeTab() === 'playground') {
+    <div class="card">
+      <div class="playground-header">
+        <div>
+          <h3>Consola de Integración & Generador de Código</h3>
+          <p class="muted" style="margin: 2px 0 0; font-size: 12px">
+            Prueba los contratos de la API v1 con tu clave activa y copia los snippets directamente a tu ERP.
+          </p>
+        </div>
+      </div>
+
+      <div class="selector-row">
+        <div class="select-group">
+          <label>Operación de Negocio:</label>
+          <div class="pill-group">
+            <button
+              type="button"
+              class="pill-btn"
+              [class.selected]="playgroundEndpoint() === 'catalog'"
+              (click)="playgroundEndpoint.set('catalog')"
+            >
+              📦 Catálogo (/catalog)
+            </button>
+            <button
+              type="button"
+              class="pill-btn"
+              [class.selected]="playgroundEndpoint() === 'stock'"
+              (click)="playgroundEndpoint.set('stock')"
+            >
+              📊 Consultar Stock (/stock)
+            </button>
+            <button
+              type="button"
+              class="pill-btn"
+              [class.selected]="playgroundEndpoint() === 'stock_adjust'"
+              (click)="playgroundEndpoint.set('stock_adjust')"
+            >
+              🔄 Sincronizar Stock (/stock/adjust)
+            </button>
+            <button
+              type="button"
+              class="pill-btn"
+              [class.selected]="playgroundEndpoint() === 'sales'"
+              (click)="playgroundEndpoint.set('sales')"
+            >
+              💰 Ventas Confirmadas (/sales)
+            </button>
+          </div>
+        </div>
+
+        <div class="select-group">
+          <label>Lenguaje:</label>
+          <div class="pill-group">
+            <button
+              type="button"
+              class="pill-btn"
+              [class.selected]="playgroundLang() === 'curl'"
+              (click)="playgroundLang.set('curl')"
+            >
+              cURL
+            </button>
+            <button
+              type="button"
+              class="pill-btn"
+              [class.selected]="playgroundLang() === 'python'"
+              (click)="playgroundLang.set('python')"
+            >
+              Python
+            </button>
+            <button
+              type="button"
+              class="pill-btn"
+              [class.selected]="playgroundLang() === 'js'"
+              (click)="playgroundLang.set('js')"
+            >
+              JavaScript / Node
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="code-box">
+        <div class="code-header">
+          <span>Snippet Generado</span>
+          <span class="muted" style="font-size: 11px">Autenticación por cabecera X-API-Key</span>
+        </div>
+        <pre><code>{{ getCodeSnippet() }}</code></pre>
+      </div>
+
+      <div class="alert info" style="margin-top: 14px">
+        <div>
+          <b>Aislamiento Multi-Tenant Garantizado (RN03):</b>
+          Todas las consultas y ajustes quedan automáticamente restringidos a los productos y sucursales de tu empresa.
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- PESTAÑA 3: SIMULADOR DE WEBHOOKS & FIRMA HMAC -->
+  @if (activeTab() === 'simulador') {
+    <div class="card">
+      <h3>Simulador de Eventos Webhook & Verificador Criptográfico</h3>
+      <p class="muted" style="margin: 2px 0 12px; font-size: 12px">
+        Verifica cómo se calcula la firma HMAC-SHA256 y simula eventos de prueba en vivo para tu sistema receptor.
+      </p>
+
+      <div class="sim-form-grid">
+        <div class="field">
+          <label>Tipo de Evento:</label>
+          <select [(ngModel)]="simulateEventType">
+            <option value="sale.confirmed">sale.confirmed (Venta confirmada en tienda/online)</option>
+            <option value="order.paid">order.paid (Pago verificado por pasarela/caja)</option>
+            <option value="stock.low">stock.low (Stock crítico menor o igual a 5)</option>
+            <option value="stock.updated">stock.updated (Ajuste de existencias completado)</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Endpoint Destino:</label>
+          <select [(ngModel)]="simulateEndpointId">
+            <option value="">-- Solo previsualizar firma y payload (Sin enviar) --</option>
+            @for (w of webhooks(); track w.id) {
+              <option [value]="w.id">{{ w.url }} ({{ (w.events || []).join(', ') }})</option>
+            }
+          </select>
+        </div>
+
+        <div class="field actions">
+          <button
+            type="button"
+            class="btn primary"
+            (click)="runSimulation()"
+            [disabled]="simulating()"
+          >
+            {{ simulating() ? 'Procesando...' : '🚀 Simular Evento' }}
+          </button>
+        </div>
+      </div>
+
+      @if (simulateResult()) {
+        <div class="sim-result-box">
+          <h4>Resultado de la Simulación</h4>
+          <div class="meta-tags">
+            <span class="badge ok">Evento: {{ simulateResult()?.event_type }}</span>
+            <span class="badge" [class.ok]="simulateResult()?.dispatched">
+              {{ simulateResult()?.dispatched ? 'Despachado a endpoint' : 'Modo Inspección Local' }}
+            </span>
+            @if (simulateResult()?.status_code) {
+              <span class="badge ok">HTTP {{ simulateResult()?.status_code }}</span>
+            }
+          </div>
+
+          <div class="signature-display">
+            <span class="sig-title">Firma HMAC-SHA256 (Cabecera X-FS-Signature):</span>
+            <div class="secret-box" style="margin-top: 4px">
+              <span class="mono" style="font-weight: 700; color: #1e40af">{{ simulateResult()?.signature_preview }}</span>
+            </div>
+            <p class="muted" style="margin: 4px 0 0; font-size: 11.5px">
+              Fórmula: <code>HMAC_SHA256(secret, timestamp + "." + json_body)</code>
+            </p>
+          </div>
+
+          <div class="payload-display">
+            <span class="sig-title">Cuerpo JSON Despachado:</span>
+            <pre class="json-code"><code>{{ simulateResult()?.payload | json }}</code></pre>
+          </div>
+        </div>
+      }
+    </div>
+  }
 </div>

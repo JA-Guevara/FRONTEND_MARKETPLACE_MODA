@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -36,6 +36,18 @@ export interface WebhookDeliveryItem {
   created_at: string;
 }
 
+export interface WebhookSimulateResult {
+  event_id: string;
+  event_type: string;
+  timestamp: string;
+  payload: any;
+  signature_preview: string;
+  dispatched: boolean;
+  delivery_status?: string | null;
+  status_code?: number | null;
+  headers_example: Record<string, string>;
+}
+
 @Component({
   selector: 'fs-integraciones',
   standalone: true,
@@ -46,6 +58,8 @@ export interface WebhookDeliveryItem {
 export class IntegracionesComponent implements OnInit {
   private http = inject(HttpClient);
   private readonly apiUrl = environment.apiUrl;
+
+  readonly activeTab = signal<'gestion' | 'playground' | 'simulador'>('gestion');
 
   readonly apiKeys = signal<ApiKeyItem[]>([]);
   readonly webhooks = signal<WebhookEndpointItem[]>([]);
@@ -59,13 +73,23 @@ export class IntegracionesComponent implements OnInit {
   // Formularios y secretos temporales
   readonly showKeyForm = signal(false);
   keyName = '';
-  keyScopes = 'sales.read, stock.read, catalog.read';
+  keyScopes = 'sales.read, stock.read, stock.write, catalog.read';
   readonly newRawKey = signal<string | null>(null);
 
   readonly showWebhookForm = signal(false);
   webhookUrl = '';
-  webhookEvents = 'sale.confirmed, order.paid, stock.low';
+  webhookEvents = 'sale.confirmed, order.paid, stock.low, stock.updated';
   readonly newWebhookSecret = signal<string | null>(null);
+
+  // Playground de Conectores & SDK
+  readonly playgroundEndpoint = signal<'catalog' | 'stock' | 'stock_adjust' | 'sales'>('catalog');
+  readonly playgroundLang = signal<'curl' | 'python' | 'js'>('curl');
+
+  // Simulador de Webhooks & Verificador HMAC
+  readonly simulateEventType = signal<string>('sale.confirmed');
+  readonly simulateEndpointId = signal<string>('');
+  readonly simulateResult = signal<WebhookSimulateResult | null>(null);
+  readonly simulating = signal<boolean>(false);
 
   ngOnInit(): void {
     this.loadAll();
@@ -215,6 +239,140 @@ export class IntegracionesComponent implements OnInit {
         this.busy.set(false);
       },
     });
+  }
+
+  runSimulation(): void {
+    this.simulating.set(true);
+    this.error.set(null);
+    this.simulateResult.set(null);
+
+    const payload = {
+      event_type: this.simulateEventType(),
+      endpoint_id: this.simulateEndpointId() ? this.simulateEndpointId() : null,
+    };
+
+    this.http.post<ApiResponse<WebhookSimulateResult>>(`${this.apiUrl}/tenant/integrations/webhooks/simulate`, payload).subscribe({
+      next: (res) => {
+        this.simulateResult.set(res.data ?? null);
+        this.simulating.set(false);
+        if (res.data?.dispatched) {
+          this.successMessage.set(`Simulación enviada exitosamente (Código HTTP: ${res.data?.status_code ?? 'OK'}).`);
+          this.loadAll();
+        } else {
+          this.successMessage.set('Simulación generada. Revisa la firma HMAC y cabeceras.');
+        }
+      },
+      error: (err) => {
+        this.error.set(err?.error?.message || 'Fallo al simular el webhook.');
+        this.simulating.set(false);
+      },
+    });
+  }
+
+  getActiveApiKeyPrefix(): string {
+    const key = this.apiKeys().find((k) => !k.revoked_at);
+    return key ? `${key.prefix}...` : 'fs_live_tu_api_key_aqui';
+  }
+
+  getCodeSnippet(): string {
+    const ep = this.playgroundEndpoint();
+    const lang = this.playgroundLang();
+    const apiKey = this.getActiveApiKeyPrefix();
+    const host = window?.location?.origin || 'https://fashionstore.app';
+
+    if (lang === 'curl') {
+      switch (ep) {
+        case 'catalog':
+          return `curl -X GET "${host}/api/v1/integrations/v1/catalog?limit=50" \\
+  -H "X-API-Key: ${apiKey}"`;
+        case 'stock':
+          return `curl -X GET "${host}/api/v1/integrations/v1/stock" \\
+  -H "X-API-Key: ${apiKey}"`;
+        case 'stock_adjust':
+          return `curl -X POST "${host}/api/v1/integrations/v1/stock/adjust" \\
+  -H "X-API-Key: ${apiKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "items": [
+      { "sku": "CAMISA-OX-01", "branch_code": "CENTRAL", "quantity": 30, "mode": "set" }
+    ]
+  }'`;
+        case 'sales':
+          return `curl -X GET "${host}/api/v1/integrations/v1/sales?limit=25" \\
+  -H "X-API-Key: ${apiKey}"`;
+      }
+    } else if (lang === 'python') {
+      switch (ep) {
+        case 'catalog':
+          return `import requests
+
+url = "${host}/api/v1/integrations/v1/catalog"
+headers = {"X-API-Key": "${apiKey}"}
+resp = requests.get(url, headers=headers)
+print("Catálogo:", resp.json())`;
+        case 'stock':
+          return `import requests
+
+url = "${host}/api/v1/integrations/v1/stock"
+headers = {"X-API-Key": "${apiKey}"}
+resp = requests.get(url, headers=headers)
+print("Inventario:", resp.json())`;
+        case 'stock_adjust':
+          return `import requests
+
+url = "${host}/api/v1/integrations/v1/stock/adjust"
+headers = {"X-API-Key": "${apiKey}", "Content-Type": "application/json"}
+payload = {
+    "items": [
+        {"sku": "CAMISA-OX-01", "branch_code": "CENTRAL", "quantity": 30, "mode": "set"}
+    ]
+}
+resp = requests.post(url, headers=headers, json=payload)
+print("Stock actualizado:", resp.json())`;
+        case 'sales':
+          return `import requests
+
+url = "${host}/api/v1/integrations/v1/sales"
+headers = {"X-API-Key": "${apiKey}"}
+resp = requests.get(url, headers=headers, params={"limit": 25})
+print("Ventas:", resp.json())`;
+      }
+    } else {
+      // JavaScript / TypeScript fetch
+      switch (ep) {
+        case 'catalog':
+          return `const resp = await fetch('${host}/api/v1/integrations/v1/catalog', {
+  headers: { 'X-API-Key': '${apiKey}' }
+});
+const data = await resp.json();
+console.log('Catálogo:', data);`;
+        case 'stock':
+          return `const resp = await fetch('${host}/api/v1/integrations/v1/stock', {
+  headers: { 'X-API-Key': '${apiKey}' }
+});
+const data = await resp.json();
+console.log('Stock:', data);`;
+        case 'stock_adjust':
+          return `const resp = await fetch('${host}/api/v1/integrations/v1/stock/adjust', {
+  method: 'POST',
+  headers: {
+    'X-API-Key': '${apiKey}',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    items: [{ sku: 'CAMISA-OX-01', branch_code: 'CENTRAL', quantity: 30, mode: 'set' }]
+  })
+});
+const data = await resp.json();
+console.log('Resultado ajuste:', data);`;
+        case 'sales':
+          return `const resp = await fetch('${host}/api/v1/integrations/v1/sales?limit=25', {
+  headers: { 'X-API-Key': '${apiKey}' }
+});
+const data = await resp.json();
+console.log('Ventas:', data);`;
+      }
+    }
   }
 
   formatDate(isoDate?: string | null): string {

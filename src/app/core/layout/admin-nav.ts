@@ -56,7 +56,21 @@ export const ADMIN_NAV: NavSection[] = [
             path: '/admin/plataforma/operacion/continuidad',
             permission: 'platform.ops.read',
           },
+          {
+            key: 'respaldos-empresas',
+            label: 'Respaldos por empresa',
+            icon: 'download',
+            path: '/admin/plataforma/respaldos-empresas',
+            permission: 'platform.ops.read',
+          },
         ],
+      },
+      {
+        key: 'respaldos-empresas',
+        label: 'Respaldos por empresa',
+        icon: 'download',
+        path: '/admin/plataforma/respaldos-empresas',
+        permission: 'platform.ops.read',
       },
       {
         key: 'empresas',

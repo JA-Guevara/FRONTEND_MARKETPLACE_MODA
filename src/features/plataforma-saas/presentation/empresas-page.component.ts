@@ -163,6 +163,7 @@ import { IniciarSoporteDialogComponent } from './iniciar-soporte-dialog.componen
                       <button class="btn sm" (click)="openEdit(t)" title="Editar datos comerciales de la empresa">✏ Editar</button>
                     }
                     <a class="btn sm" [routerLink]="['/admin/plataforma/empresas', t.id]">Ver 360°</a>
+                    <a class="btn sm" [routerLink]="['/admin/plataforma/empresas', t.id, 'datos']" title="Ver respaldos de esta empresa">💾 Respaldos</a>
                     <button class="btn sm" (click)="supportTenant.set(t)">⛑ Asistir</button>
                     @if (session.can('tenants.write')) {
                       <button

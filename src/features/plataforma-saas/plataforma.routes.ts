@@ -27,6 +27,16 @@ export const citiesResource: Resource = {
 
 export const PLATAFORMA_ROUTES: Routes = [
   {
+    path: 'plataforma/respaldos-empresas',
+    title: 'Respaldos por empresa | Plataforma SaaS',
+    canActivate: [authGuard, platformScopeGuard],
+    data: { permission: 'platform.ops.read' },
+    loadComponent: () =>
+      import('./presentation/respaldos-empresas-page.component').then(
+        (m) => m.RespaldosEmpresasPageComponent,
+      ),
+  },
+  {
     path: 'plataforma/empresas/:id/datos',
     title: 'Datos y respaldos de empresa | Plataforma SaaS',
     canActivate: [authGuard, platformScopeGuard],
