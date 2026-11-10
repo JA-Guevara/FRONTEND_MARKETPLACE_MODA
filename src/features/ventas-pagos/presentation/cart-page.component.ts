@@ -1,5 +1,5 @@
-import { Component, inject, signal } from '@angular/core';
-import { DecimalPipe, UpperCasePipe } from '@angular/common';
+import { Component, computed, inject, signal } from '@angular/core';
+import { DecimalPipe, UpperCasePipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -13,11 +13,35 @@ import { IconComponent } from '../../../shared/icon.component';
 import { NoticesService } from '../../../app/core/notices.service';
 @Component({
   selector: 'fs-cart-page',
-  imports: [FormsModule, RouterLink, DecimalPipe, UpperCasePipe, IconComponent],
+  imports: [FormsModule, RouterLink, DecimalPipe, UpperCasePipe, DatePipe, IconComponent],
   styleUrl: './commerce.scss',
   template: ` <section class="commerce-page">
     <p class="eyebrow">TU SELECCIÓN</p>
     <h1>Mi carrito</h1>
+    @if (offlineSavedOrder(); as saved) {
+      <article class="panel offline-saved-card" style="margin-bottom: 2rem; border: 2px solid var(--accent, #1e40af); background: var(--surface-2, #f8fafc); border-radius: 12px; padding: 1.5rem;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 1rem;">
+          <span style="font-size: 28px;">✅</span>
+          <div>
+            <h2 style="margin: 0; font-size: 1.25rem;">¡Compra guardada en tu dispositivo!</h2>
+            <p style="margin: 0; color: var(--muted, #64748b); font-size: 0.875rem;">Folio provisional: <strong>{{ saved.id }}</strong> · {{ saved.created_at | date:'short' }}</p>
+          </div>
+        </div>
+        <div style="background: var(--surface, #fff); border-radius: 8px; padding: 1rem; border: 1px solid var(--line, #e2e8f0); margin-bottom: 1rem; font-size: 0.9rem;">
+          <p style="margin: 0.25rem 0;"><strong>Destinatario:</strong> {{ saved.recipient }} (Tel: {{ saved.phone }})</p>
+          <p style="margin: 0.25rem 0;"><strong>Dirección de entrega:</strong> {{ saved.address.line1 }}, {{ saved.address.city }}</p>
+          <p style="margin: 0.25rem 0;"><strong>Forma de pago elegida:</strong> {{ saved.payment_method === 'stripe' ? 'Tarjeta (al conectar)' : 'Efectivo o transferencia' }}</p>
+          <p style="margin: 0.25rem 0;"><strong>Total estimado:</strong> {{ (cart()?.currency || 'BOB') | uppercase }} {{ saved.total | number:'1.2-2' }} ({{ saved.itemCount }} prenda(s))</p>
+        </div>
+        <div class="alert info" style="margin: 0 0 1rem;">
+          <strong>Sincronización automática:</strong> Cuando el navegador recupere la conexión a Internet, tu pedido se enviará al servidor y te notificaremos aquí si las prendas continuaban disponibles en inventario.
+        </div>
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+          <a routerLink="/" class="button primary">Seguir viendo catálogo</a>
+          <button type="button" (click)="offlineSavedOrder.set(null)">Cerrar comprobante</button>
+        </div>
+      </article>
+    }
     @if (error()) {
       <div class="alert error" role="alert">
         {{ error() }} <button type="button" (click)="init()" [disabled]="busy()">Reintentar</button>
@@ -228,6 +252,25 @@ import { NoticesService } from '../../../app/core/notices.service';
                 ><button type="button" (click)="addressStep.set(false)" [disabled]="busy()">
                   Volver al resumen
                 </button>
+                @if (!isOnline() || errorIsConnection()) {
+                  <div class="offline-checkout-box" style="margin-top: 1.25rem; padding: 1.25rem; border-radius: 10px; border: 2px dashed var(--accent, #1e40af); background: color-mix(in oklab, var(--accent, #1e40af) 6%, var(--surface, #fff));">
+                    <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--accent, #1e40af); margin-bottom: 6px;">
+                      <span style="font-size: 20px;">📡</span> Modo de compra sin conexión
+                    </div>
+                    <p style="margin: 0 0 12px; font-size: 0.875rem; line-height: 1.4;">
+                      Detectamos problemas de conexión con el servidor. Podés guardar esta compra en tu dispositivo. En cuanto el sistema restablezca la conexión, se procesará automáticamente y te notificaremos si las prendas estaban disponibles.
+                    </p>
+                    <button
+                      type="button"
+                      class="button primary"
+                      style="width: 100%; display: flex; justify-content: center; align-items: center; gap: 8px;"
+                      [disabled]="busy() || !checkoutForm.valid || !canBuy()"
+                      (click)="saveOfflineOrder()"
+                    >
+                      <span>💾</span> Guardar compra sin conexión
+                    </button>
+                  </div>
+                }
               </form>
             }
           </aside>
@@ -256,6 +299,12 @@ export class CartPageComponent {
   busy = signal(false);
   error = signal('');
   addressStep = signal(false);
+  isOnline = signal(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  offlineSavedOrder = signal<any | null>(null);
+  errorIsConnection = computed(() => {
+    const err = (this.error() || '').toLowerCase();
+    return !this.isOnline() || err.includes('servidor') || err.includes('conexión') || err.includes('espera') || err.includes('interrupción');
+  });
   /** Direcciones del perfil, para no reescribirlas en cada compra. */
   savedAddresses = signal<SavedAddress[]>([]);
   selectedAddress = '';
@@ -275,6 +324,16 @@ export class CartPageComponent {
     country: 'BO',
   };
   constructor() {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => {
+        this.isOnline.set(true);
+        void this.syncOfflineOrders();
+      });
+      window.addEventListener('offline', () => {
+        this.isOnline.set(false);
+      });
+      void this.syncOfflineOrders();
+    }
     void this.init();
   }
   async init() {
@@ -449,5 +508,101 @@ export class CartPageComponent {
       this.busy.set(false);
     }
   }
-}
 
+  saveOfflineOrder() {
+    if (!this.canBuy()) return;
+    const items = this.cart()?.items || [];
+    const folio = 'OFF-' + crypto.randomUUID().slice(0, 8).toUpperCase();
+    const offlineOrder = {
+      id: folio,
+      created_at: new Date().toISOString(),
+      branch_id: this.branch,
+      address: { ...this.address },
+      payment_method: this.method,
+      coupon_code: this.coupon || null,
+      items: items.map(i => ({
+        variant_id: i.variant_id,
+        name: i.name,
+        size: i.size,
+        color: i.color,
+        quantity: i.quantity,
+        price: i.unit_price,
+      })),
+      total: this.cart()?.total || 0,
+      recipient: this.address.recipient,
+      phone: this.address.phone,
+      itemCount: items.reduce((acc, i) => acc + i.quantity, 0),
+      status: 'PENDIENTE',
+    };
+
+    try {
+      const existing = JSON.parse(localStorage.getItem('fs_offline_store_orders') || '[]');
+      existing.push(offlineOrder);
+      localStorage.setItem('fs_offline_store_orders', JSON.stringify(existing));
+    } catch { /* memoria local */ }
+
+    this.offlineSavedOrder.set(offlineOrder);
+    this.error.set('');
+    this.addressStep.set(false);
+    this.notices.show({
+      key: `offline:saved:${offlineOrder.id}`,
+      title: 'Compra guardada en tu dispositivo',
+      detail: `Folio ${offlineOrder.id}. Cuando regrese la conexión se procesará y te notificaremos si las prendas estaban disponibles.`,
+      tone: 'info',
+      important: false,
+    });
+  }
+
+  async syncOfflineOrders() {
+    if (typeof window === 'undefined' || !navigator.onLine) return;
+    const raw = localStorage.getItem('fs_offline_store_orders');
+    if (!raw) return;
+    let list: any[] = [];
+    try { list = JSON.parse(raw); } catch { return; }
+    if (!list.length) return;
+
+    const remaining: any[] = [];
+    for (const item of list) {
+      if (item.status !== 'PENDIENTE') continue;
+      try {
+        const order = await this.api.write<Order>('POST', '/orders', {
+          branch_id: item.branch_id,
+          address: item.address,
+          payment_method: item.payment_method,
+          coupon_code: item.coupon_code || null,
+        });
+        this.notices.show({
+          key: `order:offline:confirmed:${order.id}`,
+          title: '¡Compra sin conexión procesada con éxito!',
+          detail: `Tu pedido #${order.number} por Bs ${order.total} fue procesado y confirmado en el servidor.`,
+          tone: 'success',
+          important: true,
+          link: `/mi-cuenta/pedidos?pedido=${order.id}`,
+        });
+        await this.cartState.refresh();
+      } catch (err: any) {
+        const msg = (errorMessage(err) || '').toLowerCase();
+        if (err?.status === 409 || err?.status === 422 || msg.includes('existencias') || msg.includes('disponible') || msg.includes('stock')) {
+          this.notices.show({
+            key: `order:offline:out_of_stock:${item.id}`,
+            title: 'Prenda no disponible en inventario',
+            detail: `Una o más prendas de tu compra sin conexión (Folio ${item.id}) ya no contaban con existencias disponibles en el servidor al restablecerse la conexión.`,
+            tone: 'error',
+            important: true,
+          });
+        } else if (err?.status === 0) {
+          remaining.push(item);
+        } else {
+          this.notices.show({
+            key: `order:offline:error:${item.id}`,
+            title: 'No se pudo procesar la compra sin conexión',
+            detail: errorMessage(err) || 'Error al procesar el pedido guardado.',
+            tone: 'error',
+            important: true,
+          });
+        }
+      }
+    }
+    localStorage.setItem('fs_offline_store_orders', JSON.stringify(remaining));
+  }
+}

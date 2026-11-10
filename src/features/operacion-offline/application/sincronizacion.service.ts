@@ -5,21 +5,33 @@ import { OperacionesLocalesRepository } from '../infrastructure/operaciones-loca
 import { SyncOperationWire, enLotes, clasificarError } from '../domain/sincronizacion.models';
 import { OperacionPendiente } from '../domain/reserva-offline.models';
 import { SessionService } from '../../usuarios-catalogo/application/session.service';
+import { NoticesService } from '../../../app/core/notices.service';
 
 @Injectable({ providedIn: 'root' })
 export class SincronizacionService {
   private syncApi: SyncApi;
   private operacionesRepo: OperacionesLocalesRepository;
   private session: SessionService;
+  private notices?: NoticesService | null;
 
   constructor(
     syncApi?: SyncApi,
     operacionesRepo?: OperacionesLocalesRepository,
     session?: SessionService,
+    notices?: NoticesService,
   ) {
     this.syncApi = syncApi ?? inject(SyncApi);
     this.operacionesRepo = operacionesRepo ?? inject(OperacionesLocalesRepository);
     this.session = session ?? inject(SessionService);
+    if (notices !== undefined) {
+      this.notices = notices;
+    } else {
+      try {
+        this.notices = inject(NoticesService, { optional: true });
+      } catch {
+        this.notices = null;
+      }
+    }
   }
 
   readonly sincronizando = signal<boolean>(false);
@@ -193,6 +205,25 @@ export class SincronizacionService {
             stats.confirmadas += resp.confirmed || 0;
             stats.conflictos += resp.conflicts || 0;
             stats.rechazadas += resp.rejected || 0;
+
+            if ((resp.confirmed ?? 0) > 0) {
+              this.notices?.show({
+                key: `sync:confirmed:${Date.now()}`,
+                title: '¡Operación sin conexión procesada!',
+                detail: `Se sincronizaron y confirmaron exitosamente ${resp.confirmed} venta(s) guardada(s) localmente en el servidor.`,
+                tone: 'success',
+                important: true,
+              });
+            }
+            if ((resp.conflicts ?? 0) > 0 || (resp.rejected ?? 0) > 0) {
+              this.notices?.show({
+                key: `sync:conflict:${Date.now()}`,
+                title: 'Aviso: Prenda no disponible en inventario',
+                detail: `Una o más prendas de tu compra sin conexión no contaban con existencias disponibles en el servidor (${(resp.conflicts ?? 0) + (resp.rejected ?? 0)} caso(s)).`,
+                tone: 'warning',
+                important: true,
+              });
+            }
           }
 
           await this.operacionesRepo.guardarHistorialSync({
