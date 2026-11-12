@@ -162,3 +162,170 @@ export function clasificarError(e: any): {
   }
   return { codigo: 'HTTP_5XX', http_status: status };
 }
+
+export type EstadoIndicador =
+  | 'AL_DIA'
+  | 'SINCRONIZANDO'
+  | 'PENDIENTES'
+  | 'SIN_CONEXION'
+  | 'SESION_VENCIDA'
+  | 'CONFLICTO'
+  | 'SERVIDOR_NO_RESPONDE';
+
+export interface EstadoIndicadorInput {
+  sincronizando?: boolean;
+  sesionVencida?: boolean;
+  online?: boolean;
+  servidorAlcanzable?: boolean;
+  conflictosCount?: number;
+  pendientesCount?: number;
+}
+
+export function estadoIndicador(input: EstadoIndicadorInput): EstadoIndicador {
+  if (input.sincronizando) return 'SINCRONIZANDO';
+  if (input.sesionVencida) return 'SESION_VENCIDA';
+  if (input.online === false) return 'SIN_CONEXION';
+  if (input.servidorAlcanzable === false) return 'SERVIDOR_NO_RESPONDE';
+  if ((input.conflictosCount ?? 0) > 0) return 'CONFLICTO';
+  if ((input.pendientesCount ?? 0) > 0) return 'PENDIENTES';
+  return 'AL_DIA';
+}
+
+export interface DatosTextoIndicador {
+  pendientesCount?: number;
+  conflictosCount?: number;
+  minutosDesdeDescarga?: number;
+  fechaDatos?: Date | string | null;
+  reintentoEnSegundos?: number;
+  desactualizado?: boolean;
+}
+
+function pad2(n: number): string {
+  return n < 10 ? '0' + n : String(n);
+}
+
+export function formatearFechaCorta(d: Date | string | null): string {
+  if (!d) return '';
+  const date = typeof d === 'string' ? new Date(d) : d;
+  if (isNaN(date.getTime())) return '';
+  return `${pad2(date.getDate())}/${pad2(date.getMonth() + 1)} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
+export function textoIndicador(estado: EstadoIndicador, datos?: DatosTextoIndicador): string {
+  const pCount = datos?.pendientesCount ?? 0;
+  const cCount = datos?.conflictosCount ?? 0;
+  const desactualizado =
+    datos?.desactualizado ||
+    (datos?.minutosDesdeDescarga !== undefined && datos.minutosDesdeDescarga > 1440);
+
+  if (desactualizado && datos?.fechaDatos) {
+    return `datos del ${formatearFechaCorta(datos.fechaDatos)}, pueden estar desactualizados`;
+  }
+
+  switch (estado) {
+    case 'SINCRONIZANDO': {
+      const n = pCount || 1;
+      return n === 1 ? 'Sincronizando 1 operación…' : `Sincronizando ${n} operaciones…`;
+    }
+    case 'SESION_VENCIDA': {
+      const n = pCount || 1;
+      return `${n} ventas por subir · Iniciá sesión para enviarlas`;
+    }
+    case 'SIN_CONEXION': {
+      if (pCount > 0) {
+        return `Sin conexión · ${pCount} por subir · se enviarán solas`;
+      }
+      if (datos?.fechaDatos) {
+        return `Sin conexión · datos del ${formatearFechaCorta(datos.fechaDatos)}`;
+      }
+      return 'Sin conexión';
+    }
+    case 'SERVIDOR_NO_RESPONDE':
+      return 'El servidor no responde · reintentando';
+    case 'CONFLICTO': {
+      const n = cCount || 1;
+      return n === 1 ? '1 operación necesita revisión' : `${n} operaciones necesitan revisión`;
+    }
+    case 'PENDIENTES': {
+      const n = pCount || 1;
+      if (datos?.reintentoEnSegundos !== undefined && datos.reintentoEnSegundos !== null) {
+        return `${n} por subir · reintento en ${datos.reintentoEnSegundos} s`;
+      }
+      return `${n} por subir`;
+    }
+    case 'AL_DIA':
+    default: {
+      if (datos?.minutosDesdeDescarga !== undefined && datos.minutosDesdeDescarga !== null) {
+        return `Todo sincronizado · datos de hace ${datos.minutosDesdeDescarga} min`;
+      }
+      return 'Todo sincronizado';
+    }
+  }
+}
+
+export function etiquetaEstado(estado: string): string {
+  switch (estado) {
+    case 'PENDIENTE':
+      return 'Por subir';
+    case 'ENVIADA':
+      return 'Enviando';
+    case 'CONFIRMADA':
+      return 'Confirmada';
+    case 'CONFLICTO':
+      return 'Necesita revisión';
+    case 'RECHAZADA':
+      return 'Rechazada';
+    case 'ANULADA':
+      return 'Anulada';
+    default:
+      return estado;
+  }
+}
+
+export function etiquetaTipo(tipo: string): string {
+  switch (tipo) {
+    case 'VENTA':
+      return 'Venta de contado';
+    case 'RESERVA':
+      return 'Reserva';
+    default:
+      return tipo;
+  }
+}
+
+export interface ParametrosActualizarCatalogo {
+  online: boolean;
+  sesionReal: boolean;
+  tieneModuloOffline: boolean;
+  versionLocal?: string | null;
+  ultimaDescarga?: Date | string | null;
+  ahora?: Date;
+  evento?: 'login' | 'reconnect' | 'visible' | 'sync_confirmed';
+}
+
+export function debeActualizarCatalogo(p: ParametrosActualizarCatalogo): boolean {
+  if (!p.online || !p.sesionReal || !p.tieneModuloOffline) return false;
+  if (!p.versionLocal) return true;
+
+  const ahoraMs = (p.ahora ? new Date(p.ahora) : new Date()).getTime();
+  const ultimaMs = p.ultimaDescarga ? new Date(p.ultimaDescarga).getTime() : 0;
+  const diffMs = ahoraMs - ultimaMs;
+
+  if (p.evento === 'sync_confirmed') return true;
+  if (p.evento === 'login' || p.evento === 'reconnect') return true;
+  if (p.evento === 'visible') return diffMs >= 60000;
+
+  return diffMs >= 300000;
+}
+
+export function proximoDisparo(
+  proximoIntento: Date | string | null,
+  intervaloNormalMs = 60000,
+  ahora: Date = new Date(),
+): number {
+  if (!proximoIntento) return intervaloNormalMs;
+  const targetMs = new Date(proximoIntento).getTime();
+  const diff = targetMs - ahora.getTime();
+  if (diff <= 0) return 0;
+  return Math.min(intervaloNormalMs, diff);
+}
