@@ -11,6 +11,7 @@ import { timeoutInterceptor } from './timeout.interceptor';
 import { httpErrorsInterceptor } from './http-errors.interceptor';
 import { SessionService } from '../../features/usuarios-catalogo/application/session.service';
 import { SincronizacionService } from '../../features/operacion-offline/application/sincronizacion.service';
+import { OfflineCatalogStore } from '../../features/operacion-offline/application/offline-catalog.store';
 
 /** Cadena de interceptores, del más EXTERNO al más interno.
  *
@@ -33,7 +34,11 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(() => {
       const session = inject(SessionService);
       const sync = inject(SincronizacionService);
-      return session.restore().then(() => sync.iniciar());
+      const catalog = inject(OfflineCatalogStore);
+      return session.restore().then(() => {
+        sync.iniciar();
+        catalog.iniciar();
+      });
     }),
   ],
 };
