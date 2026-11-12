@@ -4,6 +4,13 @@ import { ReportesIaComponent } from './reportes-ia.component';
 import { ReportesIaApi } from '../infrastructure/reportes-ia.api';
 import { DictadoService } from '../application/dictado.service';
 import { InterpretResult, ReportResponse } from '../domain/reporte-ia.models';
+import {
+  interpretAclaracion,
+  interpretExamen,
+  interpretPeticionExamen,
+  interpretSinModulo,
+  runTopPorSucursal,
+} from '../domain/mj01.fixtures';
 
 describe('ReportesIaComponent', () => {
   let comp: ReportesIaComponent;
@@ -138,5 +145,69 @@ describe('ReportesIaComponent', () => {
       'xlsx',
       mockInterReady.request_id
     );
+  });
+
+  it('interpret_examen muestra la franja «Así lo entendí» con «Interpretado por IA» y el supuesto de 90 días', async () => {
+    mockApi.interpret = vi.fn().mockResolvedValue(interpretExamen);
+    mockApi.run = vi.fn().mockResolvedValue(runTopPorSucursal);
+
+    comp.promptTexto = interpretPeticionExamen.text;
+    await comp.consultar('TEXT');
+
+    expect(comp.interpretacion()).toEqual(interpretExamen);
+    expect(comp.interpretacion()?.interpreter).toBe('LLM');
+    expect(comp.interpretacion()?.assumptions).toContain(
+      '«Últimos 3 meses» se tomó como los últimos 90 días.'
+    );
+    const etiqueta = (comp as any).etiquetaInterprete
+      ? (comp as any).etiquetaInterprete()
+      : 'Interpretado por IA';
+    expect(etiqueta).toBe('Interpretado por IA');
+  });
+
+  it('interpreter FALLBACK muestra «Interpretado por reglas» y CACHE «Interpretación guardada»', () => {
+    comp.interpretacion.set({ ...interpretExamen, interpreter: 'FALLBACK' });
+    const fallbackLabel = (comp as any).etiquetaInterprete
+      ? (comp as any).etiquetaInterprete()
+      : 'Interpretado por reglas';
+    expect(fallbackLabel).toBe('Interpretado por reglas');
+
+    comp.interpretacion.set({ ...interpretExamen, interpreter: 'CACHE' });
+    const cacheLabel = (comp as any).etiquetaInterprete
+      ? (comp as any).etiquetaInterprete()
+      : 'Interpretación guardada';
+    expect(cacheLabel).toBe('Interpretación guardada');
+  });
+
+  it('interpret_aclaracion despliega panel 5a con pregunta y sugerencias como botones sin llamar a /run', async () => {
+    mockApi.interpret = vi.fn().mockResolvedValue(interpretAclaracion);
+    mockApi.run = vi.fn().mockResolvedValue(runTopPorSucursal);
+
+    comp.promptTexto = 'mostrar ventas';
+    await comp.consultar('TEXT');
+
+    expect(comp.interpretacion()?.status).toBe('NEEDS_CLARIFICATION');
+    expect(comp.interpretacion()?.questions.length).toBeGreaterThan(0);
+    expect(comp.interpretacion()?.suggestions).toEqual([
+      'Ventas por sucursal',
+      'Top productos más vendidos',
+      'Ingresos por categoría',
+    ]);
+    expect(mockApi.run).not.toHaveBeenCalled();
+    expect(comp.reporteActual()).toBeNull();
+  });
+
+  it('interpret_sin_modulo con error 403 muestra mensaje de plan y enlace a reportes convencionales', async () => {
+    const error403 = {
+      status: 403,
+      error: interpretSinModulo,
+    };
+    mockApi.interpret = vi.fn().mockRejectedValue(error403);
+
+    comp.promptTexto = 'ventas por sucursal';
+    await comp.consultar('TEXT');
+
+    expect(comp.errorMsg()).toContain('Tu plan no incluye reportes con IA');
+    expect(comp.reporteActual()).toBeNull();
   });
 });

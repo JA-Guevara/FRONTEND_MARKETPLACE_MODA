@@ -3,6 +3,7 @@ import {
   aplicarAclaracion,
   chipsDeSpec,
   formatoCelda,
+  formatoValor,
   ReportSpec,
 } from './reporte-ia.models';
 
@@ -53,5 +54,10 @@ describe('ReporteIaModels', () => {
     expect(formatoCelda(15.67, 'pct')).toBe('15.7%');
     expect(formatoCelda('Santa Cruz', 'text')).toBe('Santa Cruz');
     expect(formatoCelda(null, 'money')).toBe('-');
+  });
+
+  it('formatoValor formatea enteros y dinero correctamente', () => {
+    expect(formatoValor(14, 'int')).toBe('14');
+    expect(formatoValor(1350, 'money')).toBe('Bs 1.350,00');
   });
 });

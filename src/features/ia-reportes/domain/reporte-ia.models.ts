@@ -36,7 +36,7 @@ export interface InterpretResult {
   questions: string[];
   assumptions: string[];
   suggestions: string[];
-  interpreter: 'LLM' | 'FALLBACK';
+  interpreter: 'LLM' | 'FALLBACK' | 'CACHE';
   request_id?: string;
 }
 
@@ -46,17 +46,27 @@ export interface ColumnMeta {
   type: 'text' | 'money' | 'int' | 'pct';
 }
 
+export interface ReportGroup {
+  key: string;
+  label: string;
+  rows: Record<string, any>[];
+  subtotal?: Record<string, any>;
+}
+
 export interface ReportResponse {
   request_id?: string | null;
   definition_code: string;
   title: string;
   columns: ColumnMeta[];
   rows: Record<string, any>[];
+  groups?: ReportGroup[];
   totals: Record<string, any>;
   chart: {
     kind: string;
     x: string;
     y: string;
+    group?: string;
+    item?: string;
     label?: string;
   };
   series: {
@@ -183,3 +193,8 @@ export function formatoCelda(valor: unknown, tipo: 'money' | 'int' | 'pct' | 'te
       return String(valor);
   }
 }
+
+export function formatoValor(valor: unknown, tipo?: 'money' | 'int' | 'pct' | 'text' | string): string {
+  return formatoCelda(valor, (tipo as 'money' | 'int' | 'pct' | 'text') || 'text');
+}
+
