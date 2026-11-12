@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { OfflineCatalogStore } from '../application/offline-catalog.store';
@@ -9,6 +9,7 @@ import { getDeviceId } from '../../../app/core/offline/device-id';
 import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { errorMessage } from '../../../shared/errors';
 import { CatalogoLocalRepository } from '../infrastructure/catalogo-local.repository';
+import { SincronizacionService } from '../application/sincronizacion.service';
 
 @Component({
   selector: 'fs-venta-offline',
@@ -23,7 +24,7 @@ import { CatalogoLocalRepository } from '../infrastructure/catalogo-local.reposi
         <article class="panel">
           <h2>Comprobante provisional</h2>
           <strong>{{ venta.folio }}</strong>
-          <p>Pendiente de sincronizar · {{ venta.creada_en | date:'short' }}</p>
+          <p>{{ comprobanteEstado() }} · {{ venta.creada_en | date:'short' }}</p>
           <p>Cliente: {{ venta.cliente_nombre || 'Sin cliente' }}</p>
           <p>Total Bs {{ venta.total | number:'1.2-2' }} · Efectivo Bs {{ venta.recibido | number:'1.2-2' }}</p>
           <p>Vuelto Bs {{ venta.vuelto | number:'1.2-2' }}</p>
@@ -33,6 +34,10 @@ import { CatalogoLocalRepository } from '../infrastructure/catalogo-local.reposi
       } @else if (!catalogo.meta().version) {
         <p>Descargá el catálogo de tu empresa antes de vender.</p>
         <a routerLink="/sin-conexion">Preparar catálogo</a>
+      } @else if (!cajas().length) {
+        <p class="alert warning">
+          Esta sucursal no tiene cajas habilitadas en este dispositivo. Actualizá los datos o pedí al administrador que asigne una caja.
+        </p>
       } @else {
         <p>Catálogo descargado {{ catalogo.meta().descargadoEn | date:'short' }}</p>
         <label>Caja
@@ -77,7 +82,7 @@ import { CatalogoLocalRepository } from '../infrastructure/catalogo-local.reposi
         </div>
         <p>Total Bs {{ total() | number:'1.2-2' }}</p>
         <label>Efectivo recibido <input type="number" min="0" [(ngModel)]="recibido" /></label>
-        <button class="primary" [disabled]="guardando() || total() <= 0" (click)="confirmar()">Cobrar y guardar venta local</button>
+        <button class="primary" [disabled]="guardando() || total() <= 0 || !cajas().length" (click)="confirmar()">Cobrar y guardar venta local</button>
       }
     </section>
   `,
@@ -89,9 +94,13 @@ export class VentaOfflineComponent {
   private session = inject(SessionService);
   private repo = inject(OperacionesLocalesRepository);
   private catalogoRepo = inject(CatalogoLocalRepository);
+  syncService = inject(SincronizacionService);
+  private destroyRef = inject(DestroyRef, { optional: true });
+
   cajas = signal<CajaLocal[]>([]);
   cantidades = signal<Record<string, number>>({});
   comprobante = signal<VentaLocal | null>(null);
+  comprobanteEstado = signal<string>('Por subir · se enviará sola cuando haya conexión');
   guardando = signal(false);
   error = signal('');
   cajaId = '';
@@ -117,7 +126,21 @@ export class VentaOfflineComponent {
   total = computed(() => this.opciones().reduce((total, item) =>
     total + Math.round(item.precio * 100) * (this.cantidades()[item.id] ?? 0), 0) / 100);
 
-  constructor() { void this.cargar().catch(error => this.error.set(errorMessage(error))); }
+  constructor() {
+    void this.cargar().catch(error => this.error.set(errorMessage(error)));
+    const sub = this.syncService.cambios.subscribe(() => {
+      const v = this.comprobante();
+      if (v) {
+        void this.repo.listarOperaciones({ tenantId: v.tenant_id, usuarioId: v.usuario_id }).then(ops => {
+          const op = ops.find(o => o.id === v.id || (o as any).venta_id === v.id);
+          if (op?.estado === 'CONFIRMADA') {
+            this.comprobanteEstado.set(`Confirmada · ${op.server_numero || ''}`);
+          }
+        });
+      }
+    });
+    this.destroyRef?.onDestroy(() => sub.unsubscribe());
+  }
 
   private async cargar() {
     await this.catalogo.cargarLocal();
@@ -172,11 +195,13 @@ export class VentaOfflineComponent {
         intentos: 0, creada_en: now, actualizada_en: now,
       });
       this.comprobante.set(venta);
+      this.comprobanteEstado.set('Por subir · se enviará sola cuando haya conexión');
       this.cantidades.set({});
       this.recibido = 0;
       this.clienteId.set('');
       this.busquedaCliente.set('');
       await this.catalogo.cargarLocal();
+      void this.syncService.notificarOperacionGuardada();
     } catch (error) { this.error.set(errorMessage(error)); }
     finally { this.guardando.set(false); }
   }

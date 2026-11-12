@@ -1,10 +1,18 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { Subject } from 'rxjs';
 import { SyncApi, SyncBatchResponse } from '../infrastructure/sync.api';
 import { OperacionesLocalesRepository } from '../infrastructure/operaciones-locales.repository';
-import { SyncOperationWire, enLotes, clasificarError } from '../domain/sincronizacion.models';
+import {
+  SyncOperationWire,
+  enLotes,
+  clasificarError,
+  EstadoIndicador,
+  estadoIndicador,
+  proximoDisparo,
+} from '../domain/sincronizacion.models';
 import { OperacionPendiente } from '../domain/reserva-offline.models';
 import { SessionService } from '../../usuarios-catalogo/application/session.service';
+import { ConnectivityService } from '../../../app/core/offline/connectivity.service';
 import { NoticesService } from '../../../app/core/notices.service';
 
 @Injectable({ providedIn: 'root' })
@@ -12,17 +20,57 @@ export class SincronizacionService {
   private syncApi: SyncApi;
   private operacionesRepo: OperacionesLocalesRepository;
   private session: SessionService;
+  private connectivity: ConnectivityService;
   private notices?: NoticesService | null;
+  private destroyRef: DestroyRef | null = null;
 
   constructor(
     syncApi?: SyncApi,
     operacionesRepo?: OperacionesLocalesRepository,
     session?: SessionService,
+    connectivity?: ConnectivityService,
     notices?: NoticesService,
   ) {
-    this.syncApi = syncApi ?? inject(SyncApi);
-    this.operacionesRepo = operacionesRepo ?? inject(OperacionesLocalesRepository);
-    this.session = session ?? inject(SessionService);
+    if (syncApi) {
+      this.syncApi = syncApi;
+    } else {
+      try {
+        this.syncApi = inject(SyncApi);
+      } catch {
+        this.syncApi = null as any;
+      }
+    }
+
+    if (operacionesRepo) {
+      this.operacionesRepo = operacionesRepo;
+    } else {
+      try {
+        this.operacionesRepo = inject(OperacionesLocalesRepository);
+      } catch {
+        this.operacionesRepo = null as any;
+      }
+    }
+
+    if (session) {
+      this.session = session;
+    } else {
+      try {
+        this.session = inject(SessionService);
+      } catch {
+        this.session = null as any;
+      }
+    }
+
+    if (connectivity) {
+      this.connectivity = connectivity;
+    } else {
+      try {
+        this.connectivity = inject(ConnectivityService);
+      } catch {
+        this.connectivity = new ConnectivityService();
+      }
+    }
+
     if (notices !== undefined) {
       this.notices = notices;
     } else {
@@ -32,6 +80,27 @@ export class SincronizacionService {
         this.notices = null;
       }
     }
+
+    try {
+      this.destroyRef = inject(DestroyRef, { optional: true });
+      this.destroyRef?.onDestroy(() => this.destruir());
+    } catch {
+      this.destroyRef = null;
+    }
+
+    try {
+      effect(() => {
+        const offline = this.session?.offlineSession?.();
+        const user = this.session?.user?.();
+        if (!offline && user?.tenant && this.pendientesCount() > 0 && this.connectivity?.online?.()) {
+          untracked(() => {
+            void this.sincronizarAhora();
+          });
+        }
+      });
+    } catch {
+      // Fuera de contexto de inyección reactiva
+    }
   }
 
   readonly sincronizando = signal<boolean>(false);
@@ -40,46 +109,111 @@ export class SincronizacionService {
   readonly conflictosCount = signal<number>(0);
   readonly ultimoSync = signal<Date | null>(null);
   readonly ultimoError = signal<string | null>(null);
+  readonly proximoIntentoEn = signal<Date | null>(null);
+
+  readonly estado = computed<EstadoIndicador>(() => {
+    const isSesionVencida =
+      Boolean(this.session?.offlineSession?.()) &&
+      this.pendientesCount() > 0 &&
+      Boolean(this.connectivity?.online?.());
+    return estadoIndicador({
+      sincronizando: this.sincronizando(),
+      sesionVencida: isSesionVencida,
+      online: this.connectivity?.online?.() ?? true,
+      servidorAlcanzable: this.connectivity?.servidorAlcanzable?.() ?? true,
+      conflictosCount: this.conflictosCount(),
+      pendientesCount: this.pendientesCount(),
+    });
+  });
 
   private timerId: any = null;
   private onlineListener: (() => void) | null = null;
+  private visibilityListener: (() => void) | null = null;
 
-  iniciar(intervaloMs = 300000) {
+  iniciar(intervaloMs = 60000) {
     this.destruir();
-    this.actualizarContadores();
+    void this.actualizarContadores().then(() => {
+      if (
+        this.connectivity?.online?.() &&
+        !this.session?.offlineSession?.() &&
+        this.pendientesCount() > 0
+      ) {
+        void this.sincronizarAhora();
+      } else {
+        this.programarProximoDisparo();
+      }
+    });
 
     if (typeof window !== 'undefined') {
       this.onlineListener = () => {
-        if (navigator.onLine) {
-          this.sincronizarAhora();
+        if (this.connectivity?.online?.()) {
+          void this.sincronizarAhora();
         }
       };
       window.addEventListener('online', this.onlineListener);
 
-      if (intervaloMs > 0) {
-        this.timerId = setInterval(() => {
-          if (navigator.onLine && !this.sincronizando()) {
-            this.sincronizarAhora();
+      if (typeof document !== 'undefined') {
+        this.visibilityListener = () => {
+          if (
+            document.visibilityState === 'visible' &&
+            this.pendientesCount() > 0 &&
+            this.connectivity?.online?.()
+          ) {
+            void this.sincronizarAhora();
           }
-        }, intervaloMs);
+        };
+        document.addEventListener('visibilitychange', this.visibilityListener);
       }
     }
   }
 
   destruir() {
     if (this.timerId) {
-      clearInterval(this.timerId);
+      clearTimeout(this.timerId);
       this.timerId = null;
     }
     if (typeof window !== 'undefined' && this.onlineListener) {
       window.removeEventListener('online', this.onlineListener);
       this.onlineListener = null;
     }
+    if (typeof document !== 'undefined' && this.visibilityListener) {
+      document.removeEventListener('visibilitychange', this.visibilityListener);
+      this.visibilityListener = null;
+    }
+  }
+
+  programarProximoDisparo(proximo?: Date | null) {
+    if (this.timerId) {
+      clearTimeout(this.timerId);
+      this.timerId = null;
+    }
+    if (this.pendientesCount() === 0) return;
+    const delay = proximoDisparo(proximo ?? this.proximoIntentoEn(), 60000);
+    this.timerId = setTimeout(() => {
+      if (
+        this.connectivity?.online?.() &&
+        !this.sincronizando() &&
+        !this.session?.offlineSession?.()
+      ) {
+        void this.sincronizarAhora();
+      } else {
+        this.programarProximoDisparo();
+      }
+    }, delay);
+  }
+
+  async notificarOperacionGuardada(): Promise<void> {
+    await this.actualizarContadores();
+    if (this.connectivity?.online?.() && !this.session?.offlineSession?.()) {
+      await this.sincronizarAhora();
+    } else {
+      this.programarProximoDisparo();
+    }
   }
 
   async actualizarContadores(): Promise<void> {
     try {
-      const user = this.session.user();
+      const user = this.session?.user?.();
       if (!user?.tenant) {
         this.pendientesCount.set(0);
         this.conflictosCount.set(0);
@@ -137,13 +271,22 @@ export class SincronizacionService {
     const stats = { enviadas: 0, confirmadas: 0, conflictos: 0, rechazadas: 0 };
 
     try {
-      if (this.session.offlineSession()) await this.session.restore();
-      const user = this.session.user();
+      if (this.connectivity?.online?.()) {
+        const servidorAlcanzable = await this.connectivity.comprobarServidor();
+        if (!servidorAlcanzable) {
+          this.ultimoError.set('El servidor no responde · reintentando');
+          this.programarProximoDisparo(new Date(Date.now() + 10000));
+          return stats;
+        }
+      }
+
+      if (this.session?.offlineSession?.()) await this.session?.restore?.();
+      const user = this.session?.user?.();
       if (
         !user?.tenant ||
-        this.session.offlineSession() ||
-        this.session.isSupport() ||
-        !this.session.can('sync.write')
+        this.session?.offlineSession?.() ||
+        this.session?.isSupport?.() ||
+        !this.session?.can?.('sync.write')
       ) {
         this.ultimoError.set(
           'Ingresá con conexión a tu empresa para sincronizar las operaciones guardadas.',
@@ -172,6 +315,7 @@ export class SincronizacionService {
       );
       if (pendientes.length === 0) {
         await this.actualizarContadores();
+        this.proximoIntentoEn.set(null);
         return stats;
       }
 
@@ -205,6 +349,13 @@ export class SincronizacionService {
             stats.confirmadas += resp.confirmed || 0;
             stats.conflictos += resp.conflicts || 0;
             stats.rechazadas += resp.rejected || 0;
+
+            const hasRetry = resp.results.some((r) => r.status === 'RETRY');
+            if (hasRetry) {
+              this.proximoIntentoEn.set(new Date(Date.now() + 5000));
+            } else {
+              this.proximoIntentoEn.set(null);
+            }
 
             if ((resp.confirmed ?? 0) > 0) {
               this.notices?.show({
@@ -241,6 +392,7 @@ export class SincronizacionService {
         } catch (err: any) {
           const clasif = clasificarError(err);
           this.ultimoError.set(`Error de sincronización (${clasif.codigo})`);
+          this.proximoIntentoEn.set(new Date(Date.now() + 10000));
           await this.operacionesRepo.aplicarResultados(
             lote.map((op) => ({
               client_request_id: op.id,
@@ -277,6 +429,7 @@ export class SincronizacionService {
     } finally {
       this.sincronizando.set(false);
       await this.actualizarContadores();
+      this.programarProximoDisparo();
       this.cambios.next();
     }
 

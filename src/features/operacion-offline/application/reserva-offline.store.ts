@@ -2,6 +2,7 @@ import { Injectable, effect, inject, signal, untracked } from '@angular/core';
 import { OfflineCatalogStore } from './offline-catalog.store';
 import { SessionService } from '../../usuarios-catalogo/application/session.service';
 import { ReservasLocalesRepository } from '../infrastructure/reservas-locales.repository';
+import { SincronizacionService } from './sincronizacion.service';
 import {
   ItemReservaLocal,
   ReservaLocal,
@@ -17,6 +18,7 @@ export class ReservaOfflineStore {
   catalogo = inject(OfflineCatalogStore);
   private session = inject(SessionService);
   private repo = inject(ReservasLocalesRepository);
+  private syncService = inject(SincronizacionService);
   readonly items = signal<Pick<ItemReservaLocal, 'variante_id' | 'cantidad'>[]>([]);
   readonly sucursalId = signal('');
   readonly fecha = signal('');
@@ -139,6 +141,7 @@ export class ReservaOfflineStore {
       await this.repo.registrar(reserva, items, op);
       this.limpiar();
       await this.catalogo.cargarLocal();
+      void this.syncService.notificarOperacionGuardada();
       return id;
     } finally {
       this.guardando.set(false);
