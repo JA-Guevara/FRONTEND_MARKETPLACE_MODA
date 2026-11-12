@@ -75,7 +75,14 @@ import { ResultadoReporteComponent } from './resultado-reporte.component';
         </div>
 
         <div class="error-msg" *ngIf="errorMsg()">
-          ⚠️ {{ errorMsg() }}
+          <span>⚠️ {{ errorMsg() }}</span>
+          <a
+            *ngIf="errorMsg()?.includes('reportes convencionales') || errorMsg()?.includes('plan no incluye')"
+            routerLink="/admin/reportes"
+            class="link-convencionales"
+          >
+            Ir a reportes convencionales
+          </a>
         </div>
 
         <!-- Chips de sugerencias rápidas (6 ejemplos de 8.2) -->
@@ -97,10 +104,20 @@ import { ResultadoReporteComponent } from './resultado-reporte.component';
       <div class="alerta-card alerta-card--warning" *ngIf="interpretacion()?.status === 'NEEDS_CLARIFICATION'">
         <div class="alerta-header">
           <span class="alerta-icon">❓</span>
-          <strong>Consulta ambigua o incompleta</strong>
+          <strong>Necesito un dato más para armar el reporte.</strong>
         </div>
         <div class="alerta-body">
           <p *ngFor="let q of interpretacion()?.questions">{{ q }}</p>
+          <div class="sugerencias-botones" *ngIf="interpretacion()?.suggestions?.length">
+            <button
+              type="button"
+              class="btn-sugerencia-aclaracion"
+              *ngFor="let s of interpretacion()?.suggestions"
+              (click)="usarSugerencia(s)"
+            >
+              {{ s }}
+            </button>
+          </div>
           <div class="alerta-actions">
             <button class="btn-secundario" (click)="usarMesEnCurso()">
               Usar mes en curso
@@ -119,19 +136,50 @@ import { ResultadoReporteComponent } from './resultado-reporte.component';
           <p *ngFor="let a of interpretacion()?.assumptions">{{ a }}</p>
           <div class="sugerencias-list" *ngIf="interpretacion()?.suggestions?.length">
             <span>Reportes disponibles relacionados:</span>
-            <ul>
-              <li *ngFor="let sug of interpretacion()?.suggestions">{{ sug }}</li>
-            </ul>
+            <div class="sugerencias-botones">
+              <button
+                type="button"
+                class="btn-sugerencia-aclaracion"
+                *ngFor="let sug of interpretacion()?.suggestions"
+                (click)="usarSugerencia(sug)"
+              >
+                {{ sug }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Barra de especificación activa, vista y exportación -->
+      <!-- Franja «Así lo entendí» (con estado READY) -->
+      <div class="franja-entendido" *ngIf="interpretacion()?.status === 'READY' && interpretacion()?.spec">
+        <div class="franja-header">
+          <div class="franja-titulo-row">
+            <span class="franja-titulo">Así lo entendí</span>
+            <span
+              class="interprete-badge"
+              [class.badge-llm]="interpretacion()?.interpreter === 'LLM'"
+              [class.badge-fallback]="interpretacion()?.interpreter === 'FALLBACK'"
+              [class.badge-cache]="interpretacion()?.interpreter === 'CACHE'"
+            >
+              ● {{ etiquetaInterprete() }}
+            </span>
+          </div>
+          <div class="spec-chips">
+            <span class="spec-chip" *ngFor="let c of chipsSpecActiva()">
+              <strong>{{ c.etiqueta }}:</strong> {{ c.valor }}
+            </span>
+          </div>
+          <div class="supuestos-list" *ngIf="interpretacion()?.assumptions?.length">
+            <span class="supuestos-prefijo">Supuestos:</span>
+            <span class="supuesto-item" *ngFor="let a of interpretacion()?.assumptions">{{ a }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Barra de acciones: conmutador de vista y exportación -->
       <div class="barra-acciones" *ngIf="reporteActual()">
-        <div class="spec-chips">
-          <span class="spec-chip" *ngFor="let c of chipsSpecActiva()">
-            <strong>{{ c.etiqueta }}:</strong> {{ c.valor }}
-          </span>
+        <div class="resultado-label">
+          <strong>Resultado:</strong> {{ reporteActual()?.title }}
         </div>
 
         <div class="acciones-der">
@@ -259,99 +307,95 @@ import { ResultadoReporteComponent } from './resultado-reporte.component';
       font-weight: 600;
       color: #334155;
       text-decoration: none;
-      transition: background 0.15s;
-    }
-    .btn-historial:hover {
-      background: #f8fafc;
     }
     .consulta-bar-card {
       background: #ffffff;
       border: 1px solid #e2e8f0;
-      border-radius: 14px;
+      border-radius: 12px;
       padding: 1.25rem;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
       display: flex;
       flex-direction: column;
-      gap: 0.85rem;
+      gap: 1rem;
     }
     .input-row {
       display: flex;
-      align-items: center;
       gap: 0.75rem;
+      align-items: center;
     }
     .btn-mic {
       background: #f8fafc;
       border: 1px solid #cbd5e1;
-      border-radius: 10px;
+      border-radius: 8px;
       padding: 0.65rem 0.85rem;
+      cursor: pointer;
       display: flex;
       align-items: center;
       gap: 0.35rem;
-      cursor: pointer;
-      transition: all 0.2s;
     }
     .btn-mic--recording {
       background: #fee2e2;
       border-color: #ef4444;
+      color: #b91c1c;
       animation: pulse 1.5s infinite;
     }
     @keyframes pulse {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.05); }
-      100% { transform: scale(1); }
-    }
-    .mic-icon {
-      font-size: 1.1rem;
-    }
-    .mic-timer {
-      font-size: 0.8rem;
-      font-weight: 700;
-      color: #dc2626;
+      0% { opacity: 1; }
+      50% { opacity: 0.6; }
+      100% { opacity: 1; }
     }
     .input-prompt {
       flex: 1;
       border: 1px solid #cbd5e1;
-      border-radius: 10px;
+      border-radius: 8px;
       padding: 0.75rem 1rem;
       font-size: 0.95rem;
       outline: none;
-      transition: border-color 0.2s;
     }
     .input-prompt:focus {
-      border-color: #3b82f6;
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      border-color: #7c3aed;
+      box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
     }
     .btn-consultar {
-      background: #2563eb;
+      background: #7c3aed;
       color: #ffffff;
       border: none;
-      border-radius: 10px;
-      padding: 0.75rem 1.35rem;
-      font-size: 0.95rem;
+      border-radius: 8px;
+      padding: 0.75rem 1.5rem;
       font-weight: 600;
       cursor: pointer;
-      transition: background 0.2s;
     }
     .btn-consultar:hover:not(:disabled) {
-      background: #1d4ed8;
+      background: #6d28d9;
     }
     .btn-consultar:disabled {
-      opacity: 0.6;
+      background: #cbd5e1;
       cursor: not-allowed;
     }
     .error-msg {
-      font-size: 0.85rem;
-      color: #dc2626;
       background: #fef2f2;
-      padding: 0.5rem 0.75rem;
-      border-radius: 6px;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      color: #991b1b;
+      font-size: 0.9rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .link-convencionales {
+      color: #2563eb;
+      text-decoration: underline;
+      font-weight: 600;
+      font-size: 0.85rem;
     }
     .sugerencias-chips {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       gap: 0.5rem;
-      font-size: 0.8rem;
+      font-size: 0.85rem;
     }
     .chips-label {
       color: #64748b;
@@ -361,48 +405,139 @@ import { ResultadoReporteComponent } from './resultado-reporte.component';
       background: #f1f5f9;
       border: 1px solid #e2e8f0;
       border-radius: 999px;
-      padding: 0.35rem 0.75rem;
+      padding: 0.3rem 0.75rem;
       font-size: 0.8rem;
       color: #334155;
       cursor: pointer;
-      transition: all 0.15s;
     }
-    .chip-btn:hover {
+    .chip-btn:hover:not(:disabled) {
       background: #e2e8f0;
       color: #0f172a;
     }
     .alerta-card {
       border-radius: 12px;
-      padding: 1rem 1.25rem;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
     }
     .alerta-card--warning {
       background: #fffbeb;
-      border: 1px solid #fde68a;
+      border: 1px solid #fef3c7;
       color: #92400e;
     }
     .alerta-card--danger {
       background: #fef2f2;
-      border: 1px solid #fecaca;
+      border: 1px solid #fee2e2;
       color: #991b1b;
     }
     .alerta-header {
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      margin-bottom: 0.35rem;
+      font-size: 1rem;
     }
-    .alerta-actions {
-      margin-top: 0.75rem;
+    .alerta-body {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      font-size: 0.9rem;
+    }
+    .sugerencias-botones {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .btn-sugerencia-aclaracion {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      padding: 0.4rem 0.85rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #334155;
+      cursor: pointer;
+    }
+    .btn-sugerencia-aclaracion:hover {
+      background: #f1f5f9;
+      color: #0f172a;
     }
     .btn-secundario {
       background: #ffffff;
-      border: 1px solid #d97706;
+      border: 1px solid #f59e0b;
       color: #b45309;
       padding: 0.4rem 0.85rem;
       border-radius: 8px;
       font-size: 0.85rem;
       font-weight: 600;
       cursor: pointer;
+    }
+    .franja-entendido {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+    }
+    .franja-header {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .franja-titulo-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .franja-titulo {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .interprete-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+    }
+    .badge-llm {
+      background: #ede9fe;
+      color: #6d28d9;
+    }
+    .badge-fallback {
+      background: #fef3c7;
+      color: #b45309;
+    }
+    .badge-cache {
+      background: #e0f2fe;
+      color: #0369a1;
+    }
+    .spec-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .spec-chip {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      color: #1e293b;
+    }
+    .supuestos-list {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      color: #475569;
+    }
+    .supuestos-prefijo {
+      font-weight: 700;
+      color: #334155;
+    }
+    .supuesto-item {
+      font-style: italic;
     }
     .barra-acciones {
       display: flex;
@@ -415,17 +550,8 @@ import { ResultadoReporteComponent } from './resultado-reporte.component';
       border-radius: 12px;
       padding: 0.75rem 1rem;
     }
-    .spec-chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-    }
-    .spec-chip {
-      background: #f1f5f9;
-      border: 1px solid #cbd5e1;
-      padding: 0.25rem 0.6rem;
-      border-radius: 6px;
-      font-size: 0.8rem;
+    .resultado-label {
+      font-size: 0.95rem;
       color: #1e293b;
     }
     .acciones-der {
@@ -502,7 +628,6 @@ export class ReportesIaComponent implements OnInit {
     try {
       const defs = await this.api.definitions();
       if (defs && defs.length > 0) {
-        // Enriquecer ejemplos si están disponibles
         const exList = defs.flatMap((d) => d.examples).filter(Boolean);
         if (exList.length >= 6) {
           this.ejemplosSugeridos = exList.slice(0, 6);
@@ -514,6 +639,14 @@ export class ReportesIaComponent implements OnInit {
   usarSugerencia(texto: string): void {
     this.promptTexto = texto;
     this.consultar('TEXT');
+  }
+
+  etiquetaInterprete(): string {
+    const interp = this.interpretacion()?.interpreter;
+    if (interp === 'LLM') return 'Interpretado por IA';
+    if (interp === 'FALLBACK') return 'Interpretado por reglas';
+    if (interp === 'CACHE') return 'Interpretación guardada';
+    return 'Interpretado por IA';
   }
 
   async toggleDictado(): Promise<void> {
@@ -553,7 +686,13 @@ export class ReportesIaComponent implements OnInit {
         this.reporteActual.set(null);
       }
     } catch (err: any) {
-      this.errorMsg.set(err?.error?.detail || err?.message || 'Error al procesar la consulta.');
+      if (err?.status === 403 || err?.error?.error?.code === 'feature_not_in_plan' || err?.error?.code === 'feature_not_in_plan') {
+        const msg = err?.error?.error?.message || err?.error?.message || 'Tu plan no incluye reportes con IA. Podés usar los reportes convencionales.';
+        this.errorMsg.set(msg);
+      } else {
+        this.errorMsg.set(err?.error?.detail || err?.error?.error?.message || err?.message || 'Error al procesar la consulta.');
+      }
+      this.reporteActual.set(null);
     } finally {
       this.cargando.set(false);
     }

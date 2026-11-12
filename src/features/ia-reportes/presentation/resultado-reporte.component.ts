@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, Input } from '@angular/core';
 import {
   formatoCelda,
+  formatoValor,
   ReportResponse,
 } from '../domain/reporte-ia.models';
 
@@ -37,8 +38,32 @@ import {
           <span class="grafico-label">{{ report.chart.label || report.title }}</span>
         </div>
 
-        <!-- Barras verticales / barras simples -->
-        <div class="chart-bars" *ngIf="report.chart.kind === 'BAR'">
+        <!-- Bloques agrupados con groups (ej. Top por sucursal) -->
+        <div class="chart-groups-list" *ngIf="report.groups && report.groups.length > 0">
+          <div class="group-block" *ngFor="let g of report.groups">
+            <div class="group-header">
+              <span class="group-title">{{ g.label }}</span>
+              <span class="group-subtotal" *ngIf="g.subtotal">
+                Subtotal {{ formato(g.subtotal[report.chart.y], tipoColumna(report.chart.y)) }} {{ report.chart.y === 'units' ? 'unidades' : '' }}
+              </span>
+            </div>
+            <div class="group-bars">
+              <div class="bar-row" *ngFor="let row of g.rows">
+                <span class="bar-label">{{ row[report.chart.x] }}</span>
+                <div class="bar-track">
+                  <div
+                    class="bar-fill"
+                    [style.width.%]="calcularPorcentaje(row[report.chart.y])"
+                  ></div>
+                </div>
+                <span class="bar-val">{{ formato(row[report.chart.y], tipoColumna(report.chart.y)) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Barras verticales / barras simples (sin groups) -->
+        <div class="chart-bars" *ngIf="(!report.groups || report.groups.length === 0) && report.chart.kind === 'BAR'">
           <div class="bar-row" *ngFor="let row of report.rows">
             <span class="bar-label">{{ row[report.chart.x] }}</span>
             <div class="bar-track">
@@ -47,12 +72,12 @@ import {
                 [style.width.%]="calcularPorcentaje(row[report.chart.y])"
               ></div>
             </div>
-            <span class="bar-val">{{ formato(row[report.chart.y], 'money') }}</span>
+            <span class="bar-val">{{ formato(row[report.chart.y], tipoColumna(report.chart.y)) }}</span>
           </div>
         </div>
 
-        <!-- Barras agrupadas / comparativa -->
-        <div class="chart-grouped" *ngIf="report.chart.kind === 'GROUPED_BAR'">
+        <!-- Barras agrupadas / comparativa (sin groups) -->
+        <div class="chart-grouped" *ngIf="(!report.groups || report.groups.length === 0) && report.chart.kind === 'GROUPED_BAR'">
           <div class="grouped-item" *ngFor="let row of report.rows">
             <div class="grouped-title">{{ row[report.chart.x] }}</div>
             <div class="grouped-bars-list">
@@ -64,7 +89,7 @@ import {
                     [style.width.%]="calcularPorcentaje(row[s.name] || 0)"
                   ></div>
                 </div>
-                <span class="sub-val">{{ formato(row[s.name] || 0, 'money') }}</span>
+                <span class="sub-val">{{ formato(row[s.name] || 0, tipoColumna(s.name)) }}</span>
               </div>
             </div>
           </div>
@@ -77,10 +102,10 @@ import {
               <div
                 class="line-bar-pill"
                 [style.height.%]="calcularPorcentaje(row[report.chart.y])"
-                [title]="formato(row[report.chart.y], 'money')"
+                [title]="formato(row[report.chart.y], tipoColumna(report.chart.y))"
               ></div>
               <span class="line-step-x">{{ row[report.chart.x] }}</span>
-              <span class="line-step-y">{{ formato(row[report.chart.y], 'money') }}</span>
+              <span class="line-step-y">{{ formato(row[report.chart.y], tipoColumna(report.chart.y)) }}</span>
             </div>
           </div>
         </div>
@@ -99,7 +124,7 @@ import {
                   [style.width.%]="row['percentage'] || calcularPorcentaje(row[report.chart.y])"
                 ></div>
               </div>
-              <span class="pie-amount">{{ formato(row[report.chart.y], 'money') }}</span>
+              <span class="pie-amount">{{ formato(row[report.chart.y], tipoColumna(report.chart.y)) }}</span>
             </div>
           </div>
         </div>
@@ -116,7 +141,34 @@ import {
                 </th>
               </tr>
             </thead>
-            <tbody>
+            <!-- Si hay grupos: filas por grupo + fila de subtotal por grupo -->
+            <tbody *ngIf="report.groups && report.groups.length > 0">
+              <ng-container *ngFor="let g of report.groups">
+                <tr *ngFor="let row of g.rows">
+                  <td *ngFor="let col of report.columns" [class.td-num]="col.type !== 'text'">
+                    {{ formato(row[col.key], col.type) }}
+                  </td>
+                </tr>
+                <tr class="tr-subtotal">
+                  <td *ngFor="let col of report.columns; let first = first" [class.td-num]="col.type !== 'text'">
+                    <strong *ngIf="first">Subtotal {{ g.label }}</strong>
+                    <strong *ngIf="!first && g.subtotal && g.subtotal[col.key] !== undefined">
+                      {{ formato(g.subtotal[col.key], col.type) }}
+                    </strong>
+                    <span *ngIf="!first && (!g.subtotal || g.subtotal[col.key] === undefined)">-</span>
+                  </td>
+                </tr>
+              </ng-container>
+              <!-- Fila de totales generales -->
+              <tr class="tr-totales" *ngIf="report.totals">
+                <td *ngFor="let col of report.columns" [class.td-num]="col.type !== 'text'">
+                  <strong>{{ formato(report.totals[col.key], col.type) }}</strong>
+                </td>
+              </tr>
+            </tbody>
+
+            <!-- Si no hay grupos: filas planas -->
+            <tbody *ngIf="!report.groups || report.groups.length === 0">
               <tr *ngFor="let row of report.rows">
                 <td *ngFor="let col of report.columns" [class.td-num]="col.type !== 'text'">
                   {{ formato(row[col.key], col.type) }}
@@ -208,6 +260,46 @@ import {
       font-weight: 600;
       color: #334155;
     }
+    .chart-groups-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+    .group-block {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .group-block:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    .group-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.25rem;
+    }
+    .group-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .group-subtotal {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #0369a1;
+      background: #f0f9ff;
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+    }
+    .group-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
     .chart-bars {
       display: flex;
       flex-direction: column;
@@ -255,6 +347,12 @@ import {
       display: flex;
       flex-direction: column;
       gap: 1.25rem;
+    }
+    .grouped-item {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 0.5rem;
     }
     .grouped-title {
       font-size: 0.95rem;
@@ -374,6 +472,13 @@ import {
     .th-num, .td-num {
       text-align: right !important;
     }
+    .tr-subtotal {
+      background: #f8fafc;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .tr-subtotal td {
+      color: #334155;
+    }
     .tr-totales {
       background: #f1f5f9;
       border-top: 2px solid #cbd5e1;
@@ -385,19 +490,28 @@ export class ResultadoReporteComponent {
   @Input() vista: 'grafico' | 'tabla' = 'grafico';
 
   formato(valor: unknown, tipo: string): string {
-    return formatoCelda(valor, (tipo as any) || 'text');
+    return formatoValor(valor, (tipo as any) || 'text');
+  }
+
+  tipoColumna(key: string): string {
+    const col = this.report?.columns.find((c) => c.key === key);
+    return col ? col.type : 'text';
   }
 
   calcularPorcentaje(val: any): number {
-    if (!this.report || !this.report.rows.length) return 0;
+    if (!this.report) return 0;
     const num = typeof val === 'number' ? val : parseFloat(val) || 0;
+    let allRows = this.report.rows || [];
+    if (this.report.groups && this.report.groups.length > 0) {
+      allRows = this.report.groups.flatMap((g) => g.rows);
+    }
     const maxVal = Math.max(
-      ...this.report.rows.map((r) => {
+      ...allRows.map((r) => {
         const v = r[this.report!.chart.y];
         return typeof v === 'number' ? v : parseFloat(v) || 0;
       }),
       1
     );
-    return Math.min(100, Math.max(5, (num / maxVal) * 100));
+    return Math.min(100, (num / maxVal) * 100);
   }
 }
