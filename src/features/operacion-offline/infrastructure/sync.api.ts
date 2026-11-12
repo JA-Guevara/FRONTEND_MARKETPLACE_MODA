@@ -13,20 +13,35 @@ export interface SyncBatchResponse {
   results: SyncResult[];
 }
 
+export interface CompetingOperation {
+  server_number: string;
+  device_id: string;
+  synchronized_at: string;
+  client_created_at?: string | null;
+  cashier_name?: string | null;
+  origin?: string | null;
+}
+
 export interface SyncConflictItem {
   refund?: { amount: string; currency: string; status: string; reference?: string | null };
   id: string;
   tenant_id: string;
   branch_id: string;
+  branch_name?: string | null;
+  cashier_name?: string | null;
+  device_id?: string | null;
+  local_folio?: string | null;
   client_request_id: string;
   operation_type: string;
   conflict_type: string;
-  status: 'PENDING' | 'RESOLVED';
+  status: 'OPEN' | 'PENDING' | 'RESOLVED';
   detected_at: string;
   resolved_at?: string | null;
   resolved_by?: string | null;
+  resolved_by_name?: string | null;
   resolution?: string | null;
   resolution_notes?: string | null;
+  competing_operation?: CompetingOperation | null;
   payload_snapshot: any;
   server_state_snapshot: any;
   resolution_payload?: any;
@@ -37,6 +52,7 @@ export interface SyncConflictItem {
     available_quantity: number;
     unit_price: string;
     current_price: string;
+    competing_operation?: CompetingOperation | null;
   }[];
 }
 
@@ -45,13 +61,19 @@ interface ConflictWire {
   id: string;
   client_request_id: string;
   branch_id: string;
+  branch_name?: string | null;
+  cashier_name?: string | null;
+  device_id?: string | null;
+  local_folio?: string | null;
   operation_type: string;
   type: string;
   status: 'OPEN' | 'RESOLVED';
   created_at: string;
   resolved_at?: string;
+  resolved_by_name?: string | null;
   resolution?: string;
   resolution_note?: string;
+  competing_operation?: CompetingOperation | null;
   lines: NonNullable<SyncConflictItem['lines']>;
 }
 
@@ -62,13 +84,19 @@ function convertirConflicto(item: ConflictWire): SyncConflictItem {
     tenant_id: '',
     client_request_id: item.client_request_id,
     branch_id: item.branch_id,
+    branch_name: item.branch_name,
+    cashier_name: item.cashier_name,
+    device_id: item.device_id,
+    local_folio: item.local_folio,
     operation_type: item.operation_type,
     conflict_type: item.type,
     status: item.status === 'OPEN' ? 'PENDING' : 'RESOLVED',
     detected_at: item.created_at,
     resolved_at: item.resolved_at,
+    resolved_by_name: item.resolved_by_name,
     resolution: item.resolution,
     resolution_notes: item.resolution_note,
+    competing_operation: item.competing_operation,
     lines: item.lines,
     payload_snapshot: item.lines.map((line) => ({
       prenda: line.product_name,
@@ -163,11 +191,15 @@ export class SyncApi {
     ).then(convertirConflicto);
   }
 
-  confirmRefund(id: string, body: unknown): Promise<SyncConflictItem> {
+  confirmRefund(
+    id: string,
+    data: { request_id: string; amount: string; reference: string },
+  ): Promise<SyncConflictItem> {
     return firstValueFrom(
-      this.api.post<ConflictWire>('/sync/conflicts/' + id + '/refund', body),
+      this.api.post<ConflictWire>(`/sync/conflicts/${id}/confirm-refund`, data),
     ).then(convertirConflicto);
   }
+
   getBatches(
     page = 1,
     pageSize = 20,

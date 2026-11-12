@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { SyncApi, SyncConflictItem, ResolveConflictPayload } from '../infrastructure/sync.api';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state.component';
 import { StatusBadgeComponent } from '../../../shared/ui/status-badge.component';
+import { SessionService } from '../../usuarios-catalogo/application/session.service';
 
 @Component({
   selector: 'fs-conflictos-sync',
@@ -66,17 +67,55 @@ import { StatusBadgeComponent } from '../../../shared/ui/status-badge.component'
                   <span class="badge-type">{{ c.operation_type }}</span>
                   <span class="badge-conflict danger">{{ c.conflict_type }}</span>
                   <span class="request-id"
-                    >Operación: <code>{{ c.client_request_id.slice(0, 8) }}...</code></span
+                    >Operación: <code>{{ c.local_folio || (c.client_request_id.slice(0, 8) + '...') }}</code></span
                   >
+                  <span class="branch-cashier" *ngIf="c.branch_name || c.cashier_name">
+                    · {{ c.branch_name || 'Sucursal' }} · {{ c.cashier_name || 'Cajero' }} · {{ c.device_id }}
+                  </span>
                 </div>
                 <div class="card-status">
                   <span class="date">{{ c.detected_at | date: 'short' }}</span>
                   <fs-status-badge
-                    [label]="c.status === 'PENDING' ? 'PENDIENTE' : 'RESUELTO'"
-                    [tone]="c.status === 'PENDING' ? 'warn' : 'ok'"
+                    [label]="esPendiente(c) ? 'PENDIENTE' : 'RESUELTO'"
+                    [tone]="esPendiente(c) ? 'warn' : 'ok'"
                   ></fs-status-badge>
                 </div>
               </div>
+
+              <!-- Lista de ítems en conflicto -->
+              @if (c.lines && c.lines.length) {
+                <div class="conflict-lines">
+                  @for (l of c.lines; track l.variant_id) {
+                    <div class="conflict-line-row">
+                      <span class="line-product">{{ l.product_name }}</span>
+                      <span class="line-qty">pedido {{ l.requested_quantity }}</span>
+                      <span class="line-avail">disponible {{ l.available_quantity }}</span>
+                    </div>
+                  }
+                </div>
+              }
+
+              <!-- Recuadro La unidad la tomó (solo para conflictos de STOCK) -->
+              @if (c.conflict_type === 'STOCK') {
+                @if (c.competing_operation) {
+                  <div class="competing-box">
+                    <div class="competing-title">La unidad la tomó</div>
+                    <div class="competing-line1">
+                      Venta {{ c.competing_operation.server_number }} · {{ c.competing_operation.cashier_name || 'Cajero' }} · dispositivo {{ c.competing_operation.device_id }}
+                    </div>
+                    <div class="competing-line2">
+                      Registrada sin conexión {{ formatearFecha(c.competing_operation.client_created_at) }} · Sincronizada {{ formatearFecha(c.competing_operation.synchronized_at) }}
+                    </div>
+                    <div class="competing-rule">
+                      Gana la primera venta confirmada por el servidor.
+                    </div>
+                  </div>
+                } @else {
+                  <div class="competing-null">
+                    No se identificó la operación que tomó la unidad (puede ser un ajuste de inventario).
+                  </div>
+                }
+              }
 
               <div class="diff-view">
                 <div class="diff-col client">
@@ -126,34 +165,44 @@ import { StatusBadgeComponent } from '../../../shared/ui/status-badge.component'
                   }
                 </div>
               }
-              @if (c.status === 'PENDING') {
+
+              @if (esPendiente(c) && puedeResolver()) {
                 <div class="actions">
-                  <button
-                    class="btn primary small"
-                    [disabled]="c.conflict_type !== 'STOCK'"
-                    (click)="abrirModalResolucion(c, 'ADJUST')"
-                  >
-                    Ajustar existencias
-                  </button>
-                  <button
-                    class="btn secondary small"
-                    [disabled]="c.conflict_type !== 'PRICE'"
-                    (click)="abrirModalResolucion(c, 'AUTHORIZE_PRICE')"
-                  >
-                    Autorizar precio
-                  </button>
-                  <button class="btn danger small" (click)="abrirModalResolucion(c, 'CANCEL')">
-                    Cancelar operación
-                  </button>
-                  <button
-                    class="btn small"
-                    [disabled]="!['SUBSCRIPTION', 'PRODUCT_INACTIVE'].includes(c.conflict_type)"
-                    (click)="resolverRapido(c, 'RETRY')"
-                  >
-                    Reintentar
-                  </button>
+                  @if (c.operation_type === 'PURCHASE') {
+                    <span class="compra-cliente-aviso">Compra de cliente: no se realizó ningún cobro.</span>
+                    <button class="btn btn-action danger small" (click)="abrirModalResolucion(c, 'CANCEL')">
+                      Anular
+                    </button>
+                  } @else {
+                    <button
+                      class="btn btn-action primary small"
+                      [disabled]="c.conflict_type !== 'STOCK'"
+                      (click)="abrirModalResolucion(c, 'ADJUST')"
+                    >
+                      Ajustar existencias
+                    </button>
+                    <button
+                      class="btn btn-action secondary small"
+                      [disabled]="c.conflict_type !== 'PRICE'"
+                      (click)="abrirModalResolucion(c, 'AUTHORIZE_PRICE')"
+                    >
+                      Autorizar precio
+                    </button>
+                    @if (c.conflict_type === 'STOCK' || c.conflict_type === 'SUBSCRIPTION' || c.conflict_type === 'PRODUCT_INACTIVE') {
+                      <button
+                        class="btn btn-action small"
+                        (click)="resolverReintentar(c)"
+                        title="Usalo después de registrar el ingreso de mercadería."
+                      >
+                        Reintentar
+                      </button>
+                    }
+                    <button class="btn btn-action danger small" (click)="abrirModalResolucion(c, 'CANCEL')">
+                      Anular y reintegrar
+                    </button>
+                  }
                 </div>
-              } @else {
+              } @else if (c.status === 'RESOLVED') {
                 <div class="resolution-info">
                   <strong>Resuelto:</strong> {{ c.resolution }} -
                   {{ c.resolution_notes || 'Sin notas' }}
@@ -295,6 +344,82 @@ import { StatusBadgeComponent } from '../../../shared/ui/status-badge.component'
         font-weight: 600;
         margin-right: 0.5rem;
       }
+      .branch-cashier {
+        font-size: 0.85rem;
+        color: #4b5563;
+      }
+      .conflict-lines {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        margin-bottom: 0.75rem;
+        background: #fdfaf5;
+        padding: 0.5rem 0.75rem;
+        border-radius: 6px;
+      }
+      .conflict-line-row {
+        display: flex;
+        gap: 1rem;
+        font-size: 0.875rem;
+      }
+      .line-product {
+        font-weight: 600;
+        color: #111827;
+      }
+      .line-qty {
+        color: #6b7280;
+      }
+      .line-avail {
+        color: #b45309;
+        font-weight: 500;
+      }
+      .competing-box {
+        background: #f8fafc;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 0.85rem 1rem;
+        margin-bottom: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+      }
+      .competing-title {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #0f172a;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .competing-line1 {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #1e293b;
+      }
+      .competing-line2 {
+        font-size: 0.85rem;
+        color: #475569;
+      }
+      .competing-rule {
+        font-size: 0.8rem;
+        font-style: italic;
+        color: #64748b;
+        margin-top: 0.25rem;
+      }
+      .competing-null {
+        font-size: 0.85rem;
+        font-style: italic;
+        color: #64748b;
+        background: #f1f5f9;
+        padding: 0.5rem 0.75rem;
+        border-radius: 6px;
+        margin-bottom: 1rem;
+      }
+      .compra-cliente-aviso {
+        font-size: 0.85rem;
+        color: #6b7280;
+        font-weight: 500;
+        align-self: center;
+      }
       .diff-view {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -328,6 +453,7 @@ import { StatusBadgeComponent } from '../../../shared/ui/status-badge.component'
         display: flex;
         gap: 0.5rem;
         flex-wrap: wrap;
+        align-items: center;
       }
       .resolution-info {
         font-size: 0.85rem;
@@ -426,35 +552,12 @@ import { StatusBadgeComponent } from '../../../shared/ui/status-badge.component'
 })
 export class ConflictosSyncComponent implements OnInit {
   private syncApi: SyncApi;
+  private session: SessionService | null = null;
+  private inicializado = false;
+
   refundReferences: Record<string, string> = {};
   refundConfirmed: Record<string, boolean> = {};
   private refundAttempts: Record<string, string> = {};
-  async confirmRefund(c: SyncConflictItem) {
-    if (this.enviando() || !c.refund || !this.refundConfirmed[c.id]) return;
-    this.enviando.set(true);
-    this.errorMsg.set(null);
-    try {
-      const request_id = this.refundAttempts[c.id] || crypto.randomUUID();
-      this.refundAttempts[c.id] = request_id;
-      await this.syncApi.confirmRefund(c.id, {
-        request_id,
-        amount: c.refund.amount,
-        reference: this.refundReferences[c.id].trim(),
-      });
-      this.mensajeExito.set(
-        'Reintegro de efectivo registrado. No vuelvas a entregar este importe.',
-      );
-      await this.cargarConflictos();
-    } catch (e: any) {
-      this.errorMsg.set(e?.error?.message || e?.message || 'No se pudo confirmar el reintegro.');
-    } finally {
-      this.enviando.set(false);
-    }
-  }
-
-  constructor(syncApi?: SyncApi) {
-    this.syncApi = syncApi ?? inject(SyncApi);
-  }
 
   conflictos = signal<SyncConflictItem[]>([]);
   filtroEstado = signal<string>('PENDING');
@@ -468,7 +571,49 @@ export class ConflictosSyncComponent implements OnInit {
   cantidades: Record<string, number> = {};
   enviando = signal<boolean>(false);
 
+  constructor(syncApi?: SyncApi, sessionService?: SessionService) {
+    if (syncApi) {
+      this.syncApi = syncApi;
+    } else {
+      try {
+        this.syncApi = inject(SyncApi);
+      } catch {
+        this.syncApi = {} as SyncApi;
+      }
+    }
+    if (sessionService) {
+      this.session = sessionService;
+    } else {
+      try {
+        this.session = inject(SessionService, { optional: true });
+      } catch {
+        this.session = null;
+      }
+    }
+  }
+
+  puedeResolver(): boolean {
+    return this.session ? this.session.can('sync_conflicts.resolve') : true;
+  }
+
+  esPendiente(c: SyncConflictItem): boolean {
+    return c.status === 'PENDING' || c.status === 'OPEN';
+  }
+
+  formatearFecha(iso?: string | null): string {
+    if (!iso) return '-';
+    try {
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return iso;
+      return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
+    } catch {
+      return iso;
+    }
+  }
+
   async ngOnInit() {
+    if (this.inicializado) return;
+    this.inicializado = true;
     await this.cargarConflictos();
   }
 
@@ -523,19 +668,63 @@ export class ConflictosSyncComponent implements OnInit {
       this.cerrarModal();
       await this.cargarConflictos();
     } catch (e: any) {
-      this.errorMsg.set(e?.message || 'Error al resolver el conflicto');
+      const msg =
+        e?.error?.message ||
+        e?.error?.error?.message ||
+        e?.message ||
+        'Error al resolver el conflicto';
+      this.errorMsg.set(msg);
+    } finally {
+      this.enviando.set(false);
+    }
+  }
+
+  async resolverReintentar(c: SyncConflictItem) {
+    this.enviando.set(true);
+    this.errorMsg.set(null);
+    try {
+      await this.syncApi.resolveConflict(c.id, {
+        resolution: 'RETRY',
+        resolution_notes: 'Reintento tras ingreso de mercadería',
+      });
+      this.mensajeExito.set('Operación confirmada exitosamente tras reintento.');
+      await this.cargarConflictos();
+    } catch (e: any) {
+      const msg =
+        e?.error?.message ||
+        e?.error?.error?.message ||
+        e?.message ||
+        'Error al programar reintento.';
+      this.errorMsg.set(msg);
     } finally {
       this.enviando.set(false);
     }
   }
 
   async resolverRapido(c: SyncConflictItem, resolucion: 'RETRY') {
+    return this.resolverReintentar(c);
+  }
+
+  async confirmRefund(c: SyncConflictItem) {
+    if (this.enviando() || !c.refund || !this.refundConfirmed[c.id]) return;
+    this.enviando.set(true);
+    this.errorMsg.set(null);
     try {
-      await this.syncApi.resolveConflict(c.id, { resolution: resolucion });
-      this.mensajeExito.set('Operación encolada para reintento.');
+      const request_id = this.refundAttempts[c.id] || crypto.randomUUID();
+      this.refundAttempts[c.id] = request_id;
+      await this.syncApi.confirmRefund(c.id, {
+        request_id,
+        amount: c.refund.amount,
+        reference: this.refundReferences[c.id].trim(),
+      });
+      this.mensajeExito.set(
+        'Reintegro de efectivo registrado. No vuelvas a entregar este importe.',
+      );
       await this.cargarConflictos();
     } catch (e: any) {
-      this.errorMsg.set('Error al programar reintento.');
+      this.errorMsg.set(e?.error?.message || e?.message || 'No se pudo confirmar el reintegro.');
+    } finally {
+      this.enviando.set(false);
     }
   }
 }
