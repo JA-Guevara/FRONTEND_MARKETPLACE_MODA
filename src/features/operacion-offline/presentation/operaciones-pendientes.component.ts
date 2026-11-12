@@ -11,47 +11,31 @@ import { OperacionPendiente } from '../domain/reserva-offline.models';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state.component';
 import { StatusBadgeComponent } from '../../../shared/ui/status-badge.component';
 import { SessionService } from '../../usuarios-catalogo/application/session.service';
+import {
+  etiquetaEstado,
+  etiquetaTipo,
+  formatearFechaCorta,
+} from '../domain/sincronizacion.models';
 
 @Component({
   selector: 'fs-operaciones-pendientes',
-  imports: [CommonModule, EmptyStateComponent, StatusBadgeComponent],
+  imports: [CommonModule, RouterLink, EmptyStateComponent, StatusBadgeComponent],
   template: `
     <div class="sp2-page">
       <div class="offline-heading">
         <div>
           <p class="crumbs">Sin conexión / Sincronización</p>
-          <h1>Operaciones locales y sincronización</h1>
+          <h1>Operaciones locales</h1>
           <p>Supervisa las ventas y reservas generadas fuera de línea y su estado de envío.</p>
-        </div>
-        <div class="actions">
-          <button
-            class="btn primary"
-            [disabled]="syncService.sincronizando()"
-            (click)="sincronizar()"
-          >
-            {{ syncService.sincronizando() ? 'Sincronizando...' : '⇅ Sincronizar ahora' }}
-          </button>
         </div>
       </div>
 
-      <div class="kpi-grid">
-        <div class="kpi-card">
-          <span class="kpi-label">Pendientes</span>
-          <span class="kpi-value warning">{{ syncService.pendientesCount() }}</span>
+      @if (esSesionVencida()) {
+        <div class="alert warning banner-sesion">
+          <span>Tenés {{ syncService.pendientesCount() }} ventas por subir. Iniciá sesión para enviarlas.</span>
+          <a routerLink="/iniciar-sesion" class="btn small primary">Iniciar sesión</a>
         </div>
-        <div class="kpi-card">
-          <span class="kpi-label">Conflictos</span>
-          <span class="kpi-value danger">{{ syncService.conflictosCount() }}</span>
-        </div>
-        <div class="kpi-card">
-          <span class="kpi-label">Último sincronizado</span>
-          <span class="kpi-value sub">{{
-            syncService.ultimoSync()
-              ? (syncService.ultimoSync() | date: 'short')
-              : 'Sin sincronizaciones'
-          }}</span>
-        </div>
-      </div>
+      }
 
       @if (syncService.ultimoError()) {
         <p class="alert danger">{{ syncService.ultimoError() }}</p>
@@ -81,48 +65,57 @@ import { SessionService } from '../../usuarios-catalogo/application/session.serv
                 <th>Tipo</th>
                 <th>Identificador</th>
                 <th>Fecha creación</th>
-                <th>Intentos</th>
+                <th>Detalle</th>
                 <th>Estado</th>
-                <th>Detalle error / Server Ref</th>
                 <th>Acción</th>
               </tr>
             </thead>
             <tbody>
               @for (op of operacionesFiltradas(); track op.id) {
-                <tr>
+                <tr [class.row-conflict]="op.estado === 'CONFLICTO'">
                   <td>
                     <span
                       class="badge-type"
                       [class.sale]="op.tipo === 'VENTA'"
                       [class.res]="op.tipo === 'RESERVA'"
                     >
-                      {{ op.tipo }}
+                      {{ etiquetaTipo(op.tipo) }}
                     </span>
                   </td>
                   <td>
-                    <code>{{ op.id.slice(0, 8) }}...</code>
+                    <code>{{ op.payload?.local_folio || op.id.slice(0, 8) }}</code>
                   </td>
-                  <td>{{ op.creada_en | date: 'short' }}</td>
-                  <td>{{ op.intentos || 0 }}</td>
+                  <td>{{ fechaCorta(op.creada_en) }}</td>
                   <td>
-                    <fs-status-badge [label]="op.estado"></fs-status-badge>
-                  </td>
-                  <td>
-                    @if (op.refund_amount) {
-                      <p>
-                        Reintegro
-                        {{ op.refund_status === 'confirmed' ? 'confirmado' : 'pendiente' }}: Bs
-                        {{ op.refund_amount }}
-                      </p>
-                    }
-                    @if (op.server_ref) {
-                      <span class="text-success"
-                        >Ref: {{ op.server_ref }} ({{ op.server_numero }})</span
-                      >
-                    } @else if (op.ultimo_error) {
-                      <span class="text-danger">{{ op.ultimo_error }}</span>
+                    @if (op.tipo === 'VENTA') {
+                      <span>Bs {{ op.payload?.total || '0.00' }}</span>
                     } @else {
-                      <span class="text-muted">-</span>
+                      <span>{{ op.payload?.prendas || op.payload?.items?.length || 1 }} prenda(s)</span>
+                    }
+                    @if (op.refund_amount) {
+                      <small class="d-block text-muted">
+                        Reintegro {{ op.refund_status === 'confirmed' ? 'confirmado' : 'pendiente' }}: Bs {{ op.refund_amount }}
+                      </small>
+                    }
+                  </td>
+                  <td>
+                    @if (op.estado === 'CONFLICTO' && canResolveConflicts()) {
+                      <a routerLink="/admin/conflictos" class="conflict-link">
+                        {{ etiquetaEstado(op.estado) }} →
+                      </a>
+                    } @else {
+                      <span
+                        class="status-pill"
+                        [class.status-pending]="op.estado === 'PENDIENTE' || op.estado === 'ENVIADA'"
+                        [class.status-confirmed]="op.estado === 'CONFIRMADA'"
+                        [class.status-conflict]="op.estado === 'CONFLICTO'"
+                        [class.status-rejected]="op.estado === 'RECHAZADA' || op.estado === 'ANULADA'"
+                      >
+                        {{ etiquetaEstado(op.estado) }}
+                        @if (op.estado === 'CONFIRMADA' && op.server_numero) {
+                          <strong> {{ op.server_numero }}</strong>
+                        }
+                      </span>
                     }
                   </td>
                   <td>
@@ -131,16 +124,31 @@ import { SessionService } from '../../usuarios-catalogo/application/session.serv
                 </tr>
               } @empty {
                 <tr>
-                  <td colspan="7">
+                  <td colspan="6">
                     <fs-empty-state
-                      title="Sin operaciones"
-                      description="No hay operaciones registradas con este filtro."
+                      title="No hay operaciones guardadas en este dispositivo."
+                      description="Las ventas y reservas generadas en este navegador aparecerán aquí."
                     ></fs-empty-state>
                   </td>
                 </tr>
               }
             </tbody>
           </table>
+        </div>
+
+        <div class="panel-footer">
+          <div class="footer-sync-info">
+            <span>Última sincronización: {{ fechaCorta(syncService.ultimoSync()) || 'Sin sincronizaciones' }}</span>
+          </div>
+          <div class="footer-actions">
+            <button
+              class="btn secondary"
+              [disabled]="syncService.sincronizando()"
+              (click)="sincronizar()"
+            >
+              {{ syncService.sincronizando() ? 'Sincronizando...' : 'Sincronizar ahora' }}
+            </button>
+          </div>
         </div>
       </section>
 
@@ -149,11 +157,11 @@ import { SessionService } from '../../usuarios-catalogo/application/session.serv
           <div class="modal-card" (click)="$event.stopPropagation()">
             <h3>Detalle de la operación</h3>
             <p><strong>ID:</strong> {{ detalleSeleccionado()!.operacion.id }}</p>
-            <p><strong>Tipo:</strong> {{ detalleSeleccionado()!.operacion.tipo }}</p>
-            <p><strong>Estado:</strong> {{ detalleSeleccionado()!.operacion.estado }}</p>
+            <p><strong>Tipo:</strong> {{ etiquetaTipo(detalleSeleccionado()!.operacion.tipo) }}</p>
+            <p><strong>Estado:</strong> {{ etiquetaEstado(detalleSeleccionado()!.operacion.estado) }}</p>
             <p>
               <strong>Creada en:</strong>
-              {{ detalleSeleccionado()!.operacion.creada_en | date: 'medium' }}
+              {{ fechaCorta(detalleSeleccionado()!.operacion.creada_en) }}
             </p>
             @if (detalleSeleccionado()!.operacion.server_ref) {
               <p><strong>Server Ref:</strong> {{ detalleSeleccionado()!.operacion.server_ref }}</p>
@@ -211,42 +219,14 @@ import { SessionService } from '../../usuarios-catalogo/application/session.serv
         font-weight: 700;
         color: #111827;
       }
-      .kpi-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        margin-bottom: 1.5rem;
-      }
-      .kpi-card {
-        background: #fff;
-        padding: 1.25rem;
-        border-radius: 8px;
-        border: 1px solid #e5e7eb;
+      .banner-sesion {
         display: flex;
-        flex-direction: column;
-      }
-      .kpi-label {
-        font-size: 0.85rem;
-        color: #6b7280;
-        font-weight: 500;
-      }
-      .kpi-value {
-        font-size: 1.75rem;
-        font-weight: 700;
-        margin-top: 0.25rem;
-        color: #111827;
-      }
-      .kpi-value.warning {
-        color: #f59e0b;
-      }
-      .kpi-value.danger {
-        color: #ef4444;
-      }
-      .kpi-value.sub {
-        font-size: 1rem;
-        color: #4b5563;
-        font-weight: 600;
-        margin-top: 0.5rem;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        background: #fef3c7;
+        color: #92400e;
+        border: 1px solid #fde68a;
       }
       .toolbar {
         display: flex;
@@ -306,16 +286,45 @@ import { SessionService } from '../../usuarios-catalogo/application/session.serv
         background: #fef3c7;
         color: #92400e;
       }
-      .text-success {
-        color: #059669;
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.8rem;
         font-weight: 500;
       }
-      .text-danger {
-        color: #dc2626;
-        font-size: 0.85rem;
+      .status-pending {
+        background: #fef3c7;
+        color: #92400e;
       }
-      .text-muted {
-        color: #9ca3af;
+      .status-confirmed {
+        background: #d1fae5;
+        color: #065f46;
+      }
+      .status-conflict {
+        background: #fee2e2;
+        color: #991b1b;
+      }
+      .status-rejected {
+        background: #f3f4f6;
+        color: #4b5563;
+      }
+      .conflict-link {
+        color: #dc2626;
+        font-weight: 600;
+        text-decoration: underline;
+      }
+      .panel-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        border-top: 1px solid #e5e7eb;
+        background: #f9fafb;
+        font-size: 0.85rem;
+        color: #6b7280;
       }
       .btn {
         padding: 0.5rem 1rem;
@@ -324,6 +333,15 @@ import { SessionService } from '../../usuarios-catalogo/application/session.serv
         cursor: pointer;
         border: 1px solid #d1d5db;
         background: #fff;
+        text-decoration: none;
+      }
+      .btn.secondary {
+        background: #fff;
+        color: #374151;
+        border: 1px solid #d1d5db;
+      }
+      .btn.secondary:hover {
+        background: #f3f4f6;
       }
       .btn.primary {
         background: #2563eb;
@@ -338,6 +356,10 @@ import { SessionService } from '../../usuarios-catalogo/application/session.serv
         padding: 0.75rem 1rem;
         border-radius: 6px;
         margin-bottom: 1rem;
+      }
+      .alert.warning {
+        background: #fef3c7;
+        color: #92400e;
       }
       .alert.danger {
         background: #fee2e2;
@@ -365,13 +387,6 @@ import { SessionService } from '../../usuarios-catalogo/application/session.serv
         max-height: 85vh;
         overflow-y: auto;
       }
-      .code-block {
-        background: #f3f4f6;
-        padding: 1rem;
-        border-radius: 6px;
-        font-size: 0.8rem;
-        overflow-x: auto;
-      }
       .modal-actions {
         margin-top: 1rem;
         display: flex;
@@ -384,7 +399,10 @@ export class OperacionesPendientesComponent implements OnInit, OnDestroy {
   private cambios?: Subscription;
   syncService: SincronizacionService;
   operacionesRepo: OperacionesLocalesRepository;
-  private session: SessionService;
+  session: SessionService;
+
+  etiquetaTipo = etiquetaTipo;
+  etiquetaEstado = etiquetaEstado;
 
   constructor(
     syncService?: SincronizacionService,
@@ -397,16 +415,32 @@ export class OperacionesPendientesComponent implements OnInit, OnDestroy {
   }
 
   operaciones = signal<OperacionPendiente[]>([]);
-  filtroActual = signal<string>('TODAS');
-  filtros = ['TODAS', 'PENDIENTE', 'CONFIRMADA', 'CONFLICTO', 'RECHAZADA'];
+  filtroActual = signal<string>('Todas');
+  filtros = ['Todas', 'Por subir', 'Confirmadas', 'Necesitan revisión'];
   mensajeExito = signal<string | null>(null);
   detalleSeleccionado = signal<OperacionConDetalle | null>(null);
+
+  readonly esSesionVencida = computed(() => {
+    return this.syncService.estado?.() === 'SESION_VENCIDA';
+  });
+
+  canResolveConflicts(): boolean {
+    return this.session?.can?.('sync_conflicts.read') ?? false;
+  }
+
+  fechaCorta(fecha: string | Date | null | undefined): string {
+    if (!fecha) return '';
+    return formatearFechaCorta(fecha);
+  }
 
   operacionesFiltradas = computed(() => {
     const f = this.filtroActual();
     const ops = this.operaciones();
-    if (f === 'TODAS') return ops;
-    return ops.filter((o) => o.estado === f);
+    if (f === 'Todas') return ops;
+    if (f === 'Por subir') return ops.filter((o) => o.estado === 'PENDIENTE' || o.estado === 'ENVIADA');
+    if (f === 'Confirmadas') return ops.filter((o) => o.estado === 'CONFIRMADA');
+    if (f === 'Necesitan revisión') return ops.filter((o) => o.estado === 'CONFLICTO');
+    return ops;
   });
 
   async ngOnInit() {
@@ -415,6 +449,7 @@ export class OperacionesPendientesComponent implements OnInit, OnDestroy {
     });
     await this.cargarOperaciones();
   }
+
   ngOnDestroy() {
     this.cambios?.unsubscribe();
   }
